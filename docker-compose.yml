@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+  latexbot:
+    build: .
+    environment: 
+      - LATEXBOT_ORG=arctos6135
+      - LATEXBOT_USER=latexbot
+      - LATEXBOT_PASS=Arctos6135RyverBot
