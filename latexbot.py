@@ -30,7 +30,7 @@ chat.send_message("""
 LaTeX Bot v0.1.1 is online! Note that to reduce load, I only check messages once per 3 seconds or more!
 """ + help_text, creator)
 
-def _render(msg: pyryver.Message, formula: str):
+def _render(msg: pyryver.ChatMessage, formula: str):
     global chat, creator
     if len(formula) > 0:
         img = ql_render(formula)
@@ -38,7 +38,7 @@ def _render(msg: pyryver.Message, formula: str):
     else:
         chat.send_message("Formula can't be empty.", creator)
 
-def _movetoforum(msg: pyryver.Message, name: str):
+def _movetoforum(msg: pyryver.ChatMessage, name: str):
     global chat, creator, forums
     if len(name) > 0:
         field = pyryver.FIELD_NAME
@@ -60,7 +60,7 @@ def _movetoforum(msg: pyryver.Message, name: str):
             chat = new_forum
             chat.send_message("LaTeX Bot has moved here.", creator)
 
-def _movetoteam(msg: pyryver.Message, name: str):
+def _movetoteam(msg: pyryver.ChatMessage, name: str):
     global chat, creator, teams
     if len(name) > 0:
         field = pyryver.FIELD_NAME
@@ -81,15 +81,15 @@ def _movetoteam(msg: pyryver.Message, name: str):
             chat = new_team
             chat.send_message("LaTeX Bot has moved here.", creator)
 
-def _help(msg: pyryver.Message, s: str):
+def _help(msg: pyryver.ChatMessage, s: str):
     global chat, creator
     chat.send_message(help_text, creator)
 
-def _ping(msg: pyryver.Message, s: str):
+def _ping(msg: pyryver.ChatMessage, s: str):
     global chat, creator
     chat.send_message("Pong", creator)
 
-def _updatechats(msg: pyryver.Message, s: str):
+def _updatechats(msg: pyryver.ChatMessage, s: str):
     global chat, creator, forums, teams
     if msg.get_raw_data()["from"]["id"] not in admins:
         chat.send_message("I'm sorry Dave, I'm afraid I can't do that.", creator)
