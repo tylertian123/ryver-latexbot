@@ -1,5 +1,6 @@
 import pyryver
 from quicklatex_render import ql_render
+from random import randrange
 import time
 import os
 
@@ -11,7 +12,7 @@ teams = ryver.get_cached_chats(pyryver.TYPE_TEAM)
 
 chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-creator = None
+creator = pyryver.Creator("LaTeX Bot v0.2.2", "")
 
 # Current admins are: @tylertian, @moeez, @michalkdavis, and @Julia
 admins = set([1311906, 1605991, 1108002, 1108009])
@@ -19,18 +20,20 @@ enabled = True
 
 help_text = f"""
 Basic commands:
-  - `@latexbot render <formula>` - Renders LaTeX.
+  - `@latexbot render <formula>` - Render LaTeX.
   - `@latexbot help` - Print a help message.
   - `@latexbot ping` - I will respond with "Pong" if I'm here.
-  - `@latexbot updateChats` - Updates the list of forums/teams.
+  - `@latexbot updateChats` - Update the list of forums/teams.
+  - `@latexbot whatDoYouThink <thing>` - Ask my opinion of a thing!
 
 Commands only accessible by Bot Admins:
   - `@latexbot moveToForum [(name|nickname)=]<forum>` - Move me to another forum.
   - `@latexbot moveToTeam [(name|nickname)=]<team>` - Move me to another team.
-  - `@latexbot deleteMessages <count>` - Deletes the last <count> messages.
+  - `@latexbot deleteMessages <count>` - Delete the last <count> messages.
   - `@latexbot disable` - Disable me.
   - `@latexbot enable` - Enable me.
   - `@latexbot kill` - Kill me (:fearful:).
+  - `@latexbot sleep <seconds>` - Put me to sleep for a certain amount of time.
 
 Current Bot Admins are: {admins}.
 
@@ -40,7 +43,7 @@ However, the `moveToForum`/`moveToTeam` commands can still be used to specify wh
 
 print("LaTeX Bot is running!")
 chat.send_message("""
-LaTeX Bot v0.2.1 is online! Note that to reduce load, I only check messages once per 3 seconds or more!
+LaTeX Bot v0.2.2 is online! Note that to reduce load, I only check messages once per 3 seconds or more!
 """ + help_text, creator)
 
 def check_admin(msg: pyryver.ChatMessage) -> bool:
@@ -133,6 +136,7 @@ def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         count = int(s)
     except ValueError:
         chat.send_message("Invalid number.", creator)
+        return
     msgs = chat.get_messages(count)
     for message in msgs:
         message.delete()
@@ -154,6 +158,40 @@ def _kill(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     chat.send_message("Goodbye, world.", creator)
     raise Exception("I have been killed :(")
 
+yes_msgs = [
+    "Yes.",
+    "I like it!",
+    "Brilliant!",
+    "Genius!",
+    "Do it!",
+    "It's good.",
+    ":thumbsup:",
+]
+no_msgs = [
+    "No.",
+    ":thumbsdown",
+    "I hate it.",
+    "Please no.",
+    "It's bad.",
+    "It's stupid.",
+]
+
+def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    msgs = yes_msgs if randrange(2) == 0 else no_msgs
+    chat.send_message(msgs[randrange(len(msgs))], creator)
+
+def _sleep(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    secs = 0
+    try:
+        secs = float(s)
+    except ValueError:
+        chat.send_message("Invalid number.", creator)
+        return
+    chat.send_message("Good night! :sleeping:", creator)
+    time.sleep(secs)
+    chat.send_message("Good morning!", creator)
+    
+
 command_processors = {
     "render": _render,
     "moveToForum": _movetoforum,
@@ -164,6 +202,8 @@ command_processors = {
     "deleteMessages": _deletemessages,
     "disable": _disable,
     "kill": _kill,
+    "whatDoYouThink": _whatdoyouthink,
+    "sleep": _sleep,
 }
 
 try:
