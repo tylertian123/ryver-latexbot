@@ -3,16 +3,28 @@ from quicklatex_render import ql_render
 from random import randrange
 import time
 import os
+import requests
 
 ryver = pyryver.Ryver(
     os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
 
 forums = ryver.get_cached_chats(pyryver.TYPE_FORUM)
 teams = ryver.get_cached_chats(pyryver.TYPE_TEAM)
+users = ryver.get_cached_chats(pyryver.TYPE_USER)
+
+# Get user avatar URLs
+# This information is not included in the regular user info
+# It is retrieved from a different URL
+resp = requests.post(ryver.url_prefix + "Ryver.Info()?$format=json", headers=ryver.headers)
+resp.raise_for_status()
+users_json = resp.json()["d"]["users"]
+user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 
 chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-creator = pyryver.Creator("LaTeX Bot v0.2.2", "")
+version = "v0.2.3"
+
+creator = pyryver.Creator(f"LaTeX Bot {version}", "")
 
 # Current admins are: @tylertian, @moeez, @michalkdavis, and @Julia
 admins = set([1311906, 1605991, 1108002, 1108009])
@@ -23,13 +35,13 @@ Basic commands:
   - `@latexbot render <formula>` - Render LaTeX.
   - `@latexbot help` - Print a help message.
   - `@latexbot ping` - I will respond with "Pong" if I'm here.
-  - `@latexbot updateChats` - Update the list of forums/teams.
+  - `@latexbot updateChats` - Update the list of forums/teams and users.
   - `@latexbot whatDoYouThink <thing>` - Ask my opinion of a thing!
 
 Commands only accessible by Bot Admins:
-  - `@latexbot moveToForum [(name|nickname)=]<forum>` - Move me to another forum.
-  - `@latexbot moveToTeam [(name|nickname)=]<team>` - Move me to another team.
+  - `@latexbot moveTo [(name|nickname)=]<forum|team>` - Move me to another forum/team.
   - `@latexbot deleteMessages <count>` - Delete the last <count> messages.
+  - `@latexbot moveMessages <count> [(name|nickname)=]<forum|team>` - Move the last <count> messages to another forum/team.
   - `@latexbot disable` - Disable me.
   - `@latexbot enable` - Enable me.
   - `@latexbot kill` - Kill me (:fearful:).
@@ -42,12 +54,27 @@ However, the `moveToForum`/`moveToTeam` commands can still be used to specify wh
 """
 
 print("LaTeX Bot is running!")
-chat.send_message("""
-LaTeX Bot v0.2.2 is online! Note that to reduce load, I only check messages once per 3 seconds or more!
+chat.send_message(f"""
+LaTeX Bot {version} is online! Note that to reduce load, I only check messages once per 3 seconds or more!
 """ + help_text, creator)
+
 
 def check_admin(msg: pyryver.ChatMessage) -> bool:
     return msg.get_raw_data()["from"]["id"] in admins
+
+
+def get_chat_from_str(name: str) -> pyryver.Chat:
+    field = pyryver.FIELD_NAME
+    # Handle the name= or nickname= syntax
+    if name.startswith("name="):
+        field = pyryver.FIELD_NAME
+        # Slice off the beginning
+        name = name[name.index("=") + 1:]
+    elif name.startswith("nickname="):
+        field = pyryver.FIELD_NICKNAME
+        name = name[name.index("=") + 1:]
+    return pyryver.get_obj_by_field(forums + teams, field, name)
+
 
 def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
     if len(formula) > 0:
@@ -57,57 +84,21 @@ def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
         chat.send_message("Formula can't be empty.", creator)
 
 
-def _movetoforum(_chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
+def _moveto(_chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
     global chat
     if not check_admin(msg):
         _chat.send_message(
             "I'm sorry Dave, I'm afraid I can't do that.", creator)
         return
     if len(name) > 0:
-        field = pyryver.FIELD_NAME
-        # Handle the name= or nickname= syntax
-        if name.startswith("name="):
-            field = pyryver.FIELD_NAME
-            # Slice off the beginning
-            name = name[name.index("=") + 1:]
-        elif name.startswith("nickname="):
-            field = pyryver.FIELD_NICKNAME
-            name = name[name.index("=") + 1:]
-
         # Find new chat
-        new_forum = pyryver.get_obj_by_field(forums, field, name)
-        if not new_forum:
+        new_chat = get_chat_from_str(name)
+        if not new_chat:
             # Note the underscore
-            _chat.send_message("Forum not found.", creator)
+            _chat.send_message("Forum/team not found.", creator)
         else:
             _chat.send_message(f"LaTeX Bot has moved to {name}.", creator)
-            chat = new_forum
-            chat.send_message("LaTeX Bot has moved here.", creator)
-
-
-def _movetoteam(_chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
-    global chat
-    if not check_admin(msg):
-        _chat.send_message(
-            "I'm sorry Dave, I'm afraid I can't do that.", creator)
-        return
-    if len(name) > 0:
-        field = pyryver.FIELD_NAME
-        # Handle the name= or nickname= syntax
-        if name.startswith("name="):
-            field = pyryver.FIELD_NAME
-            # Slice off the beginning
-            name = name[name.index("=") + 1:]
-        elif name.startswith("nickname="):
-            field = pyryver.FIELD_NICKNAME
-            name = name[name.index("=") + 1:]
-
-        new_team = pyryver.get_obj_by_field(teams, field, name)
-        if not new_team:
-            _chat.send_message("Team not found.", creator)
-        else:
-            _chat.send_message(f"LaTeX Bot has moved to {name}.", creator)
-            chat = new_team
+            chat = new_chat
             chat.send_message("LaTeX Bot has moved here.", creator)
 
 
@@ -123,14 +114,16 @@ def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     global forums, teams
     forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, force_update=True)
     teams = ryver.get_cached_chats(pyryver.TYPE_TEAM, force_update=True)
+    users = ryver.get_cached_chats(pyryver.TYPE_USER, force_update=True)
     chat.send_message("Forums/Teams updated.", creator)
+
 
 def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     if not check_admin(msg):
         chat.send_message(
             "I'm sorry Dave, I'm afraid I can't do that.", creator)
         return
-    
+
     count = 0
     try:
         count = int(s)
@@ -141,6 +134,7 @@ def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     for message in msgs:
         message.delete()
 
+
 def _disable(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     if not check_admin(msg):
         chat.send_message(
@@ -150,6 +144,7 @@ def _disable(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     enabled = False
     chat.send_message("LaTeX Bot disabled.", creator)
 
+
 def _kill(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     if not check_admin(msg):
         chat.send_message(
@@ -157,6 +152,7 @@ def _kill(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         return
     chat.send_message("Goodbye, world.", creator)
     raise Exception("I have been killed :(")
+
 
 yes_msgs = [
     "Yes.",
@@ -176,9 +172,11 @@ no_msgs = [
     "It's stupid.",
 ]
 
+
 def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     msgs = yes_msgs if randrange(2) == 0 else no_msgs
     chat.send_message(msgs[randrange(len(msgs))], creator)
+
 
 def _sleep(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     secs = 0
@@ -190,12 +188,50 @@ def _sleep(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     chat.send_message("Good night! :sleeping:", creator)
     time.sleep(secs)
     chat.send_message("Good morning!", creator)
-    
+
+
+def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    if not check_admin(msg):
+        chat.send_message(
+            "I'm sorry Dave, I'm afraid I can't do that.", creator)
+        return
+
+    s = s.split(" ")
+    if len(s) < 2:
+        chat.send_message("Invalid syntax.", creator)
+        return
+
+    count = 0
+    try:
+        count = int(s[0])
+    except ValueError:
+        chat.send_message("Invalid number.", creator)
+        return
+
+    to = get_chat_from_str(" ".join(s[1:]))
+    if not to:
+        chat.send_message("Forum/team not found", creator)
+        return
+
+    msgs = chat.get_messages(count)
+    for msg in msgs:
+        # Get the creator
+        msg_creator = msg.get_creator()
+        # If no creator then get author
+        if not msg_creator:
+            # First attempt to search for the ID in the list
+            # if that fails then get it directly using a request
+            msg_author = pyryver.get_obj_by_field(
+                users, pyryver.FIELD_ID, msg.get_author_id()) or msg.get_author()
+            # Pretend to be another person
+            msg_creator = pyryver.Creator(msg_author.get_display_name(), user_avatars[msg_author.get_id()])
+        to.send_message(msg.get_body(), msg_creator)
+        msg.delete()
+
 
 command_processors = {
     "render": _render,
-    "moveToForum": _movetoforum,
-    "moveToTeam": _movetoteam,
+    "moveTo": _moveto,
     "help": _help,
     "ping": _ping,
     "updateChats": _updatechats,
@@ -204,6 +240,7 @@ command_processors = {
     "kill": _kill,
     "whatDoYouThink": _whatdoyouthink,
     "sleep": _sleep,
+    "moveMessages": _movemessages,
 }
 
 try:
@@ -228,7 +265,8 @@ try:
                 forums + teams, pyryver.FIELD_ID, chat_id)
             if not chat_source:
                 print("Error: Cannot find chat for: " + str(via))
-                chat.send_message("Error: Cannot find source of message. Try `@latexbot updateChats`.", creator)
+                chat.send_message(
+                    "Error: Cannot find source of message. Try `@latexbot updateChats`.", creator)
                 continue
             # We need to get the actual message from the chat, because the one in the notification may be cut off
             chat_message = chat_source.get_message_from_id(message_id)[0]
@@ -236,10 +274,11 @@ try:
 
             if text[0] == "@latexbot" and len(text) >= 2:
                 print("Command received: " + " ".join(text))
-                
+
                 if enabled:
                     if text[1] in command_processors:
-                        command_processors[text[1]](chat_source, chat_message, " ".join(text[2:]))
+                        command_processors[text[1]](
+                            chat_source, chat_message, " ".join(text[2:]))
                     else:
                         chat_source.send_message(
                             "Sorry, I didn't understand what you were asking me to do.", creator)
@@ -254,5 +293,7 @@ except KeyboardInterrupt:
     pass
 except Exception as e:
     chat.send_message("An unexpected error has occurred:\n" + str(e), creator)
+    chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
+    raise
 
 chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
