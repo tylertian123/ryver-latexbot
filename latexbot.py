@@ -15,14 +15,15 @@ users = ryver.get_cached_chats(pyryver.TYPE_USER)
 # Get user avatar URLs
 # This information is not included in the regular user info
 # It is retrieved from a different URL
-resp = requests.post(ryver.url_prefix + "Ryver.Info()?$format=json", headers=ryver.headers)
+resp = requests.post(ryver.url_prefix +
+                     "Ryver.Info()?$format=json", headers=ryver.headers)
 resp.raise_for_status()
 users_json = resp.json()["d"]["users"]
 user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 
 chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-version = "v0.2.3"
+version = "v0.2.4"
 
 creator = pyryver.Creator(f"LaTeX Bot {version}", "")
 
@@ -214,7 +215,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         return
 
     msgs = chat.get_messages(count)
-    for msg in msgs:
+    for msg in msgs[::-1]:
         # Get the creator
         msg_creator = msg.get_creator()
         # If no creator then get author
@@ -224,8 +225,21 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             msg_author = pyryver.get_obj_by_field(
                 users, pyryver.FIELD_ID, msg.get_author_id()) or msg.get_author()
             # Pretend to be another person
-            msg_creator = pyryver.Creator(msg_author.get_display_name(), user_avatars[msg_author.get_id()])
-        to.send_message(msg.get_body(), msg_creator)
+            msg_creator = pyryver.Creator(
+                msg_author.get_display_name(), user_avatars[msg_author.get_id()])
+        
+        msg_body = msg.get_body()
+        # Handle reactions
+        # Because reactions are from multiple people they can't really be moved the same way
+        if msg.get_reactions():
+            msg_body += "\n"
+            for emoji, people in msg.get_reactions().items():
+                # Instead for each reaction, append a line at the bottom with the emoji
+                # and every user's display name who reacted with the reaction
+                u = [pyryver.get_obj_by_field(users, pyryver.FIELD_ID, person) for person in people]
+                msg_body += f"\n:{emoji}:: {', '.join([user.get_display_name() if user else 'unknown' for user in u])}"
+
+        msg_id = to.send_message(msg_body, msg_creator)
         msg.delete()
 
 
