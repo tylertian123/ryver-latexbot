@@ -9,9 +9,9 @@ import typing
 ryver = pyryver.Ryver(
     os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
 
-forums = ryver.get_cached_chats(pyryver.TYPE_FORUM)
-teams = ryver.get_cached_chats(pyryver.TYPE_TEAM)
-users = ryver.get_cached_chats(pyryver.TYPE_USER)
+forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, force_update=True)
+teams = ryver.get_cached_chats(pyryver.TYPE_TEAM, force_update=True)
+users = ryver.get_cached_chats(pyryver.TYPE_USER, force_update=True)
 
 # Get user avatar URLs
 # This information is not included in the regular user info
@@ -24,7 +24,7 @@ user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 
 chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-version = "v0.3.0"
+version = "v0.3.1"
 
 creator = pyryver.Creator(f"LaTeX Bot {version}", "")
 
@@ -33,31 +33,34 @@ admins = set([1311906, 1605991, 1108002, 1108009])
 enabled = True
 
 help_text = f"""
-Basic commands:
-  - `@latexbot render <formula>` - Render LaTeX.
-  - `@latexbot help` - Print a help message.
+Basic Commands:
+  - `@latexbot render <formula>` - Render a LaTeX formula.
+  - `@latexbot help` - Get a list of all the commands.
   - `@latexbot ping` - I will respond with "Pong" if I'm here.
-  - `@latexbot updateChats` - Update the list of forums/teams and users.
   - `@latexbot whatDoYouThink <thing>` - Ask my opinion of a thing!
+
+Administrative Commands:
+  - `@latexbot deleteMessages <count>` - Delete the last <count> messages. **Accessible to Org, Forum and Bot Admins only.**
+  - `@latexbot moveMessages <count> [(name|nickname)=]<forum|team>` - Move the last <count> messages to another forum/team. **Accessible to Org, Forum and Bot Admins only.**
+
+Roles Commands:
   - `@latexbot getUserRoles <user>` - List all roles of a user.
   - `@latexbot getAllRoles` - List all roles and users with that role.
-
-Commands only accessible by Bot Admins:
-  - `@latexbot moveTo [(name|nickname)=]<forum|team>` - Move me to another forum/team.
-  - `@latexbot deleteMessages <count>` - Delete the last <count> messages.
-  - `@latexbot moveMessages <count> [(name|nickname)=]<forum|team>` - Move the last <count> messages to another forum/team.
-  - `@latexbot disable` - Disable me.
-  - `@latexbot enable` - Enable me.
-  - `@latexbot kill` - Kill me (:fearful:).
-  - `@latexbot sleep <seconds>` - Put me to sleep for a certain amount of time.
-  - `@latexbot addToRole <role> <people>` - Add people to a role. Note role names cannot contain spaces.
-  - `@latexbot removeFromRole <role> <people>` - Remove people from a role.
   - `@latexbot @role <role> [message]` - @'s all users with a role.
+  - `@latexbot addToRole <role> <people>` - Add people to a role. Note role names cannot contain spaces. **Accessible to Org, Forum and Bot Admins only.**
+  - `@latexbot removeFromRole <role> <people>` - Remove people from a role. **Accessible to Org, Forum and Bot Admins only.**
 
-Current Bot Admins are: {admins}.
+Developer Commands:
+  - `@latexbot disable` - Disable me. **Accessible to Org and Bot Admins only.**
+  - `@latexbot enable` - Enable me. **Accessible to Org and Bot Admins only.**
+  - `@latexbot kill` - Kill me (:fearful:). **Accessible to Org and Bot Admins only.**
+  - `@latexbot sleep <seconds>` - Put me to sleep for a certain amount of time. **Accessible to Org and Bot Admins only.**
 
-Note: Starting from LaTeX Bot v0.2.0, I will respond no matter which forum/team the message was sent in.
-However, the `moveToForum`/`moveToTeam` commands can still be used to specify where I should send other messages, and `updateChats` needs to be run for me to discover new chat rooms.
+Miscellaneous Commands:
+  - `@latexbot updateChats` - Update the list of forums/teams and users.
+  - `@latexbot moveTo [(name|nickname)=]<forum|team>` - Move me to another forum/team. **Accessible to Org and Bot Admins only.**
+
+Current Bot Admins are: {', '.join([pyryver.get_obj_by_field(users, pyryver.FIELD_ID, uid).get_display_name() for uid in admins])}.
 """
 
 print("LaTeX Bot is running!")
@@ -65,9 +68,48 @@ chat.send_message(f"""
 LaTeX Bot {version} is online! Note that to reduce load, I only check messages once per 3 seconds or more!
 """ + help_text, creator)
 
+ACCESS_LEVEL_EVERYONE = 0
+ACCESS_LEVEL_FORUM_ADMIN = 1
+ACCESS_LEVEL_ORG_ADMIN = 2
+ACCESS_LEVEL_BOT_ADMIN = 3
 
-def check_admin(msg: pyryver.ChatMessage) -> bool:
-    return msg.get_raw_data()["from"]["id"] in admins
+
+def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, level: int) -> bool:
+    if level <= ACCESS_LEVEL_EVERYONE:
+        return True
+
+    if level <= ACCESS_LEVEL_BOT_ADMIN and msg.get_author_id() in admins:
+        return True
+
+    user = pyryver.get_obj_by_field(
+        users, pyryver.FIELD_ID, msg.get_author_id())
+    if not user:
+        return False
+
+    if level <= ACCESS_LEVEL_ORG_ADMIN and user.is_admin():
+        return True
+
+    is_forum_admin = False
+    if isinstance(chat, pyryver.GroupChat):
+        member = chat.get_member(msg.get_author_id())
+        if member:
+            is_forum_admin = member.is_admin()
+
+    if level <= ACCESS_LEVEL_FORUM_ADMIN and is_forum_admin:
+        return True
+
+    return False
+
+
+access_denied_messages = [
+    "I'm sorry Dave, I'm afraid I can't do that.",
+    "ACCESS DENIED",
+    "![NO](https://i.kym-cdn.com/photos/images/original/001/483/348/bdd.jpg)"
+]
+
+
+def get_access_denied_message() -> str:
+    return access_denied_messages[randrange(len(access_denied_messages))]
 
 
 def get_chat_from_str(name: str) -> pyryver.Chat:
@@ -107,9 +149,9 @@ def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
 
 def _moveto(_chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
     global chat
-    if not check_admin(msg):
+    if not is_authorized(_chat, msg, ACCESS_LEVEL_ORG_ADMIN):
         _chat.send_message(
-            "I'm sorry Dave, I'm afraid I can't do that.", creator)
+            get_access_denied_message(), creator)
         return
     if len(name) > 0:
         # Find new chat
@@ -140,7 +182,7 @@ def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     # This information is not included in the regular user info
     # It is retrieved from a different URL
     resp = requests.post(ryver.url_prefix +
-                        "Ryver.Info()?$format=json", headers=ryver.headers)
+                         "Ryver.Info()?$format=json", headers=ryver.headers)
     resp.raise_for_status()
     users_json = resp.json()["d"]["users"]
     user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
@@ -148,9 +190,9 @@ def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    if not check_admin(msg):
+    if not is_authorized(chat, msg, ACCESS_LEVEL_FORUM_ADMIN):
         chat.send_message(
-            "I'm sorry Dave, I'm afraid I can't do that.", creator)
+            get_access_denied_message(), creator)
         return
 
     count = 0
@@ -165,9 +207,9 @@ def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _disable(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    if not check_admin(msg):
+    if not is_authorized(chat, msg, ACCESS_LEVEL_ORG_ADMIN):
         chat.send_message(
-            "I'm sorry Dave, I'm afraid I can't do that.", creator)
+            get_access_denied_message(), creator)
         return
     global enabled
     enabled = False
@@ -175,9 +217,9 @@ def _disable(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _kill(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    if not check_admin(msg):
+    if not is_authorized(chat, msg, ACCESS_LEVEL_ORG_ADMIN):
         chat.send_message(
-            "I'm sorry Dave, I'm afraid I can't do that.", creator)
+            get_access_denied_message(), creator)
         return
     chat.send_message("Goodbye, world.", creator)
     raise Exception("I have been killed :(")
@@ -208,6 +250,10 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _sleep(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    if not is_authorized(chat, msg, ACCESS_LEVEL_ORG_ADMIN):
+        chat.send_message(
+            get_access_denied_message(), creator)
+        return
     secs = 0
     try:
         secs = float(s)
@@ -220,9 +266,9 @@ def _sleep(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    if not check_admin(msg):
+    if not is_authorized(chat, msg, ACCESS_LEVEL_FORUM_ADMIN):
         chat.send_message(
-            "I'm sorry Dave, I'm afraid I can't do that.", creator)
+            get_access_denied_message(), creator)
         return
 
     s = s.split(" ")
@@ -255,7 +301,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             # Pretend to be another person
             msg_creator = pyryver.Creator(
                 msg_author.get_display_name(), user_avatars.get(msg_author.get_id(), ""))
-        
+
         msg_body = msg.get_body()
         # Handle reactions
         # Because reactions are from multiple people they can't really be moved the same way
@@ -264,7 +310,8 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             for emoji, people in msg.get_reactions().items():
                 # Instead for each reaction, append a line at the bottom with the emoji
                 # and every user's display name who reacted with the reaction
-                u = [pyryver.get_obj_by_field(users, pyryver.FIELD_ID, person) for person in people]
+                u = [pyryver.get_obj_by_field(
+                    users, pyryver.FIELD_ID, person) for person in people]
                 msg_body += f"\n:{emoji}:: {', '.join([user.get_display_name() if user else 'unknown' for user in u])}"
 
         msg_id = to.send_message(msg_body, msg_creator)
@@ -272,76 +319,80 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
-    if not check_admin(msg):
+    if not is_authorized(chat, msg, ACCESS_LEVEL_FORUM_ADMIN):
         chat.send_message(
-            "I'm sorry Dave, I'm afraid I can't do that.", creator)
+            get_access_denied_message(), creator)
         return
 
     args = s.split(" ")
     if len(args) < 2:
         chat.send_message("Invalid syntax.", creator)
         return
-    
+
     role = args[0]
     for username in args[1:]:
         if username.startswith("@"):
             # The username can begin with an @ for mentions
             username = username[1:]
-        user = pyryver.get_obj_by_field(users, pyryver.FIELD_USER_USERNAME, username)
+        user = pyryver.get_obj_by_field(
+            users, pyryver.FIELD_USER_USERNAME, username)
         if not user:
-            chat.send_message(f"User '{username}' not found! Try `@latexbot updateChats` to update the list of users.\nSkipping...", creator)
+            chat.send_message(
+                f"User '{username}' not found! Try `@latexbot updateChats` to update the list of users.\nSkipping...", creator)
             continue
         # Watch out for no about
-        existing_roles = parse_roles(user.get_about()) if user.get_about() else []
+        existing_roles = parse_roles(
+            user.get_about()) if user.get_about() else []
         if role in existing_roles:
-            chat.send_message(f"Warning: User '{username}' already has role '{role}'.", creator)
+            chat.send_message(
+                f"Warning: User '{username}' already has role '{role}'.", creator)
             continue
-        
+
         user.set_profile(about=(user.get_about() or "") + f"\n<Role: {role}>")
 
     chat.send_message("Operation successful.", creator)
 
 
 def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
-    if not check_admin(msg):
+    if not is_authorized(chat, msg, ACCESS_LEVEL_FORUM_ADMIN):
         chat.send_message(
-            "I'm sorry Dave, I'm afraid I can't do that.", creator)
+            get_access_denied_message(), creator)
         return
 
     args = s.split(" ")
     if len(args) < 2:
         chat.send_message("Invalid syntax.", creator)
         return
-    
+
     role = args[0]
     for username in args[1:]:
         if username.startswith("@"):
             # The username can begin with an @ for mentions
             username = username[1:]
-        user = pyryver.get_obj_by_field(users, pyryver.FIELD_USER_USERNAME, username)
+        user = pyryver.get_obj_by_field(
+            users, pyryver.FIELD_USER_USERNAME, username)
         if not user:
-            chat.send_message(f"User '{username}' not found! Try `@latexbot updateChats` to update the list of users.\nSkipping...", creator)
+            chat.send_message(
+                f"User '{username}' not found! Try `@latexbot updateChats` to update the list of users.\nSkipping...", creator)
             continue
         # In case about is None
         if not user.get_about():
-            chat.send_message(f"Warning: User '{username}' does not have role '{role}'.", creator)
+            chat.send_message(
+                f"Warning: User '{username}' does not have role '{role}'.", creator)
             continue
         # Filter out all the lines that have the role in it
-        about = '\n'.join([l for l in user.get_about().split("\n") if l != f"<Role: {role}>"])
+        about = '\n'.join(
+            [l for l in user.get_about().split("\n") if l != f"<Role: {role}>"])
         if len(about) == len(user.get_about()):
-            chat.send_message(f"Warning: User '{username}' does not have role '{role}'.", creator)
+            chat.send_message(
+                f"Warning: User '{username}' does not have role '{role}'.", creator)
             continue
-        user.set_profile(about=about)        
+        user.set_profile(about=about)
 
     chat.send_message("Operation successful.", creator)
 
 
 def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    if not check_admin(msg):
-        chat.send_message(
-            "I'm sorry Dave, I'm afraid I can't do that.", creator)
-        return
-
     role = ""
     message = ""
     try:
@@ -357,18 +408,19 @@ def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             roles = parse_roles(user.get_about())
             if role in roles:
                 usernames.append("@" + user.get_username())
-    
+
     if len(usernames) == 0:
         chat.send_message("Error: No users have that role.", creator)
         return
-    
+
     author = msg.get_author()
     # Pretend to be the creator
-    msg_creator = pyryver.Creator(author.get_display_name(), user_avatars.get(author.get_id(), ""))
+    msg_creator = pyryver.Creator(
+        author.get_display_name(), user_avatars.get(author.get_id(), ""))
     chat.send_message(f"{' '.join(usernames)}\n{message}", msg_creator)
     # Get rid of the original message
     msg.delete()
-    
+
 
 def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     # Mentions
@@ -380,10 +432,11 @@ def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         return
     roles = "\n".join(parse_roles(user.get_about()))
     if roles:
-        chat.send_message(f"User '{s}' has the following roles:\n{roles}", creator)
+        chat.send_message(
+            f"User '{s}' has the following roles:\n{roles}", creator)
     else:
         chat.send_message(f"User '{s}' has no roles.", creator)
-    
+
 
 def _getallroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     all_roles = {}
@@ -395,9 +448,10 @@ def _getallroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
                     all_roles[role].append(user.get_username())
                 else:
                     all_roles[role] = [user.get_username()]
-    
+
     if all_roles:
-        roles_str = "\n".join([f"**{role}**: {', '.join(usernames)}" for role, usernames in all_roles.items()])
+        roles_str = "\n".join(
+            [f"**{role}**: {', '.join(usernames)}" for role, usernames in all_roles.items()])
         chat.send_message(f"All roles:\n{roles_str}", creator)
     else:
         chat.send_message(f"There are currently no roles.", creator)
@@ -472,7 +526,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         pass
     except Exception as e:
-        chat.send_message("An unexpected error has occurred:\n" + str(e), creator)
+        chat.send_message(
+            "An unexpected error has occurred:\n" + str(e), creator)
         chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
         raise
 

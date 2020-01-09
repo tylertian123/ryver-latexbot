@@ -149,21 +149,25 @@ class TopicReply(Message):
         """
         return self.data["comment"]
 
-    # Overrides Message.get_author()
-    # These two methods aren't implemented here because a topic reply's data
-    # does not contain info about its creator.
-    # There is a "deferred" URL, but that always results in HTTP 500.
     def get_author(self) -> "User":
         """
-        Get the author of this reply, as a User object. DOES NOT WORK!
+        Get the author of this reply, as a User object.
+
+        Unlike the other implementations, this does not send any requests.
         """
-        raise NotImplementedError
+        return User(self.cred, TYPE_USER, self.data["createUser"])
 
     def get_author_id(self) -> int:
         """
-        Get the ID of the author of this reply. DOES NOT WORK!
+        Get the ID of the author of this reply.
         """
-        raise NotImplementedError
+        return self.data["createUser"]["id"]
+
+    def get_topic(self) -> "Topic":
+        """
+        Get the topic this reply was sent to.
+        """
+        return Topic(self.cred, TYPE_TOPIC, self.data["post"])
 
 
 class Topic(Message):
@@ -220,7 +224,7 @@ class Topic(Message):
         Note that this method does send requests, so it may take some time.
         """
         url = self.cred.url_prefix + TYPE_TOPIC_REPLY + \
-            f"?$format=json&$filter=((post/id eq {self.get_id()}))"
+            f"?$format=json&$filter=((post/id eq {self.get_id()}))&$expand=createUser,post"
         replies = get_all(url, self.cred.headers, top=top,
                           skip=skip, param="&")
         return [TopicReply(self.cred, TYPE_TOPIC_REPLY, data) for data in replies]
@@ -406,6 +410,10 @@ class User(Chat):
     A Ryver user.
     """
 
+    ROLE_USER = "ROLE_USER"
+    ROLE_ADMIN = "ROLE_ADMIN"
+    ROLE_GUEST = "ROLE_GUEST"
+
     def get_username(self) -> str:
         """
         Get the username of this user.
@@ -417,37 +425,57 @@ class User(Chat):
         Get the display name of this user.
         """
         return self.data["displayName"]
-    
+
     def get_role(self) -> str:
         """
-        Get this user's Role.
+        Get this user's Role in their profile.
+
+        Note this is different from get_roles(). While this one gets the "Role"
+        of the user from the profile, get_roles() gets the user's roles in the
+        organization (user, guest, admin).
         """
         return self.data["description"]
-    
+
     def get_about(self) -> str:
         """
         Get this user's About.
         """
         return self.data["aboutMe"]
-    
+
     def get_time_zone(self) -> str:
         """
         Get this user's Time Zone.
         """
         return self.data["timeZone"]
-    
+
     def get_email_address(self) -> str:
         """
         Get this user's Email Address.
         """
         return self.data["emailAddress"]
-    
+
     def get_activated(self) -> bool:
         """
         Get whether this user's account is activated.
         """
         return self.data["active"]
     
+    def get_roles(self) -> typing.List[str]:
+        """
+        Get this user's role in the organization.
+
+        Note this is different from get_role(). While this one gets the user's
+        roles in the organization (user, guest, admin), get_role() gets the
+        user's role from their profile.
+        """
+        return self.data["roles"]
+    
+    def is_admin(self) -> bool:
+        """
+        Get whether this user is an org admin.
+        """
+        return User.ROLE_ADMIN in self.get_roles()
+
     def set_profile(self, display_name: str = None, role: str = None, about: str = None) -> None:
         """
         Update this user's profile.
@@ -486,6 +514,76 @@ class User(Chat):
 
         self.data["active"] = activated
 
+    def create_topic(self, from_user: "User", subject: str, body: str, creator: Creator = None) -> Topic:
+        """
+        Create a topic in this chat.
+
+        from_user must be the User object of the same user as in the Ryver
+        object. E.g. if the Ryver object was created with a username of foo,
+        from_user must be the User object of the user. (Don't blame me the API
+        is weird.)
+
+        Note that this method does send requests, so it may take some time.
+
+        Returns the topic created.
+        """
+        url = self.cred.url_prefix + "posts"
+        data = {
+            "body": body,
+            "subject": subject,
+            "outAssociations": {
+                "results": [
+                    {
+                        "inSecured": True,
+                        "inType": self.entity_type,
+                        "inId": self.id,
+                        "inName": self.get_display_name(),
+                    },
+                    {
+                        "inSecured": True,
+                        "inType": from_user.entity_type,
+                        "inId": from_user.id,
+                        "inName": from_user.get_display_name(),
+                    }
+                ]
+            },
+            "recordType": "note"
+        }
+        if creator:
+            data["createSource"] = creator.to_dict()
+        resp = requests.post(url, json=data, headers=self.cred.headers)
+        resp.raise_for_status()
+        return Topic(self.cred, TYPE_TOPIC, resp.json()["d"]["results"])
+
+
+class GroupChatMember(Object):
+    """
+    A member in a forum or team.
+    """
+
+    ROLE_MEMBER = "ROLE_TEAM_MEMBER"
+    ROLE_ADMIN = "ROLE_TEAM_ADMIN"
+
+    def get_role(self) -> str:
+        """
+        Get the role of this member.
+        """
+        return self.data["role"]
+
+    def get_user(self) -> User:
+        """
+        Get this member as a User object.
+        """
+        return User(self.cred, TYPE_USER, self.data["member"])
+    
+    def is_admin(self) -> bool:
+        """
+        Get whether this member is an admin of their forum.
+
+        Note that this does not check for org admins.
+        """
+        return GroupChatMember.ROLE_ADMIN == self.get_role()
+
 
 class GroupChat(Chat):
     """
@@ -504,6 +602,33 @@ class GroupChat(Chat):
         """
         return self.data["nickname"]
 
+    def get_members(self, top: int = -1, skip: int = 0) -> typing.List[GroupChatMember]:
+        """
+        Get all the members of this chat.
+
+        Note that this method does send requests, so it may take some time.
+        """
+        url = self.cred.url_prefix + \
+            f"/{self.get_type()}({self.get_id()})/members?$expand=member"
+        members = get_all(url=url, headers=self.cred.headers,
+                          top=top, skip=skip, param="&")
+        return [GroupChatMember(self.cred, TYPE_GROUPCHAT_MEMBER, data) for data in members]
+
+    def get_member(self, id: int) -> GroupChatMember:
+        """
+        Get a member by user ID.
+
+        Note that this method does send requests, so it may take some time.
+
+        If the user is not found, this method will return None.
+        """
+        url = self.cred.url_prefix + \
+            f"/{self.get_type()}({self.get_id()})/members?$expand=member&$filter=((member/id eq {id}))"
+        resp = requests.get(url, headers=self.cred.headers)
+        resp.raise_for_status()
+        member = resp.json()["d"]["results"]
+        return GroupChatMember(self.cred, TYPE_GROUPCHAT_MEMBER, member[0]) if member else None
+
 
 class Forum(GroupChat):
     """
@@ -521,6 +646,11 @@ class Notification(Object):
     """
     A Ryver user notification.
     """
+
+    PREDICATE_MENTION = "chat_mention"
+    PREDICATE_GROUP_MENTION = "group_mention"
+    PREDICATE_COMMENT = "commented_on"
+    PREDICATE_TASK_COMPLETED = "completed"
 
     def get_predicate(self) -> str:
         """
@@ -625,13 +755,13 @@ class Notification(Object):
         etc. Note that for task completions, there is NO via.
         """
         return self.data["via"]
-    
+
     def get_new(self) -> bool:
         """
         Get whether this notification is new.
         """
         return self.data["new"]
-    
+
     def get_unread(self) -> bool:
         """
         Get whether this notification is unread.
@@ -654,7 +784,7 @@ class Notification(Object):
         # Patch not post!
         resp = requests.patch(url, json=data, headers=self.cred.headers)
         resp.raise_for_status()
-        
+
         self.data["unread"] = unread
         self.data["new"] = new
 
@@ -787,6 +917,7 @@ TYPE_TEAM = "workrooms"
 TYPE_TOPIC = "posts"
 TYPE_TOPIC_REPLY = "postComments"
 TYPE_NOTIFICATION = "userNotifications"
+TYPE_GROUPCHAT_MEMBER = "workroomMembers"
 
 # Note: messages aren't really a "real" type in the Ryver API
 # They're just here for the sake of completeness and to fit in with the rest of pyryver
@@ -800,6 +931,7 @@ ENTITY_TYPES = {
     TYPE_MESSAGE: "Entity.ChatMessage",
     TYPE_TOPIC_REPLY: "Entity.Post.Comment",
     TYPE_NOTIFICATION: "Entity.UserNotification",
+    TYPE_GROUPCHAT_MEMBER: "Entity.Workroom.Member",
 }
 
 TYPES_DICT = {
@@ -810,16 +942,23 @@ TYPES_DICT = {
     TYPE_MESSAGE: ChatMessage,
     TYPE_TOPIC_REPLY: TopicReply,
     TYPE_NOTIFICATION: Notification,
+    TYPE_GROUPCHAT_MEMBER: GroupChatMember,
 }
 
-FIELD_USER_USERNAME = "username"
-FIELD_USER_EMAIL_ADDR = "emailAddress"
-FIELD_USER_DISPLAY_NAME = "displayName"
-
+# Field names for get_obj_by_field
+FIELD_USERNAME = "username"
+FIELD_EMAIL_ADDR = "emailAddress"
+FIELD_DISPLAY_NAME = "displayName"
 FIELD_NAME = "name"
 FIELD_NICKNAME = "nickname"
 FIELD_ID = "id"
 
+# Here only for backwards compatibility, use the field names above
+FIELD_USER_USERNAME = "username"
+FIELD_USER_EMAIL_ADDR = "emailAddress"
+FIELD_USER_DISPLAY_NAME = "displayName"
+# Notification predicates
+# Here only for backwards compatibility, use the ones in the notification class
 NOTIF_PREDICATE_MENTION = "chat_mention"
 NOTIF_PREDICATE_GROUP_MENTION = "group_mention"
 NOTIF_PREDICATE_COMMENT = "commented_on"
