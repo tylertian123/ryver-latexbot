@@ -417,17 +417,74 @@ class User(Chat):
         Get the display name of this user.
         """
         return self.data["displayName"]
+    
+    def get_role(self) -> str:
+        """
+        Get this user's Role.
+        """
+        return self.data["description"]
+    
+    def get_about(self) -> str:
+        """
+        Get this user's About.
+        """
+        return self.data["aboutMe"]
+    
+    def get_time_zone(self) -> str:
+        """
+        Get this user's Time Zone.
+        """
+        return self.data["timeZone"]
+    
+    def get_email_address(self) -> str:
+        """
+        Get this user's Email Address.
+        """
+        return self.data["emailAddress"]
+    
+    def get_activated(self) -> bool:
+        """
+        Get whether this user's account is activated.
+        """
+        return self.data["active"]
+    
+    def set_profile(self, display_name: str = None, role: str = None, about: str = None) -> None:
+        """
+        Update this user's profile.
+
+        If any of the arguments are None, they will not be changed.
+
+        Note that this method does send requests, so it may take some time.
+
+        Note: This also updates these properties in this object!
+        """
+        url = self.cred.url_prefix + f"/{self.get_type()}(id={self.get_id()})"
+        data = {
+            "aboutMe": about if about is not None else self.get_about(),
+            "description": role if role is not None else self.get_role(),
+            "displayName": display_name if display_name is not None else self.get_display_name(),
+        }
+        resp = requests.patch(url, json=data, headers=self.cred.headers)
+        resp.raise_for_status()
+
+        self.data["aboutMe"] = data["aboutMe"]
+        self.data["description"] = data["description"]
+        self.data["displayName"] = data["displayName"]
 
     def set_activated(self, activated: bool) -> None:
         """
         Activate or deactivate the user. Requires admin.
 
         Note that this method does send requests, so it may take some time.
+
+        Note: This also updates these properties in this object!
         """
         url = self.cred.url_prefix + \
             f"{self.obj_type}({self.id})/User.Active.Set(value='{'true' if activated else 'false'}')"
         resp = requests.post(url, headers=self.cred.headers)
         resp.raise_for_status()
+
+        self.data["active"] = activated
 
 
 class GroupChat(Chat):
@@ -568,12 +625,26 @@ class Notification(Object):
         etc. Note that for task completions, there is NO via.
         """
         return self.data["via"]
+    
+    def get_new(self) -> bool:
+        """
+        Get whether this notification is new.
+        """
+        return self.data["new"]
+    
+    def get_unread(self) -> bool:
+        """
+        Get whether this notification is unread.
+        """
+        return self.data["unread"]
 
     def set_status(self, unread: bool, new: bool) -> None:
         """
         Set the read/unread and seen/unseen (new) status of this notification.
 
         Note that this method does send requests, so it may take some time.
+
+        Note: This also updates these properties in this object!
         """
         data = {
             "unread": unread,
@@ -583,6 +654,9 @@ class Notification(Object):
         # Patch not post!
         resp = requests.patch(url, json=data, headers=self.cred.headers)
         resp.raise_for_status()
+        
+        self.data["unread"] = unread
+        self.data["new"] = new
 
 
 class Ryver:
