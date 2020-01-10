@@ -9,6 +9,11 @@ import sys
 import io
 import json
 
+old_print = print
+def print(*args, **kwargs):
+    kwargs["flush"] = True
+    old_print(*args, **kwargs)
+
 ryver = pyryver.Ryver(
     os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
 
