@@ -5,6 +5,8 @@ import time
 import os
 import requests
 import typing
+import sys
+import io
 
 ryver = pyryver.Ryver(
     os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
@@ -47,14 +49,15 @@ Roles Commands:
   - `@latexbot getUserRoles <user>` - List all roles of a user.
   - `@latexbot getAllRoles` - List all roles and users with that role.
   - `@latexbot @role <role> [message]` - @'s all users with a role.
-  - `@latexbot addToRole <role> <people>` - Add people to a role. Note role names cannot contain spaces. **Accessible to Org, Forum and Bot Admins only.**
-  - `@latexbot removeFromRole <role> <people>` - Remove people from a role. **Accessible to Org, Forum and Bot Admins only.**
+  - `@latexbot addToRole <role> <people>` - Add people to a role. Note role names cannot contain spaces. **Accessible to Org and Bot Admins only.**
+  - `@latexbot removeFromRole <role> <people>` - Remove people from a role. **Accessible to Org and Bot Admins only.**
 
 Developer Commands:
   - `@latexbot disable` - Disable me. **Accessible to Org and Bot Admins only.**
   - `@latexbot enable` - Enable me. **Accessible to Org and Bot Admins only.**
   - `@latexbot kill` - Kill me (:fearful:). **Accessible to Org and Bot Admins only.**
   - `@latexbot sleep <seconds>` - Put me to sleep for a certain amount of time. **Accessible to Org and Bot Admins only.**
+  - `@latexbot execute <code>` - Execute arbitrary Python code. **Accessible to Bot Admins only.**
 
 Miscellaneous Commands:
   - `@latexbot updateChats` - Update the list of forums/teams and users.
@@ -104,7 +107,10 @@ def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, level: int) -> b
 access_denied_messages = [
     "I'm sorry Dave, I'm afraid I can't do that.",
     "ACCESS DENIED",
-    "![NO](https://i.kym-cdn.com/photos/images/original/001/483/348/bdd.jpg)"
+    "![NO](https://i.kym-cdn.com/photos/images/original/001/483/348/bdd.jpg)",
+    "This operation requires a higher access level. Please ask an admin.",
+    "Nice try.",
+    "![Access Denied](https://cdn.windowsreport.com/wp-content/uploads/2018/08/fix-access-denied-error-windows-10.jpg)",
 ]
 
 
@@ -137,6 +143,20 @@ def parse_roles(about: str) -> typing.List[str]:
                 continue
             roles.append(role)
     return roles
+
+
+def exec_code(code: str) -> str:
+    # Temporarily replace stdout and stderr
+    stdout = sys.stdout
+    stderr = sys.stderr
+    # Merge stdout and stderr
+    sys.stdout = io.StringIO()
+    sys.stderr = sys.stdout
+    exec(code)
+    output = sys.stdout.getvalue()
+    sys.stdout = stdout
+    sys.stderr = stderr
+    return output
 
 
 def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
@@ -457,6 +477,16 @@ def _getallroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message(f"There are currently no roles.", creator)
 
 
+def _execute(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    if not is_authorized(chat, msg, ACCESS_LEVEL_BOT_ADMIN):
+        chat.send_message(
+            get_access_denied_message(), creator)
+        return
+    
+    output = exec_code(s)
+    chat.send_message(output, creator)
+
+
 command_processors = {
     "render": _render,
     "moveTo": _moveto,
@@ -474,6 +504,7 @@ command_processors = {
     "@role": _atrole,
     "getUserRoles": _getuserroles,
     "getAllRoles": _getallroles,
+    "execute": _execute,
 }
 
 if __name__ == "__main__":
