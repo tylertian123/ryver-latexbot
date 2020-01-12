@@ -95,7 +95,7 @@ yes_msgs = [
 ]
 no_msgs = [
     "No.",
-    ":thumbsdown",
+    ":thumbsdown:",
     "I hate it.",
     "Please no.",
     "It's bad.",
@@ -437,7 +437,17 @@ def _execute(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             get_access_denied_message(), creator)
         return
 
-    output = exec_code(s)
+    # Temporarily replace stdout and stderr
+    stdout = sys.stdout
+    stderr = sys.stderr
+    # Merge stdout and stderr
+    sys.stdout = io.StringIO()
+    sys.stderr = sys.stdout
+    exec(s, globals(), locals())
+    output = sys.stdout.getvalue()
+    sys.stdout = stdout
+    sys.stderr = stderr
+    
     chat.send_message(output, creator)
 
 
@@ -598,20 +608,6 @@ def parse_roles(about: str) -> typing.List[str]:
                 continue
             roles.append(role)
     return roles
-
-
-def exec_code(code: str) -> str:
-    # Temporarily replace stdout and stderr
-    stdout = sys.stdout
-    stderr = sys.stderr
-    # Merge stdout and stderr
-    sys.stdout = io.StringIO()
-    sys.stderr = sys.stdout
-    exec(code)
-    output = sys.stdout.getvalue()
-    sys.stdout = stdout
-    sys.stderr = stderr
-    return output
 
 
 def regenerate_help_text():
