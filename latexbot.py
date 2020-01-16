@@ -1,6 +1,7 @@
 import pyryver
 from quicklatex_render import ql_render
 from random import randrange
+from traceback import format_exc
 import time
 import os
 import requests
@@ -35,12 +36,12 @@ user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 print("Initializing...")
 chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-version = "v0.3.2"
+version = "v0.3.3"
 
 creator = pyryver.Creator(f"LaTeX Bot {version}", "")
 
-# Current admins are: @tylertian, @moeez, @michalkdavis, and @Julia
-admins = set([1311906, 1605991, 1108002, 1108009])
+# Current admins are: @tylertian, @moeez
+admins = set([1311906, 1605991])
 enabled = True
 
 # Auto generated later
@@ -129,7 +130,7 @@ def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     except ValueError:
         chat.send_message("Invalid number.", creator)
         return
-    msgs = chat.get_messages(count)
+    msgs = chat.get_message_from_id(msg.get_id(), before=count)
     for message in msgs:
         message.delete()
 
@@ -142,11 +143,6 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         "description": "Move the last <count> messages to another forum or team."
     }
     """
-    if not is_authorized(chat, msg, ACCESS_LEVEL_FORUM_ADMIN):
-        chat.send_message(
-            get_access_denied_message(), creator)
-        return
-
     s = s.split(" ")
     if len(s) < 2:
         chat.send_message("Invalid syntax.", creator)
@@ -164,7 +160,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message("Forum/team not found", creator)
         return
 
-    msgs = chat.get_messages(count)
+    msgs = chat.get_message_from_id(msg.get_id(), before=count)
     for msg in msgs[::-1]:
         # Get the creator
         msg_creator = msg.get_creator()
@@ -288,11 +284,6 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
         "description": "Add people to a role. Note role names cannot contain spaces."
     }
     """
-    if not is_authorized(chat, msg, ACCESS_LEVEL_FORUM_ADMIN):
-        chat.send_message(
-            get_access_denied_message(), creator)
-        return
-
     args = s.split(" ")
     if len(args) < 2:
         chat.send_message("Invalid syntax.", creator)
@@ -330,11 +321,6 @@ def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
         "description": "Remove people from a role."
     }
     """
-    if not is_authorized(chat, msg, ACCESS_LEVEL_FORUM_ADMIN):
-        chat.send_message(
-            get_access_denied_message(), creator)
-        return
-
     args = s.split(" ")
     if len(args) < 2:
         chat.send_message("Invalid syntax.", creator)
@@ -376,10 +362,6 @@ def _disable(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         "description": "Disable me."
     }
     """
-    if not is_authorized(chat, msg, ACCESS_LEVEL_ORG_ADMIN):
-        chat.send_message(
-            get_access_denied_message(), creator)
-        return
     global enabled
     enabled = False
     chat.send_message("LaTeX Bot disabled.", creator)
@@ -393,12 +375,9 @@ def _kill(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         "description": "Kill me (:fearful:)."
     }
     """
-    if not is_authorized(chat, msg, ACCESS_LEVEL_ORG_ADMIN):
-        chat.send_message(
-            get_access_denied_message(), creator)
-        return
     chat.send_message("Goodbye, world.", creator)
-    raise Exception("I have been killed :(")
+    # Simulate Ctrl+C
+    raise KeyboardInterrupt
 
 
 def _sleep(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -409,10 +388,6 @@ def _sleep(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         "description": "Put me to sleep."
     }
     """
-    if not is_authorized(chat, msg, ACCESS_LEVEL_ORG_ADMIN):
-        chat.send_message(
-            get_access_denied_message(), creator)
-        return
     secs = 0
     try:
         secs = float(s)
@@ -432,23 +407,93 @@ def _execute(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         "description": "Execute arbitrary Python code."
     }
     """
-    if not is_authorized(chat, msg, ACCESS_LEVEL_BOT_ADMIN):
-        chat.send_message(
-            get_access_denied_message(), creator)
-        return
-
     # Temporarily replace stdout and stderr
     stdout = sys.stdout
     stderr = sys.stderr
     # Merge stdout and stderr
-    sys.stdout = io.StringIO()
-    sys.stderr = sys.stdout
-    exec(s, globals(), locals())
-    output = sys.stdout.getvalue()
-    sys.stdout = stdout
-    sys.stderr = stderr
+    try:
+        sys.stdout = io.StringIO()
+        sys.stderr = sys.stdout
+        exec(s, globals(), locals())
+        output = sys.stdout.getvalue()
+        
+        chat.send_message(output, creator)
+    except Exception as e:
+        chat.send_message(f"An exception has occurred:\n{format_exc()}", creator)
+    finally:
+        sys.stdout = stdout
+        sys.stderr = stderr
+
+
+def _changeaccess(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    {
+        "group": "Developer Commands",
+        "syntax": "<command> <level>",
+        "description": "Change the access level of a command."
+    }
+    """
+    s = s.split()
+    if len(s) != 2:
+        chat.send_message(f"Invalid syntax.", creator)
+        return
     
-    chat.send_message(output, creator)
+    cmd, level = s
+    try:
+        level = int(level)
+    except ValueError:
+        chat.send_message(f"Invalid number.", creator)
+        return
+    
+    try:
+        command_processors[cmd][1] = level
+        regenerate_help_text()
+        chat.send_message(f"Access levels updated.", creator)
+    except KeyError:
+        chat.send_message(f"Command not found.", creator)
+
+
+def _makeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    {
+        "group": "Developer Commands",
+        "syntax": "<user>",
+        "description": "Make a user a Bot Admin."
+    }
+    """
+    if s.startswith("@"):
+        s = s[1:]
+    
+    user = pyryver.get_obj_by_field(users, pyryver.FIELD_USERNAME, s)
+    if not user:
+        chat.send_message(f"User not found.", creator)
+        return
+    admins.add(user.get_id())
+    regenerate_help_text()
+    chat.send_message(f"User {s} has been added to Bot Admins.")
+
+
+def _removeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    {
+        "group": "Developer Commands",
+        "syntax": "<user>",
+        "description": "Remove a user from Bot Admins."
+    }
+    """
+    if s.startswith("@"):
+        s = s[1:]
+    
+    user = pyryver.get_obj_by_field(users, pyryver.FIELD_USERNAME, s)
+    if not user:
+        chat.send_message(f"User not found.", creator)
+        return
+    try:
+        admins.remove(user.get_id())
+        regenerate_help_text()
+        chat.send_message(f"User {s} is no longer a Bot Admin.")
+    except KeyError:
+        chat.send_message(f"User {s} is not a Bot Admin.", creator)
 
 
 def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -483,10 +528,6 @@ def _moveto(_chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
     }
     """
     global chat
-    if not is_authorized(_chat, msg, ACCESS_LEVEL_ORG_ADMIN):
-        _chat.send_message(
-            get_access_denied_message(), creator)
-        return
     if len(name) > 0:
         # Find new chat
         new_chat = get_chat_from_str(name)
@@ -531,8 +572,11 @@ command_processors = {
 
     # "disable": [_disable, ACCESS_LEVEL_ORG_ADMIN],
     "kill": [_kill, ACCESS_LEVEL_BOT_ADMIN],
-    "sleep": [_sleep, ACCESS_LEVEL_ORG_ADMIN],
+    "sleep": [_sleep, ACCESS_LEVEL_BOT_ADMIN],
     "execute": [_execute, ACCESS_LEVEL_BOT_ADMIN],
+    "changeAccess": [_changeaccess, ACCESS_LEVEL_TYLER],
+    "makeAdmin": [_makeadmin, ACCESS_LEVEL_TYLER],
+    "removeAdmin": [_removeadmin, ACCESS_LEVEL_TYLER],
 
     "updateChats": [_updatechats, ACCESS_LEVEL_FORUM_ADMIN],
     "moveTo": [_moveto, ACCESS_LEVEL_ORG_ADMIN],
@@ -576,6 +620,8 @@ access_denied_messages = [
     "This operation requires a higher access level. Please ask an admin.",
     "Nice try.",
     "![Access Denied](https://cdn.windowsreport.com/wp-content/uploads/2018/08/fix-access-denied-error-windows-10.jpg)",
+    "![No.](https://i.imgur.com/DKUR9Tk.png)",
+    "![No](https://pics.me.me/thumb_no-no-meme-face-hot-102-7-49094780.png)",
 ]
 
 
@@ -644,66 +690,70 @@ if __name__ == "__main__":
     chat.send_message(
         f"LaTeX Bot {version} is online! Note that to reduce load, I only check messages once per 3 seconds or more!", creator)
     chat.send_message(help_text, creator)
-    try:
-        # Clear notifs
-        ryver.mark_all_notifs_read()
-        while True:
-            notifs = ryver.get_notifs(unread=True)
-            if len(notifs) > 0:
-                ryver.mark_all_notifs_read()
 
-            for notif in notifs:
-                print("New notification received!")
-                # Verify that the notification is a mention
-                if not notif.get_predicate() == pyryver.NOTIF_PREDICATE_MENTION:
-                    continue
+    while True:
+        try:
+            # Clear notifs
+            ryver.mark_all_notifs_read()
+            while True:
+                notifs = ryver.get_notifs(unread=True)
+                if len(notifs) > 0:
+                    ryver.mark_all_notifs_read()
 
-                via = notif.get_via()
-                # Little bit of magic here
-                message_id = via["id"]
-                chat_id = via["workroom"]["id"]
-                chat_source = pyryver.get_obj_by_field(
-                    forums + teams, pyryver.FIELD_ID, chat_id)
-                if not chat_source:
-                    print("Error: Cannot find chat for: " + str(via))
-                    chat.send_message(
-                        "Error: Cannot find source of message. Try `@latexbot updateChats`.", creator)
-                    continue
-                # We need to get the actual message from the chat, because the one in the notification may be cut off
-                chat_message = chat_source.get_message_from_id(message_id)[0]
-                text = chat_message.get_body().split(" ")
+                for notif in notifs:
+                    print("New notification received!")
+                    # Verify that the notification is a mention
+                    if not notif.get_predicate() == pyryver.NOTIF_PREDICATE_MENTION:
+                        continue
 
-                if text[0] == "@latexbot" and len(text) >= 2:
-                    print("Command received: " + " ".join(text))
+                    via = notif.get_via()
+                    # Little bit of magic here
+                    message_id = via["id"]
+                    chat_id = via["workroom"]["id"]
+                    chat_source = pyryver.get_obj_by_field(
+                        forums + teams, pyryver.FIELD_ID, chat_id)
+                    if not chat_source:
+                        print("Error: Cannot find chat for: " + str(via))
+                        chat.send_message(
+                            "Error: Cannot find source of message. Try `@latexbot updateChats`.", creator)
+                        continue
+                    # We need to get the actual message from the chat, because the one in the notification may be cut off
+                    chat_message = chat_source.get_message_from_id(message_id)[0]
+                    text = chat_message.get_body().split(" ")
 
-                    if enabled:
-                        if text[1] in command_processors:
-                            # Check access level
-                            if not is_authorized(chat_source, chat_message, command_processors[text[1]][1]):
-                                chat.send_message(
-                                    get_access_denied_message(), creator)
+                    if text[0] == "@latexbot" and len(text) >= 2:
+                        print("Command received: " + " ".join(text))
+
+                        if enabled:
+                            if text[1] in command_processors:
+                                # Check access level
+                                if not is_authorized(chat_source, chat_message, command_processors[text[1]][1]):
+                                    chat.send_message(
+                                        get_access_denied_message(), creator)
+                                else:
+                                    command_processors[text[1]][0](
+                                        chat_source, chat_message, " ".join(text[2:]))
                             else:
-                                command_processors[text[1]][0](
-                                    chat_source, chat_message, " ".join(text[2:]))
-                        else:
-                            chat_source.send_message(
-                                "Sorry, I didn't understand what you were asking me to do.", creator)
-                        print("Command processed.")
-                    elif text[1] == "enable":
-                        if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN):
-                            chat.send_message(get_access_denied_message(), creator)
-                        else:
-                            enabled = True
-                            chat_source.send_message("I'm alive!", creator)
+                                chat_source.send_message(
+                                    "Sorry, I didn't understand what you were asking me to do.", creator)
                             print("Command processed.")
+                        elif text[1] == "enable":
+                            if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN):
+                                chat.send_message(get_access_denied_message(), creator)
+                            else:
+                                enabled = True
+                                chat_source.send_message("I'm alive!", creator)
+                                print("Command processed.")
 
-            time.sleep(1)
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        chat.send_message(
-            "An unexpected error has occurred:\n" + str(e), creator)
-        chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
-        raise
+                time.sleep(1)
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            msg = format_exc()
+            print("Unexpected exception:")
+            print(msg)
+            chat.send_message(
+                "An unexpected error has occurred:\n" + msg, creator)
+            chat.send_message("@tylertian Let's hope that never happens again.", creator)
 
     chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)

@@ -3,8 +3,4 @@ version: '3'
 services:
   latexbot:
     build: .
-    image: docker-registry.i.mm12.xyz/latexbot:0.3.2
-    environment: 
-      - LATEXBOT_ORG=arctos6135
-      - LATEXBOT_USER=latexbot
-      - LATEXBOT_PASS=Arctos6135RyverBot
+    image: docker-registry.i.mm12.xyz/latexbot:0.3.3
