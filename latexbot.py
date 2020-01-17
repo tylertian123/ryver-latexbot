@@ -2,6 +2,7 @@ import pyryver
 from quicklatex_render import ql_render
 from random import randrange
 from traceback import format_exc
+import shlex
 import time
 import os
 import requests
@@ -36,7 +37,7 @@ user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 print("Initializing...")
 chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-version = "v0.3.3"
+version = "v0.3.4"
 
 creator = pyryver.Creator(f"LaTeX Bot {version}", "")
 
@@ -540,6 +541,60 @@ def _moveto(_chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
             chat.send_message("LaTeX Bot has moved here.", creator)
 
 
+def _setactivated(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    {
+        "group": "Hidden Commands",
+        "syntax": "<user>",
+        "description": "Activates or deactivates a user.",
+        "hidden": true
+    }
+    """
+    s = s.split()
+    
+    if len(s) != 2:
+        chat.send_message("Invalid syntax.", creator)
+        return
+    
+    username = s[0]
+    if username.startswith("@"):
+        username = username[1:]
+    
+    activate = True
+    if s[1] == "True" or s[1] == "true":
+        activate = True
+    elif s[1] == "False" or s[1] == "false":
+        activate = False
+    else:
+        chat.send_message("Invalid syntax.", creator)
+        return
+    
+    user = pyryver.get_obj_by_field(users, pyryver.FIELD_USERNAME, s)
+    if not user:
+        chat.send_message(f"User not found.", creator)
+        return
+    user.set_activated(activate)
+    chat.send_message(f"User {username} changed.", creator)
+
+
+def _impersonate(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    {
+        "group": "Hidden Commands",
+        "syntax": "<displayname> <avatarurl>",
+        "description": "Impersonates someone.",
+        "hidden": true
+    }
+    """
+    global creator
+    s = shlex.split(s)
+    if len(s) != 2:
+        chat.send_message("Invalid syntax.", creator)
+        return
+    creator = pyryver.Creator(s[0], s[1])
+    chat.send_message(f"I am now someone else.", creator)
+
+
 ACCESS_LEVEL_EVERYONE = 0
 ACCESS_LEVEL_FORUM_ADMIN = 1
 ACCESS_LEVEL_ORG_ADMIN = 2
@@ -580,6 +635,9 @@ command_processors = {
 
     "updateChats": [_updatechats, ACCESS_LEVEL_FORUM_ADMIN],
     "moveTo": [_moveto, ACCESS_LEVEL_ORG_ADMIN],
+
+    "setActivated": [_setactivated, ACCESS_LEVEL_TYLER],
+    "impersonate": [_impersonate, ACCESS_LEVEL_TYLER],
 }
 
 
@@ -663,6 +721,11 @@ def regenerate_help_text():
     for name, command in command_processors.items():
         try:
             properties = json.loads(command[0].__doc__ or "")
+            try:
+                if properties["hidden"] == True:
+                    continue
+            except KeyError:
+                pass
             syntax = f"`@latexbot {name} {properties['syntax']}`" if properties["syntax"] else f"`@latexbot {name}`"
             cmd = f"{syntax} - {properties['description']} {ACCESS_LEVEL_STRS[command[1]]}"
             group = properties['group']
