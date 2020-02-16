@@ -2,6 +2,7 @@ import pyryver
 from quicklatex_render import ql_render
 from random import randrange
 from traceback import format_exc
+from datetime import datetime
 import shlex
 import time
 import os
@@ -11,10 +12,13 @@ import sys
 import io
 import json
 
+# Make print() flush immediately
+# Otherwise the logs won't show up in real time in Docker
 old_print = print
 def print(*args, **kwargs):
     kwargs["flush"] = True
-    old_print(*args, **kwargs)
+    # Add timestamp
+    old_print(datetime.now().strftime("%y-%m-%d %H:%M:%S"), *args, **kwargs)
 
 ryver = pyryver.Ryver(
     os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
@@ -37,7 +41,7 @@ user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 print("Initializing...")
 chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-version = "v0.3.4"
+version = "v0.3.5"
 
 creator = pyryver.Creator(f"LaTeX Bot {version}", "")
 
@@ -162,7 +166,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         return
 
     msgs = chat.get_message_from_id(msg.get_id(), before=count)
-    for msg in msgs[::-1]:
+    for msg in msgs[:-1]:
         # Get the creator
         msg_creator = msg.get_creator()
         # If no creator then get author
@@ -189,6 +193,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
         msg_id = to.send_message(msg_body, msg_creator)
         msg.delete()
+    msgs[-1].delete()
 
 
 def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -244,24 +249,32 @@ def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     {
         "group": "Roles Commands",
-        "syntax": "<role> [message]",
-        "description": "@'s all users with a role."
+        "syntax": "<roles> [message]",
+        "description": "@'s all users with a role. Roles are in a comma-separated list, e.g. Foo,Bar,Baz."
     }
     """
-    role = ""
+    mention_roles = []
     message = ""
     try:
         # Try to separate the role and the message
         role = s[:s.index(" ")]
+        # Split by commas and strip
+        mention_roles = set([r.strip() for r in role.split(",")])
         message = s[s.index(" ") + 1:]
     except ValueError:
         # If space not found, the entire string is the role
         role = s
+        # Split by commas and strip
+        mention_roles = set([r.strip() for r in role.split(",")])
     usernames = []
+
+    # Check roles for each user
     for user in users:
         if user.get_activated():
-            roles = parse_roles(user.get_about())
-            if role in roles:
+            user_roles = parse_roles(user.get_about())
+            # Test if the union of the two roles sets has any elements
+            # i.e. See if there are any elements common to both
+            if set(user_roles) & mention_roles:
                 usernames.append("@" + user.get_username())
 
     if len(usernames) == 0:
@@ -281,8 +294,8 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
     """
     {
         "group": "Roles Commands",
-        "syntax": "<role> <people>",
-        "description": "Add people to a role. Note role names cannot contain spaces."
+        "syntax": "<roles> <people>",
+        "description": "Add people to a role. Note role names cannot contain spaces or commas. Roles are in a comma-separated list, e.g. Foo,Bar,Baz."
     }
     """
     args = s.split(" ")
@@ -290,7 +303,7 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
         chat.send_message("Invalid syntax.", creator)
         return
 
-    role = args[0]
+    roles = [r.strip() for r in args[0].split(",")]
     for username in args[1:]:
         if username.startswith("@"):
             # The username can begin with an @ for mentions
@@ -304,12 +317,15 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
         # Watch out for no about
         existing_roles = parse_roles(
             user.get_about()) if user.get_about() else []
-        if role in existing_roles:
-            chat.send_message(
-                f"Warning: User '{username}' already has role '{role}'.", creator)
-            continue
 
-        user.set_profile(about=(user.get_about() or "") + f"\n<Role: {role}>")
+        # Add each role
+        for role in roles:
+            if role in existing_roles:
+                chat.send_message(
+                    f"Warning: User '{username}' already has role '{role}'.", creator)
+                continue
+
+            user.set_profile(about=(user.get_about() or "") + f"\n<Role: {role}>")
 
     chat.send_message("Operation successful.", creator)
 
@@ -318,8 +334,8 @@ def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
     """
     {
         "group": "Roles Commands",
-        "syntax": "<role> <people>",
-        "description": "Remove people from a role."
+        "syntax": "<roles> <people>",
+        "description": "Remove people from a role. Roles are in a comma-separated list, e.g. Foo,Bar,Baz."
     }
     """
     args = s.split(" ")
@@ -327,7 +343,7 @@ def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
         chat.send_message("Invalid syntax.", creator)
         return
 
-    role = args[0]
+    roles = [r.strip() for r in args[0].split(",")]
     for username in args[1:]:
         if username.startswith("@"):
             # The username can begin with an @ for mentions
@@ -341,14 +357,15 @@ def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
         # In case about is None
         if not user.get_about():
             chat.send_message(
-                f"Warning: User '{username}' does not have role '{role}'.", creator)
+                f"Warning: User '{username}' does not have any roles.", creator)
             continue
-        # Filter out all the lines that have the role in it
+        # Filter out all the lines that have any of the roles in it
+        role_strs = set([f"<Role: {role}>" for role in roles])
         about = '\n'.join(
-            [l for l in user.get_about().split("\n") if l != f"<Role: {role}>"])
+            [l for l in user.get_about().split("\n") if l not in role_strs])
         if len(about) == len(user.get_about()):
             chat.send_message(
-                f"Warning: User '{username}' does not have role '{role}'.", creator)
+                f"Warning: User '{username}' does not have any of the roles listed.", creator)
             continue
         user.set_profile(about=about)
 
@@ -767,6 +784,7 @@ if __name__ == "__main__":
                     print("New notification received!")
                     # Verify that the notification is a mention
                     if not notif.get_predicate() == pyryver.NOTIF_PREDICATE_MENTION:
+                        print("Notification was not a direct mention. Skipping...")
                         continue
 
                     via = notif.get_via()
@@ -785,7 +803,7 @@ if __name__ == "__main__":
                     text = chat_message.get_body().split(" ")
 
                     if text[0] == "@latexbot" and len(text) >= 2:
-                        print("Command received: " + " ".join(text))
+                        print(f"Command received from user {chat_message.get_author_id()}: " + " ".join(text))
 
                         if enabled:
                             if text[1] in command_processors:
@@ -793,13 +811,15 @@ if __name__ == "__main__":
                                 if not is_authorized(chat_source, chat_message, command_processors[text[1]][1]):
                                     chat.send_message(
                                         get_access_denied_message(), creator)
+                                    print("Access was denied.")
                                 else:
                                     command_processors[text[1]][0](
                                         chat_source, chat_message, " ".join(text[2:]))
+                                    print("Command processed.")
                             else:
                                 chat_source.send_message(
                                     "Sorry, I didn't understand what you were asking me to do.", creator)
-                            print("Command processed.")
+                                print("Command syntax was invalid.")
                         elif text[1] == "enable":
                             if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN):
                                 chat.send_message(get_access_denied_message(), creator)
@@ -807,6 +827,8 @@ if __name__ == "__main__":
                                 enabled = True
                                 chat_source.send_message("I'm alive!", creator)
                                 print("Command processed.")
+                    else:
+                        print("Notification was not a proper command. Skipping...")
 
                 time.sleep(1)
         except KeyboardInterrupt:
@@ -815,6 +837,8 @@ if __name__ == "__main__":
             msg = format_exc()
             print("Unexpected exception:")
             print(msg)
+            # Sleep for 10 seconds to hopefully have the connection fix itself
+            time.sleep(10)
             chat.send_message(
                 "An unexpected error has occurred:\n" + msg, creator)
             chat.send_message("@tylertian Let's hope that never happens again.", creator)
