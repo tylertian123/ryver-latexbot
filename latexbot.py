@@ -15,15 +15,19 @@ import json
 # Make print() flush immediately
 # Otherwise the logs won't show up in real time in Docker
 old_print = print
+
+
 def print(*args, **kwargs):
     kwargs["flush"] = True
     # Add timestamp
-    old_print(datetime.now().strftime("%y-%m-%d %H:%M:%S"), *args, **kwargs)
+    old_print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), *args, **kwargs)
+
 
 ryver = pyryver.Ryver(
     os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
 
-print("LaTeX Bot has been started.\nUpdating forums/teams/users list...")
+print("LaTeX Bot has been started.")
+print("Updating forums/teams/users list...")
 forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, force_update=True)
 teams = ryver.get_cached_chats(pyryver.TYPE_TEAM, force_update=True)
 users = ryver.get_cached_chats(pyryver.TYPE_USER, force_update=True)
@@ -119,6 +123,40 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     msgs = yes_msgs if randrange(2) == 0 else no_msgs
     chat.send_message(msgs[randrange(len(msgs))], creator)
+
+
+COMPETITIONS = None
+
+
+def _howmanydaysuntilcomp(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    {
+        "group": "Basic Commands",
+        "syntax": "",
+        "description": "How many days until the next competition?"
+    }
+    """
+    global COMPETITIONS
+    # Load competitions if not already loaded
+    if not COMPETITIONS:
+        COMPETITIONS = []
+        with open("comps.json", "r") as comps_json:
+            comps = json.load(comps_json)
+            for comp in comps["comps"]:
+                COMPETITIONS.append((comp["name"], datetime.strptime(
+                    comp["start"], "%Y-%m-%d"), datetime.strptime(comp["end"], "%Y-%m-%d")))
+    now = datetime.now()
+    for comp in COMPETITIONS:
+        diff = days_diff(comp[1], now)
+        if diff > 0:
+            chat.send_message(f"{diff} days left until {comp[0]}.", creator)
+            return
+        else:
+            end_diff = days_diff(comp[2], now)
+            if end_diff > 0:
+                chat.send_message(f"{comp[0]} is ongoing.", creator)
+                return
+    chat.send_message("No upcoming events.", creator)
 
 
 def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -325,7 +363,8 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
                     f"Warning: User '{username}' already has role '{role}'.", creator)
                 continue
 
-            user.set_profile(about=(user.get_about() or "") + f"\n<Role: {role}>")
+            user.set_profile(about=(user.get_about() or "") +
+                             f"\n<Role: {role}>")
 
     chat.send_message("Operation successful.", creator)
 
@@ -434,10 +473,11 @@ def _execute(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         sys.stderr = sys.stdout
         exec(s, globals(), locals())
         output = sys.stdout.getvalue()
-        
+
         chat.send_message(output, creator)
     except Exception as e:
-        chat.send_message(f"An exception has occurred:\n{format_exc()}", creator)
+        chat.send_message(
+            f"An exception has occurred:\n{format_exc()}", creator)
     finally:
         sys.stdout = stdout
         sys.stderr = stderr
@@ -455,14 +495,14 @@ def _changeaccess(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     if len(s) != 2:
         chat.send_message(f"Invalid syntax.", creator)
         return
-    
+
     cmd, level = s
     try:
         level = int(level)
     except ValueError:
         chat.send_message(f"Invalid number.", creator)
         return
-    
+
     try:
         command_processors[cmd][1] = level
         regenerate_help_text()
@@ -481,7 +521,7 @@ def _makeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     if s.startswith("@"):
         s = s[1:]
-    
+
     user = pyryver.get_obj_by_field(users, pyryver.FIELD_USERNAME, s)
     if not user:
         chat.send_message(f"User not found.", creator)
@@ -501,7 +541,7 @@ def _removeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     if s.startswith("@"):
         s = s[1:]
-    
+
     user = pyryver.get_obj_by_field(users, pyryver.FIELD_USERNAME, s)
     if not user:
         chat.send_message(f"User not found.", creator)
@@ -568,15 +608,15 @@ def _setactivated(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     }
     """
     s = s.split()
-    
+
     if len(s) != 2:
         chat.send_message("Invalid syntax.", creator)
         return
-    
+
     username = s[0]
     if username.startswith("@"):
         username = username[1:]
-    
+
     activate = True
     if s[1] == "True" or s[1] == "true":
         activate = True
@@ -585,7 +625,7 @@ def _setactivated(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     else:
         chat.send_message("Invalid syntax.", creator)
         return
-    
+
     user = pyryver.get_obj_by_field(users, pyryver.FIELD_USERNAME, s)
     if not user:
         chat.send_message(f"User not found.", creator)
@@ -632,6 +672,7 @@ command_processors = {
     "help": [_help, ACCESS_LEVEL_EVERYONE],
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
     "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],
+    "howManyDaysUntilComp": [_howmanydaysuntilcomp, ACCESS_LEVEL_EVERYONE],
 
     "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
     "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],
@@ -731,6 +772,13 @@ def parse_roles(about: str) -> typing.List[str]:
     return roles
 
 
+def days_diff(a: datetime, b: datetime) -> int:
+    diff = a - b
+    if diff.seconds > 0:
+        return diff.days + 1
+    return diff.days
+
+
 def regenerate_help_text():
     global help_text
     help_text = ""
@@ -760,6 +808,7 @@ def regenerate_help_text():
             help_text += f"  - {cmd}\n"
         help_text += "\n"
     help_text += f"\nCurrent Bot Admins are: {', '.join([pyryver.get_obj_by_field(users, pyryver.FIELD_ID, uid).get_display_name() for uid in admins])}."
+
 
 if __name__ == "__main__":
     # Auto-generate help text
@@ -799,11 +848,13 @@ if __name__ == "__main__":
                             "Error: Cannot find source of message. Try `@latexbot updateChats`.", creator)
                         continue
                     # We need to get the actual message from the chat, because the one in the notification may be cut off
-                    chat_message = chat_source.get_message_from_id(message_id)[0]
+                    chat_message = chat_source.get_message_from_id(message_id)[
+                        0]
                     text = chat_message.get_body().split(" ")
 
                     if text[0] == "@latexbot" and len(text) >= 2:
-                        print(f"Command received from user {chat_message.get_author_id()}: " + " ".join(text))
+                        print(
+                            f"Command received from user {chat_message.get_author_id()}: " + " ".join(text))
 
                         if enabled:
                             if text[1] in command_processors:
@@ -822,7 +873,8 @@ if __name__ == "__main__":
                                 print("Command syntax was invalid.")
                         elif text[1] == "enable":
                             if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN):
-                                chat.send_message(get_access_denied_message(), creator)
+                                chat.send_message(
+                                    get_access_denied_message(), creator)
                             else:
                                 enabled = True
                                 chat_source.send_message("I'm alive!", creator)
@@ -841,6 +893,7 @@ if __name__ == "__main__":
             time.sleep(10)
             chat.send_message(
                 "An unexpected error has occurred:\n" + msg, creator)
-            chat.send_message("@tylertian Let's hope that never happens again.", creator)
+            chat.send_message(
+                "@tylertian Let's hope that never happens again.", creator)
 
     chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)

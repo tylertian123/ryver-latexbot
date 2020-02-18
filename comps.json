@@ -1,0 +1,24 @@
+{
+    "comps": [
+        {
+            "name": "Durham",
+            "start": "2020-02-28",
+            "end": "2020-03-01"
+        },
+        {
+            "name": "Windsor",
+            "start": "2020-03-26",
+            "end": "2020-03-28"
+        },
+        {
+            "name": "DCMP (if we made it)",
+            "start": "2020-04-08",
+            "end": "2020-04-11"
+        },
+        {
+            "name": "Detroit (if we made it)",
+            "start": "2020-04-29",
+            "end": "2020-05-02"
+        }
+    ]
+}
