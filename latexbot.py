@@ -860,7 +860,7 @@ if __name__ == "__main__":
                             if text[1] in command_processors:
                                 # Check access level
                                 if not is_authorized(chat_source, chat_message, command_processors[text[1]][1]):
-                                    chat.send_message(
+                                    chat_source.send_message(
                                         get_access_denied_message(), creator)
                                     print("Access was denied.")
                                 else:
