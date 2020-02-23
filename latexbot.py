@@ -203,8 +203,18 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message("Forum/team not found", creator)
         return
 
-    msgs = chat.get_message_from_id(msg.get_id(), before=count)
-    for msg in msgs[:-1]:
+    msgs = []
+    # Get around the 25 message restriction
+    msgs = chat.get_message_from_id(msg.get_id(), before=min(25, count))[:-1]
+    count -= len(msgs)
+    while count > 0:
+        prev_msgs = chat.get_message_from_id(msgs[0].get_id(), before=min(25, count))[:-1]
+        msgs = prev_msgs + msgs
+        count -= len(prev_msgs)
+
+    to.send_message(f"# Begin Moved Message\n\n---", creator)
+
+    for msg in msgs:
         # Get the creator
         msg_creator = msg.get_creator()
         # If no creator then get author
@@ -232,6 +242,8 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         msg_id = to.send_message(msg_body, msg_creator)
         msg.delete()
     msgs[-1].delete()
+
+    to.send_message("---\n\n# End Moved Message", creator)
 
 
 def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
