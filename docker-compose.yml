@@ -3,4 +3,4 @@ version: '3'
 services:
   latexbot:
     build: .
-    image: docker-registry.i.mm12.xyz/latexbot:0.3.5
+    image: docker-registry.i.mm12.xyz/latexbot:0.3.6

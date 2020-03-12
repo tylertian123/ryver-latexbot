@@ -11,6 +11,7 @@ import typing
 import sys
 import io
 import json
+import re
 
 # Make print() flush immediately
 # Otherwise the logs won't show up in real time in Docker
@@ -45,7 +46,7 @@ user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 print("Initializing...")
 chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-version = "v0.3.5"
+version = "v0.3.6"
 
 creator = pyryver.Creator(f"LaTeX Bot {version}", "")
 
@@ -208,7 +209,8 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     msgs = chat.get_message_from_id(msg.get_id(), before=min(25, count))[:-1]
     count -= len(msgs)
     while count > 0:
-        prev_msgs = chat.get_message_from_id(msgs[0].get_id(), before=min(25, count))[:-1]
+        prev_msgs = chat.get_message_from_id(
+            msgs[0].get_id(), before=min(25, count))[:-1]
         msgs = prev_msgs + msgs
         count -= len(prev_msgs)
 
@@ -227,7 +229,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             msg_creator = pyryver.Creator(
                 msg_author.get_display_name(), user_avatars.get(msg_author.get_id(), ""))
 
-        msg_body = msg.get_body()
+        msg_body = sanitize(msg.get_body())
         # Handle reactions
         # Because reactions are from multiple people they can't really be moved the same way
         if msg.get_reactions():
@@ -791,6 +793,18 @@ def days_diff(a: datetime, b: datetime) -> int:
     return diff.days
 
 
+mention_regex = re.compile(r"(\s|^)@(\w+)(?=\s|$)", flags=re.MULTILINE)
+
+
+def sanitize(msg: str) -> str:
+    """
+    Sanitize the given input text.
+
+    Currently, this method makes all mentions ineffective by adding a backslash before the @.
+    """
+    return mention_regex.sub(r"\1\@\2", msg)
+
+
 def regenerate_help_text():
     global help_text
     help_text = ""
@@ -904,7 +918,7 @@ if __name__ == "__main__":
             # Sleep for 10 seconds to hopefully have the connection fix itself
             time.sleep(10)
             chat.send_message(
-                "An unexpected error has occurred:\n" + msg, creator)
+                "An unexpected error has occurred:\n```\n" + msg + "\n```", creator)
             chat.send_message(
                 "@tylertian Let's hope that never happens again.", creator)
 
