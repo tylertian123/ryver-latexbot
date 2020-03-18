@@ -155,7 +155,7 @@ def _howmanydaysuntilcomp(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         else:
             end_diff = days_diff(comp[2], now)
             if end_diff > 0:
-                chat.send_message(f"{comp[0]} is ongoing.", creator)
+                chat.send_message(f"It is currently day {days_diff(now, comp[1]) + 1} of {comp[0]}.", creator)
                 return
     chat.send_message("No upcoming events.", creator)
 
@@ -800,9 +800,9 @@ def sanitize(msg: str) -> str:
     """
     Sanitize the given input text.
 
-    Currently, this method makes all mentions ineffective by adding a backslash before the @.
+    Currently, this method makes all mentions ineffective by putting a space between the @ and the username.
     """
-    return mention_regex.sub(r"\1\@\2", msg)
+    return mention_regex.sub(r"\1@ \2", msg)
 
 
 def regenerate_help_text():
