@@ -46,7 +46,7 @@ user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 print("Initializing...")
 chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-version = "v0.3.6"
+version = "v0.3.7"
 
 creator = pyryver.Creator(f"LaTeX Bot {version}", "")
 
@@ -155,7 +155,8 @@ def _howmanydaysuntilcomp(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         else:
             end_diff = days_diff(comp[2], now)
             if end_diff > 0:
-                chat.send_message(f"It is currently day {days_diff(now, comp[1]) + 1} of {comp[0]}.", creator)
+                chat.send_message(
+                    f"It is currently day {days_diff(now, comp[1]) + 1} of {comp[0]}.", creator)
                 return
     chat.send_message("No upcoming events.", creator)
 
@@ -174,9 +175,10 @@ def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     except ValueError:
         chat.send_message("Invalid number.", creator)
         return
-    msgs = chat.get_message_from_id(msg.get_id(), before=count)
+    msgs = get_msgs_before(chat, msg.get_id(), count)
     for message in msgs:
         message.delete()
+    msg.delete()
 
 
 def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -204,15 +206,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message("Forum/team not found", creator)
         return
 
-    msgs = []
-    # Get around the 25 message restriction
-    msgs = chat.get_message_from_id(msg.get_id(), before=min(25, count))[:-1]
-    count -= len(msgs)
-    while count > 0:
-        prev_msgs = chat.get_message_from_id(
-            msgs[0].get_id(), before=min(25, count))[:-1]
-        msgs = prev_msgs + msgs
-        count -= len(prev_msgs)
+    msgs = get_msgs_before(chat, msg.get_id(), count)
 
     to.send_message(f"# Begin Moved Message\n\n---", creator)
 
@@ -246,6 +240,44 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     msgs[-1].delete()
 
     to.send_message("---\n\n# End Moved Message", creator)
+
+
+def _countmessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    {
+        "group": "Administrative Commands",
+        "syntax": "<pattern>",
+        "description": "Count the number of messages, from the command up to and including the first message that matches <pattern> (case insensitive). If <pattern> is surrounded with slashes, it is treated as a regex, with the multiline and ignorecase flags."
+    }
+    """
+    if s.startswith("/") and s.endswith("/"):
+        try:
+            expr = re.compile(s[1:-1], re.MULTILINE | re.IGNORECASE)
+            # Use the regex search function as the match function
+            match = expr.search
+        except re.error as e:
+            chat.send_message("Invalid regex: " + str(e), creator)
+            return
+    else:
+        s = s.lower()
+        # Case insensitive match
+        match = lambda x: x.lower().find(s) >= 0
+    
+    count = 1
+    # Max search depth: 250
+    while count < 250:
+        # Reverse the messages as by default the oldest is the first
+        # Search 50 at a time
+        msgs = get_msgs_before(chat, msg.get_id(), 50)[::-1]
+        for message in msgs:
+            count += 1
+            if match(message.get_body()):
+                # Found a match
+                chat.send_message(f"There are a total of {count} messages, including your command but not this message.\n\nMessage matched (sent by {message.get_author().get_display_name()}):\n{sanitize(message.get_body())}", creator)
+                return
+        # No match - change anchor
+        msg = msgs[-1]
+    chat.send_message("Error: Max search depth of 250 messages exceeded without finding a match.", creator)
 
 
 def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -690,6 +722,7 @@ command_processors = {
 
     "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
     "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],
+    "countMessages": [_countmessages, ACCESS_LEVEL_FORUM_ADMIN],
 
     "getUserRoles": [_getuserroles, ACCESS_LEVEL_EVERYONE],
     "getAllRoles": [_getallroles, ACCESS_LEVEL_EVERYONE],
@@ -711,6 +744,25 @@ command_processors = {
     "setActivated": [_setactivated, ACCESS_LEVEL_TYLER],
     "impersonate": [_impersonate, ACCESS_LEVEL_TYLER],
 }
+
+
+def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
+    """
+    Get any number of messages before a message from an ID.
+
+    This is similar to using pyryver.Chat.get_message(), except it doesn't have the 25 message restriction.
+    """
+    msgs = []
+    # Get around the 25 message restriction
+    # Cut off the last one (that one is the message with the id specified)
+    msgs = chat.get_message_from_id(msg_id, before=min(25, count))[:-1]
+    count -= len(msgs)
+    while count > 0:
+        prev_msgs = chat.get_message_from_id(
+            msgs[0].get_id(), before=min(25, count))[:-1]
+        msgs = prev_msgs + msgs
+        count -= len(prev_msgs)
+    return msgs
 
 
 def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, level: int) -> bool:
