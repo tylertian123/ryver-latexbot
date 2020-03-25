@@ -242,7 +242,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     to.send_message("---\n\n# End Moved Message", creator)
 
 
-def _countmessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+def _countmessagessince(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     {
         "group": "Administrative Commands",
@@ -722,7 +722,7 @@ command_processors = {
 
     "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
     "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],
-    "countMessages": [_countmessages, ACCESS_LEVEL_FORUM_ADMIN],
+    "countMessagesSince": [_countmessagessince, ACCESS_LEVEL_FORUM_ADMIN],
 
     "getUserRoles": [_getuserroles, ACCESS_LEVEL_EVERYONE],
     "getAllRoles": [_getallroles, ACCESS_LEVEL_EVERYONE],
