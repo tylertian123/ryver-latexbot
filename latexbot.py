@@ -1,17 +1,17 @@
+import io
+import json
+import os
 import pyryver
+import re
+import requests
+import shlex
+import sys
+import time
+import typing
+from datetime import datetime
 from quicklatex_render import ql_render
 from random import randrange
 from traceback import format_exc
-from datetime import datetime
-import shlex
-import time
-import os
-import requests
-import typing
-import sys
-import io
-import json
-import re
 
 # Make print() flush immediately
 # Otherwise the logs won't show up in real time in Docker
@@ -24,31 +24,18 @@ def print(*args, **kwargs):
     old_print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), *args, **kwargs)
 
 
-ryver = pyryver.Ryver(
-    os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
+################################ GLOBAL VARIABLES AND CONSTANTS ################################
 
-print("LaTeX Bot has been started.")
-print("Updating forums/teams/users list...")
-forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, force_update=True)
-teams = ryver.get_cached_chats(pyryver.TYPE_TEAM, force_update=True)
-users = ryver.get_cached_chats(pyryver.TYPE_USER, force_update=True)
+ryver = None
+forums = []
+teams = []
+users = []
+user_avatars = {}
+chat = None
 
-print("Getting user avatar URLs...")
-# Get user avatar URLs
-# This information is not included in the regular user info
-# It is retrieved from a different URL
-resp = requests.post(ryver.url_prefix +
-                     "Ryver.Info()?$format=json", headers=ryver.headers)
-resp.raise_for_status()
-users_json = resp.json()["d"]["users"]
-user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
+VERSION = "v0.3.7"
 
-print("Initializing...")
-chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
-
-version = "v0.3.7"
-
-creator = pyryver.Creator(f"LaTeX Bot {version}", "")
+creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 
 # Current admins are: @tylertian, @moeez
 admins = set([1311906, 1605991])
@@ -56,6 +43,167 @@ enabled = True
 
 # Auto generated later
 help_text = ""
+
+ACCESS_LEVEL_EVERYONE = 0
+ACCESS_LEVEL_FORUM_ADMIN = 1
+ACCESS_LEVEL_ORG_ADMIN = 2
+ACCESS_LEVEL_BOT_ADMIN = 3
+ACCESS_LEVEL_TYLER = 9001
+
+ACCESS_LEVEL_STRS = {
+    ACCESS_LEVEL_EVERYONE: "",
+    ACCESS_LEVEL_FORUM_ADMIN: "**Accessible to Forum, Org and Bot Admins only.**",
+    ACCESS_LEVEL_ORG_ADMIN: "**Accessible to Org and Bot Admins only.**",
+    ACCESS_LEVEL_BOT_ADMIN: "**Accessible to Bot Admins only.**",
+    ACCESS_LEVEL_TYLER: "**Accessible to Tyler only.**"
+}
+
+################################ UTILITY FUNCTIONS ################################
+
+
+def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
+    """
+    Get any number of messages before a message from an ID.
+
+    This is similar to using pyryver.Chat.get_message(), except it doesn't have the 25 message restriction.
+    """
+    msgs = []
+    # Get around the 25 message restriction
+    # Cut off the last one (that one is the message with the id specified)
+    msgs = chat.get_message_from_id(msg_id, before=min(25, count))[:-1]
+    count -= len(msgs)
+    while count > 0:
+        prev_msgs = chat.get_message_from_id(
+            msgs[0].get_id(), before=min(25, count))[:-1]
+        msgs = prev_msgs + msgs
+        count -= len(prev_msgs)
+    return msgs
+
+
+def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, level: int) -> bool:
+    if level <= ACCESS_LEVEL_EVERYONE:
+        return True
+
+    if level <= ACCESS_LEVEL_TYLER and msg.get_author_id() == 1311906:
+        return True
+
+    if level <= ACCESS_LEVEL_BOT_ADMIN and msg.get_author_id() in admins:
+        return True
+
+    user = pyryver.get_obj_by_field(
+        users, pyryver.FIELD_ID, msg.get_author_id())
+    if not user:
+        return False
+
+    if level <= ACCESS_LEVEL_ORG_ADMIN and user.is_admin():
+        return True
+
+    is_forum_admin = False
+    if isinstance(chat, pyryver.GroupChat):
+        member = chat.get_member(msg.get_author_id())
+        if member:
+            is_forum_admin = member.is_admin()
+
+    if level <= ACCESS_LEVEL_FORUM_ADMIN and is_forum_admin:
+        return True
+
+    return False
+
+
+ACCESS_DENIED_MESSAGES = [
+    "I'm sorry Dave, I'm afraid I can't do that.",
+    "ACCESS DENIED",
+    "![NO](https://i.kym-cdn.com/photos/images/original/001/483/348/bdd.jpg)",
+    "This operation requires a higher access level. Please ask an admin.",
+    "Nice try.",
+    "![Access Denied](https://cdn.windowsreport.com/wp-content/uploads/2018/08/fix-access-denied-error-windows-10.jpg)",
+    "![No.](https://i.imgur.com/DKUR9Tk.png)",
+    "![No](https://pics.me.me/thumb_no-no-meme-face-hot-102-7-49094780.png)",
+]
+
+
+def get_access_denied_message() -> str:
+    return ACCESS_DENIED_MESSAGES[randrange(len(ACCESS_DENIED_MESSAGES))]
+
+
+def get_chat_from_str(name: str) -> pyryver.Chat:
+    field = pyryver.FIELD_NAME
+    # Handle the name= or nickname= syntax
+    if name.startswith("name="):
+        field = pyryver.FIELD_NAME
+        # Slice off the beginning
+        name = name[name.index("=") + 1:]
+    elif name.startswith("nickname="):
+        field = pyryver.FIELD_NICKNAME
+        name = name[name.index("=") + 1:]
+    return pyryver.get_obj_by_field(forums + teams, field, name)
+
+
+def parse_roles(about: str) -> typing.List[str]:
+    if not about:
+        return []
+    roles = []
+    for line in about.split("\n"):
+        if line.startswith("<Role: ") and line.endswith(">"):
+            role = line[line.index(":") + 2:-1]
+            # roles cannot have spaces
+            if " " in role:
+                continue
+            roles.append(role)
+    return roles
+
+
+def days_diff(a: datetime, b: datetime) -> int:
+    diff = a - b
+    if diff.seconds > 0:
+        return diff.days + 1
+    return diff.days
+
+
+MENTION_REGEX = re.compile(r"(\s|^)@(\w+)(?=\s|$)", flags=re.MULTILINE)
+
+
+def sanitize(msg: str) -> str:
+    """
+    Sanitize the given input text.
+
+    Currently, this method makes all mentions ineffective by putting a space between the @ and the username.
+    """
+    return MENTION_REGEX.sub(r"\1@ \2", msg)
+
+
+def regenerate_help_text():
+    global help_text
+    help_text = ""
+    commands = {}
+    for name, command in command_processors.items():
+        try:
+            properties = json.loads(command[0].__doc__ or "")
+            try:
+                if properties["hidden"] == True:
+                    continue
+            except KeyError:
+                pass
+            syntax = f"`@latexbot {name} {properties['syntax']}`" if properties["syntax"] else f"`@latexbot {name}`"
+            cmd = f"{syntax} - {properties['description']} {ACCESS_LEVEL_STRS[command[1]]}"
+            group = properties['group']
+            if group in commands:
+                commands[group].append(cmd)
+            else:
+                commands[group] = [cmd]
+        except json.JSONDecodeError as e:
+            print(f"Warning: Failed to parse doc for command {name}!\n{e}")
+            pass
+
+    for group, cmds in commands.items():
+        help_text += group + ":\n"
+        for cmd in cmds:
+            help_text += f"  - {cmd}\n"
+        help_text += "\n"
+    help_text += f"\nCurrent Bot Admins are: {', '.join([pyryver.get_obj_by_field(users, pyryver.FIELD_ID, uid).get_display_name() for uid in admins])}."
+
+
+################################ COMMAND PROCESSORS ################################
 
 
 def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
@@ -261,8 +409,8 @@ def _countmessagessince(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     else:
         s = s.lower()
         # Case insensitive match
-        match = lambda x: x.lower().find(s) >= 0
-    
+        def match(x): return x.lower().find(s) >= 0
+
     count = 1
     # Max search depth: 250
     while count < 250:
@@ -273,11 +421,13 @@ def _countmessagessince(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             count += 1
             if match(message.get_body()):
                 # Found a match
-                chat.send_message(f"There are a total of {count} messages, including your command but not this message.\n\nMessage matched (sent by {message.get_author().get_display_name()}):\n{sanitize(message.get_body())}", creator)
+                chat.send_message(
+                    f"There are a total of {count} messages, including your command but not this message.\n\nMessage matched (sent by {message.get_author().get_display_name()}):\n{sanitize(message.get_body())}", creator)
                 return
         # No match - change anchor
         msg = msgs[-1]
-    chat.send_message("Error: Max search depth of 250 messages exceeded without finding a match.", creator)
+    chat.send_message(
+        "Error: Max search depth of 250 messages exceeded without finding a match.", creator)
 
 
 def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -608,18 +758,7 @@ def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         "description": "Update the list of forums/teams and users."
     }
     """
-    global forums, teams, users, user_avatars
-    forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, force_update=True)
-    teams = ryver.get_cached_chats(pyryver.TYPE_TEAM, force_update=True)
-    users = ryver.get_cached_chats(pyryver.TYPE_USER, force_update=True)
-    # Get user avatar URLs
-    # This information is not included in the regular user info
-    # It is retrieved from a different URL
-    resp = requests.post(ryver.url_prefix +
-                         "Ryver.Info()?$format=json", headers=ryver.headers)
-    resp.raise_for_status()
-    users_json = resp.json()["d"]["users"]
-    user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
+    update_org_data()
     chat.send_message("Forums/Teams/Users updated.", creator)
 
 
@@ -698,21 +837,6 @@ def _impersonate(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     chat.send_message(f"I am now someone else.", creator)
 
 
-ACCESS_LEVEL_EVERYONE = 0
-ACCESS_LEVEL_FORUM_ADMIN = 1
-ACCESS_LEVEL_ORG_ADMIN = 2
-ACCESS_LEVEL_BOT_ADMIN = 3
-ACCESS_LEVEL_TYLER = 9001
-
-ACCESS_LEVEL_STRS = {
-    ACCESS_LEVEL_EVERYONE: "",
-    ACCESS_LEVEL_FORUM_ADMIN: "**Accessible to Forum, Org and Bot Admins only.**",
-    ACCESS_LEVEL_ORG_ADMIN: "**Accessible to Org and Bot Admins only.**",
-    ACCESS_LEVEL_BOT_ADMIN: "**Accessible to Bot Admins only.**",
-    ACCESS_LEVEL_TYLER: "**Accessible to Tyler only.**"
-}
-
-
 command_processors = {
     "render": [_render, ACCESS_LEVEL_EVERYONE],
     "help": [_help, ACCESS_LEVEL_EVERYONE],
@@ -730,7 +854,7 @@ command_processors = {
     "addToRole": [_addtorole, ACCESS_LEVEL_ORG_ADMIN],
     "removeFromRole": [_removefromrole, ACCESS_LEVEL_ORG_ADMIN],
 
-    # "disable": [_disable, ACCESS_LEVEL_ORG_ADMIN],
+    "disable": [_disable, ACCESS_LEVEL_ORG_ADMIN],
     "kill": [_kill, ACCESS_LEVEL_BOT_ADMIN],
     "sleep": [_sleep, ACCESS_LEVEL_BOT_ADMIN],
     "execute": [_execute, ACCESS_LEVEL_BOT_ADMIN],
@@ -746,158 +870,34 @@ command_processors = {
 }
 
 
-def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
-    """
-    Get any number of messages before a message from an ID.
+################################ OTHER FUNCTIONS ################################
 
-    This is similar to using pyryver.Chat.get_message(), except it doesn't have the 25 message restriction.
-    """
-    msgs = []
-    # Get around the 25 message restriction
-    # Cut off the last one (that one is the message with the id specified)
-    msgs = chat.get_message_from_id(msg_id, before=min(25, count))[:-1]
-    count -= len(msgs)
-    while count > 0:
-        prev_msgs = chat.get_message_from_id(
-            msgs[0].get_id(), before=min(25, count))[:-1]
-        msgs = prev_msgs + msgs
-        count -= len(prev_msgs)
-    return msgs
+def update_org_data():
+    global forums, teams, users, user_avatars
+    forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, force_update=True)
+    teams = ryver.get_cached_chats(pyryver.TYPE_TEAM, force_update=True)
+    users = ryver.get_cached_chats(pyryver.TYPE_USER, force_update=True)
 
-
-def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, level: int) -> bool:
-    if level <= ACCESS_LEVEL_EVERYONE:
-        return True
-
-    if level <= ACCESS_LEVEL_TYLER and msg.get_author_id() == 1311906:
-        return True
-
-    if level <= ACCESS_LEVEL_BOT_ADMIN and msg.get_author_id() in admins:
-        return True
-
-    user = pyryver.get_obj_by_field(
-        users, pyryver.FIELD_ID, msg.get_author_id())
-    if not user:
-        return False
-
-    if level <= ACCESS_LEVEL_ORG_ADMIN and user.is_admin():
-        return True
-
-    is_forum_admin = False
-    if isinstance(chat, pyryver.GroupChat):
-        member = chat.get_member(msg.get_author_id())
-        if member:
-            is_forum_admin = member.is_admin()
-
-    if level <= ACCESS_LEVEL_FORUM_ADMIN and is_forum_admin:
-        return True
-
-    return False
+    # Get user avatar URLs
+    # This information is not included in the regular user info
+    # It is retrieved from a different URL
+    resp = requests.post(ryver.url_prefix +
+                         "Ryver.Info()?$format=json", headers=ryver.headers)
+    resp.raise_for_status()
+    users_json = resp.json()["d"]["users"]
+    user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 
 
-access_denied_messages = [
-    "I'm sorry Dave, I'm afraid I can't do that.",
-    "ACCESS DENIED",
-    "![NO](https://i.kym-cdn.com/photos/images/original/001/483/348/bdd.jpg)",
-    "This operation requires a higher access level. Please ask an admin.",
-    "Nice try.",
-    "![Access Denied](https://cdn.windowsreport.com/wp-content/uploads/2018/08/fix-access-denied-error-windows-10.jpg)",
-    "![No.](https://i.imgur.com/DKUR9Tk.png)",
-    "![No](https://pics.me.me/thumb_no-no-meme-face-hot-102-7-49094780.png)",
-]
-
-
-def get_access_denied_message() -> str:
-    return access_denied_messages[randrange(len(access_denied_messages))]
-
-
-def get_chat_from_str(name: str) -> pyryver.Chat:
-    field = pyryver.FIELD_NAME
-    # Handle the name= or nickname= syntax
-    if name.startswith("name="):
-        field = pyryver.FIELD_NAME
-        # Slice off the beginning
-        name = name[name.index("=") + 1:]
-    elif name.startswith("nickname="):
-        field = pyryver.FIELD_NICKNAME
-        name = name[name.index("=") + 1:]
-    return pyryver.get_obj_by_field(forums + teams, field, name)
-
-
-def parse_roles(about: str) -> typing.List[str]:
-    if not about:
-        return []
-    roles = []
-    for line in about.split("\n"):
-        if line.startswith("<Role: ") and line.endswith(">"):
-            role = line[line.index(":") + 2:-1]
-            # roles cannot have spaces
-            if " " in role:
-                continue
-            roles.append(role)
-    return roles
-
-
-def days_diff(a: datetime, b: datetime) -> int:
-    diff = a - b
-    if diff.seconds > 0:
-        return diff.days + 1
-    return diff.days
-
-
-mention_regex = re.compile(r"(\s|^)@(\w+)(?=\s|$)", flags=re.MULTILINE)
-
-
-def sanitize(msg: str) -> str:
-    """
-    Sanitize the given input text.
-
-    Currently, this method makes all mentions ineffective by putting a space between the @ and the username.
-    """
-    return mention_regex.sub(r"\1@ \2", msg)
-
-
-def regenerate_help_text():
-    global help_text
-    help_text = ""
-    commands = {}
-    for name, command in command_processors.items():
-        try:
-            properties = json.loads(command[0].__doc__ or "")
-            try:
-                if properties["hidden"] == True:
-                    continue
-            except KeyError:
-                pass
-            syntax = f"`@latexbot {name} {properties['syntax']}`" if properties["syntax"] else f"`@latexbot {name}`"
-            cmd = f"{syntax} - {properties['description']} {ACCESS_LEVEL_STRS[command[1]]}"
-            group = properties['group']
-            if group in commands:
-                commands[group].append(cmd)
-            else:
-                commands[group] = [cmd]
-        except json.JSONDecodeError as e:
-            print(f"Warning: Failed to parse doc for command {name}!\n{e}")
-            pass
-
-    for group, cmds in commands.items():
-        help_text += group + ":\n"
-        for cmd in cmds:
-            help_text += f"  - {cmd}\n"
-        help_text += "\n"
-    help_text += f"\nCurrent Bot Admins are: {', '.join([pyryver.get_obj_by_field(users, pyryver.FIELD_ID, uid).get_display_name() for uid in admins])}."
-
-
-if __name__ == "__main__":
-    # Auto-generate help text
-    print("Auto-generating help text...")
+def init():
+    global ryver, chat
+    ryver = pyryver.Ryver(
+        os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
+    update_org_data()
+    chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
     regenerate_help_text()
 
-    print("LaTeX Bot is running!")
-    chat.send_message(
-        f"LaTeX Bot {version} is online! Note that to reduce load, I only check messages once per 3 seconds or more!", creator)
-    chat.send_message(help_text, creator)
 
+def start():
     while True:
         try:
             # Clear notifs
@@ -931,9 +931,9 @@ if __name__ == "__main__":
                     text = chat_message.get_body().split(" ")
 
                     if text[0] == "@latexbot" and len(text) >= 2:
-                        print(
-                            f"Command received from user {chat_message.get_author_id()}: " + " ".join(text))
+                        print(f"Command received from user {chat_message.get_author_id()}: " + " ".join(text))
 
+                        global enabled
                         if enabled:
                             if text[1] in command_processors:
                                 # Check access level
@@ -975,3 +975,13 @@ if __name__ == "__main__":
                 "@tylertian Let's hope that never happens again.", creator)
 
     chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
+
+
+if __name__ == "__main__":
+    print(f"LaTeX Bot {VERSION} has been started. Initializing...")
+    init()
+    print("LaTeX Bot is running!")
+    chat.send_message(
+        f"LaTeX Bot {VERSION} is online! Note that to reduce load, I only check messages once per 3 seconds or more!", creator)
+    chat.send_message(help_text, creator)
+    start()
