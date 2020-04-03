@@ -33,7 +33,7 @@ users = []
 user_avatars = {}
 chat = None
 
-VERSION = "v0.3.7"
+VERSION = "v0.3.8"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 
@@ -66,6 +66,8 @@ def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[
     Get any number of messages before a message from an ID.
 
     This is similar to using pyryver.Chat.get_message(), except it doesn't have the 25 message restriction.
+
+    Note that the oldest message is first!
     """
     msgs = []
     # Get around the 25 message restriction
@@ -313,17 +315,25 @@ def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     {
         "group": "Administrative Commands",
-        "syntax": "<count>",
-        "description": "Delete the last <count> messages."
+        "syntax": "[<start>-]<end|count>",
+        "description": "Delete the last <count> messages, or from <start> to <end> (inclusive, 1-based indexing)."
     }
     """
-    count = 0
     try:
-        count = int(s)
-    except ValueError:
-        chat.send_message("Invalid number.", creator)
+        # Try and parse the range
+        if "-" in s:
+            start = int(s[:s.index("-")].strip())
+            s = s[s.index("-") + 1:].strip()
+        else:
+            start = 1
+        end = int(s)
+    except (ValueError, IndexError):
+        chat.send_message("Invalid syntax.", creator)
         return
-    msgs = get_msgs_before(chat, msg.get_id(), count)
+
+    # Cut off the end (newer messages)
+    # Subtract 1 for 1-based indexing
+    msgs = get_msgs_before(chat, msg.get_id(), end)[:-(start - 1)]
     for message in msgs:
         message.delete()
     msg.delete()
@@ -333,8 +343,8 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     {
         "group": "Administrative Commands",
-        "syntax": "moveMessages <count> [(name|nickname)=]<forum|team>",
-        "description": "Move the last <count> messages to another forum or team."
+        "syntax": "moveMessages [<start>-]<end|count> [(name|nickname)=]<forum|team>",
+        "description": "Move the last <count> messages, or from <start> to <end> (inclusive, 1-based indexing), to another forum or team."
     }
     """
     s = s.split(" ")
@@ -342,11 +352,17 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message("Invalid syntax.", creator)
         return
 
-    count = 0
+    msg_range = s[0]
     try:
-        count = int(s[0])
-    except ValueError:
-        chat.send_message("Invalid number.", creator)
+        # Try and parse the range
+        if "-" in msg_range:
+            start = int(msg_range[:msg_range.index("-")].strip())
+            msg_range = msg_range[msg_range.index("-") + 1:].strip()
+        else:
+            start = 1
+        end = int(msg_range)
+    except (ValueError, IndexError):
+        chat.send_message("Invalid syntax.", creator)
         return
 
     to = get_chat_from_str(" ".join(s[1:]))
@@ -354,7 +370,9 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message("Forum/team not found", creator)
         return
 
-    msgs = get_msgs_before(chat, msg.get_id(), count)
+    # Cut off the end (newer messages)
+    # Subtract 1 for 1-based indexing
+    msgs = get_msgs_before(chat, msg.get_id(), end)[:-(start - 1)]
 
     to.send_message(f"# Begin Moved Message\n\n---", creator)
 
