@@ -43,6 +43,7 @@ enabled = True
 
 # Auto generated later
 help_text = ""
+extended_help_text = {}
 
 ACCESS_LEVEL_EVERYONE = 0
 ACCESS_LEVEL_FORUM_ADMIN = 1
@@ -174,46 +175,73 @@ def sanitize(msg: str) -> str:
     return MENTION_REGEX.sub(r"\1@ \2", msg)
 
 
-def regenerate_help_text():
+def generate_help_text():
     global help_text
     help_text = ""
     commands = {}
     for name, command in command_processors.items():
         try:
+            # Parse the docstring as a JSON
             properties = json.loads(command[0].__doc__ or "")
             try:
+                # Skip hidden commands
                 if properties["hidden"] == True:
                     continue
             except KeyError:
                 pass
+
+            # Generate basic description
             syntax = f"`@latexbot {name} {properties['syntax']}`" if properties["syntax"] else f"`@latexbot {name}`"
-            cmd = f"{syntax} - {properties['description']} {ACCESS_LEVEL_STRS[command[1]]}"
+            description = f"{syntax} - {properties['description']} {ACCESS_LEVEL_STRS[command[1]]}"
             group = properties['group']
             if group in commands:
-                commands[group].append(cmd)
+                commands[group].append(description)
             else:
-                commands[group] = [cmd]
+                commands[group] = [description]
+
+            # Generate full description
+            if "extended_description" in properties:
+                extended_description = ''.join(properties["extended_description"])
+            else:
+                extended_description = "***No extended description provided.***"
+            
+            # Examples
+            if "examples" in properties:
+                examples = '\n'.join(f"`{example}`" for example in properties["examples"])
+            else:
+                examples = "***No examples provided.***"
+            
+            description += f"\n\n{extended_description}\n\n**Examples:**\n{examples}"
+            extended_help_text[name] = description
+
         except json.JSONDecodeError as e:
             print(f"Warning: Failed to parse doc for command {name}!\n{e}")
             pass
 
     for group, cmds in commands.items():
         help_text += group + ":\n"
-        for cmd in cmds:
-            help_text += f"  - {cmd}\n"
+        for description in cmds:
+            help_text += f"  - {description}\n"
         help_text += "\n"
     help_text += f"\nCurrent Bot Admins are: {', '.join([pyryver.get_obj_by_field(users, pyryver.FIELD_ID, uid).get_display_name() for uid in admins])}."
+    help_text += "\n\nFor more details about a command, try `@latexbot help <command>`."
 
 
 ################################ COMMAND PROCESSORS ################################
 
 
 def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
-    """
+    r"""
     {
         "group": "Basic Commands",
         "syntax": "<formula>",
-        "description": "Render a LaTeX formula."
+        "description": "Render a LaTeX formula.",
+        "extended_description": [
+            "The formula is rendered in inline mode."
+        ],
+        "examples": [
+            "@latexbot render f(x) = \\sum_{i=0}^{n} \\frac{a_i}{1+x}"
+        ]
     }
     """
     if len(formula) > 0:
@@ -227,11 +255,24 @@ def _help(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     {
         "group": "Basic Commands",
-        "syntax": "",
-        "description": "Get a list of all the commands."
+        "syntax": "[command]",
+        "description": "Get a list of all the commands, or details about a command.",
+        "extended_description": [
+            "Use this command without any arguments to get an overview of all the commands, ",
+            "or give the name of the command you would like to know more about."
+        ],
+        "examples": [
+            "@latexbot help",
+            "@latexbot help render"
+        ]
     }
     """
-    chat.send_message(help_text, creator)
+    s = s.strip()
+    if s == "":
+        chat.send_message(help_text, creator)
+    else:
+        chat.send_message(extended_help_text.get(s, 
+            f"Error: {s} is not a valid command, or does not have an extended description."), creator)
 
 
 def _ping(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -719,7 +760,7 @@ def _changeaccess(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
     try:
         command_processors[cmd][1] = level
-        regenerate_help_text()
+        generate_help_text()
         chat.send_message(f"Access levels updated.", creator)
     except KeyError:
         chat.send_message(f"Command not found.", creator)
@@ -741,7 +782,7 @@ def _makeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message(f"User not found.", creator)
         return
     admins.add(user.get_id())
-    regenerate_help_text()
+    generate_help_text()
     chat.send_message(f"User {s} has been added to Bot Admins.")
 
 
@@ -762,7 +803,7 @@ def _removeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         return
     try:
         admins.remove(user.get_id())
-        regenerate_help_text()
+        generate_help_text()
         chat.send_message(f"User {s} is no longer a Bot Admin.")
     except KeyError:
         chat.send_message(f"User {s} is not a Bot Admin.", creator)
@@ -912,7 +953,7 @@ def init():
         os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
     update_org_data()
     chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
-    regenerate_help_text()
+    generate_help_text()
 
 
 def start():
