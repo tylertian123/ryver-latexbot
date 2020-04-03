@@ -310,7 +310,13 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     {
         "group": "Basic Commands",
         "syntax": "<thing>",
-        "description": "Ask my opinion of a thing!"
+        "description": "Ask my opinion of a thing!",
+        "extended_description": [
+            "Disclaimer: These are my own opinions, Tyler is not responsible for anything said."
+        ],
+        "examples": [
+            "@latexbot whatDoYouThink <insert controversial topic here>"
+        ]
     }
     """
     msgs = yes_msgs if randrange(2) == 0 else no_msgs
@@ -353,11 +359,20 @@ def _howmanydaysuntilcomp(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    """
+    r"""
     {
         "group": "Administrative Commands",
         "syntax": "[<start>-]<end|count>",
-        "description": "Delete the last <count> messages, or from <start> to <end> (inclusive, 1-based indexing)."
+        "description": "Delete messages.",
+        "extended_description": [
+            "If no <start> is provided, this command deletes the last <count>/<end> messages.\n",
+            "If <start> is provided, this command deletes messages from <start> to <end> inclusive, with 1-based indexing.",
+            "\n\nThe command message itself is always deleted."
+        ],
+        "examples": [
+            "@latexbot deleteMessages 10",
+            "@latexbot deleteMessages 10-20"
+        ]
     }
     """
     try:
@@ -381,11 +396,22 @@ def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    """
+    r"""
     {
         "group": "Administrative Commands",
-        "syntax": "moveMessages [<start>-]<end|count> [(name|nickname)=]<forum|team>",
-        "description": "Move the last <count> messages, or from <start> to <end> (inclusive, 1-based indexing), to another forum or team."
+        "syntax": "[<start>-]<end|count> [(name|nickname)=]<forum|team>",
+        "description": "Moves messages to another forum or team.",
+        "extended_description": [
+            "If no <start> is provided, this command moves the last <count>/<end> messages.\n",
+            "If <start> is provided, this command moves messages from <start> to <end> inclusive, with 1-based indexing.\n\n",
+            "By default this command goes by the display name of the forum/team. ",
+            "Specify `nickname=` before the forum/team name to use nicknames instead.",
+            "\n\nNote that reactions cannot be moved perfectly, and are instead shown with text."
+        ],
+        "examples": [
+            "@latexbot moveMessages 10 Off-Topic",
+            "@latexbot moveMessages 10-20 nickname=OffTopic"
+        ]
     }
     """
     s = s.split(" ")
@@ -450,11 +476,21 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _countmessagessince(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    """
+    r"""
     {
         "group": "Administrative Commands",
         "syntax": "<pattern>",
-        "description": "Count the number of messages, from the command up to and including the first message that matches <pattern> (case insensitive). If <pattern> is surrounded with slashes, it is treated as a regex, with the multiline and ignorecase flags."
+        "description": "Count the number of messages since the first message that matches a pattern.",
+        "extended_description": [
+            "This command counts messages from the first message that matches <pattern> to the command message (inclusive). ",
+            "The search pattern is case insensitive.\n\n",
+            "If <pattern> is surrounded with slashes /like so/, it is treated as a regex, with the multiline and ignorecase flags.\n\n",
+            "This command will only search through the last 250 messages maximum."
+        ],
+        "examples": [
+            "@latexbot countMessagesSince foo bar",
+            "@latexbot countMessagesSince /(\\s|^)@(\\w+)(?=\\s|$)/"
+        ]
     }
     """
     if s.startswith("/") and s.endswith("/"):
