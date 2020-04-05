@@ -186,7 +186,7 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         ]
     }
     """
-    msgs = yes_msgs if randrange(2) == 0 else no_msgs
+    msgs = no_msgs if hash(s.strip().lower()) % 2 == 0 else yes_msgs
     chat.send_message(msgs[randrange(len(msgs))], creator)
 
 

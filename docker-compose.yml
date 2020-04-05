@@ -4,3 +4,5 @@ services:
   latexbot:
     build: .
     image: docker-registry.i.mm12.xyz/latexbot:0.3.8
+    environment: 
+      - PYTHONHASHSEED=0
