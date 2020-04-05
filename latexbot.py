@@ -1,14 +1,15 @@
 import io
 import json
+import org
 import os
 import pyryver
 import re
-import requests
 import shlex
 import sys
 import time
 import typing
 from datetime import datetime
+from latexbot_util import *
 from quicklatex_render import ql_render
 from random import randrange
 from traceback import format_exc
@@ -26,13 +27,6 @@ def print(*args, **kwargs):
 
 ################################ GLOBAL VARIABLES AND CONSTANTS ################################
 
-ryver = None
-forums = []
-teams = []
-users = []
-user_avatars = {}
-chat = None
-
 VERSION = "v0.3.8"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
@@ -45,134 +39,7 @@ enabled = True
 help_text = ""
 extended_help_text = {}
 
-ACCESS_LEVEL_EVERYONE = 0
-ACCESS_LEVEL_FORUM_ADMIN = 1
-ACCESS_LEVEL_ORG_ADMIN = 2
-ACCESS_LEVEL_BOT_ADMIN = 3
-ACCESS_LEVEL_TYLER = 9001
-
-ACCESS_LEVEL_STRS = {
-    ACCESS_LEVEL_EVERYONE: "",
-    ACCESS_LEVEL_FORUM_ADMIN: "**Accessible to Forum, Org and Bot Admins only.**",
-    ACCESS_LEVEL_ORG_ADMIN: "**Accessible to Org and Bot Admins only.**",
-    ACCESS_LEVEL_BOT_ADMIN: "**Accessible to Bot Admins only.**",
-    ACCESS_LEVEL_TYLER: "**Accessible to Tyler only.**"
-}
-
 ################################ UTILITY FUNCTIONS ################################
-
-
-def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
-    """
-    Get any number of messages before a message from an ID.
-
-    This is similar to using pyryver.Chat.get_message(), except it doesn't have the 25 message restriction.
-
-    Note that the oldest message is first!
-    """
-    msgs = []
-    # Get around the 25 message restriction
-    # Cut off the last one (that one is the message with the id specified)
-    msgs = chat.get_message_from_id(msg_id, before=min(25, count))[:-1]
-    count -= len(msgs)
-    while count > 0:
-        prev_msgs = chat.get_message_from_id(
-            msgs[0].get_id(), before=min(25, count))[:-1]
-        msgs = prev_msgs + msgs
-        count -= len(prev_msgs)
-    return msgs
-
-
-def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, level: int) -> bool:
-    if level <= ACCESS_LEVEL_EVERYONE:
-        return True
-
-    if level <= ACCESS_LEVEL_TYLER and msg.get_author_id() == 1311906:
-        return True
-
-    if level <= ACCESS_LEVEL_BOT_ADMIN and msg.get_author_id() in admins:
-        return True
-
-    user = pyryver.get_obj_by_field(
-        users, pyryver.FIELD_ID, msg.get_author_id())
-    if not user:
-        return False
-
-    if level <= ACCESS_LEVEL_ORG_ADMIN and user.is_admin():
-        return True
-
-    is_forum_admin = False
-    if isinstance(chat, pyryver.GroupChat):
-        member = chat.get_member(msg.get_author_id())
-        if member:
-            is_forum_admin = member.is_admin()
-
-    if level <= ACCESS_LEVEL_FORUM_ADMIN and is_forum_admin:
-        return True
-
-    return False
-
-
-ACCESS_DENIED_MESSAGES = [
-    "I'm sorry Dave, I'm afraid I can't do that.",
-    "ACCESS DENIED",
-    "![NO](https://i.kym-cdn.com/photos/images/original/001/483/348/bdd.jpg)",
-    "This operation requires a higher access level. Please ask an admin.",
-    "Nice try.",
-    "![Access Denied](https://cdn.windowsreport.com/wp-content/uploads/2018/08/fix-access-denied-error-windows-10.jpg)",
-    "![No.](https://i.imgur.com/DKUR9Tk.png)",
-    "![No](https://pics.me.me/thumb_no-no-meme-face-hot-102-7-49094780.png)",
-]
-
-
-def get_access_denied_message() -> str:
-    return ACCESS_DENIED_MESSAGES[randrange(len(ACCESS_DENIED_MESSAGES))]
-
-
-def get_chat_from_str(name: str) -> pyryver.Chat:
-    field = pyryver.FIELD_NAME
-    # Handle the name= or nickname= syntax
-    if name.startswith("name="):
-        field = pyryver.FIELD_NAME
-        # Slice off the beginning
-        name = name[name.index("=") + 1:]
-    elif name.startswith("nickname="):
-        field = pyryver.FIELD_NICKNAME
-        name = name[name.index("=") + 1:]
-    return pyryver.get_obj_by_field(forums + teams, field, name)
-
-
-def parse_roles(about: str) -> typing.List[str]:
-    if not about:
-        return []
-    roles = []
-    for line in about.split("\n"):
-        if line.startswith("<Role: ") and line.endswith(">"):
-            role = line[line.index(":") + 2:-1]
-            # roles cannot have spaces
-            if " " in role:
-                continue
-            roles.append(role)
-    return roles
-
-
-def days_diff(a: datetime, b: datetime) -> int:
-    diff = a - b
-    if diff.seconds > 0:
-        return diff.days + 1
-    return diff.days
-
-
-MENTION_REGEX = re.compile(r"(\s|^)@(\w+)(?=\s|$)", flags=re.MULTILINE)
-
-
-def sanitize(msg: str) -> str:
-    """
-    Sanitize the given input text.
-
-    Currently, this method makes all mentions ineffective by putting a space between the @ and the username.
-    """
-    return MENTION_REGEX.sub(r"\1@ \2", msg)
 
 
 def generate_help_text():
@@ -223,7 +90,7 @@ def generate_help_text():
         for description in cmds:
             help_text += f"  - {description}\n"
         help_text += "\n"
-    help_text += f"\nCurrent Bot Admins are: {', '.join([pyryver.get_obj_by_field(users, pyryver.FIELD_ID, uid).get_display_name() for uid in admins])}."
+    help_text += f"\nCurrent Bot Admins are: {', '.join([pyryver.get_obj_by_field(org.users, pyryver.FIELD_ID, uid).get_display_name() for uid in admins])}."
     help_text += "\n\nFor more details about a command, try `@latexbot help <command>`."
 
 
@@ -345,15 +212,15 @@ def _howmanydaysuntilcomp(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
                     comp["start"], "%Y-%m-%d"), datetime.strptime(comp["end"], "%Y-%m-%d")))
     now = datetime.now()
     for comp in COMPETITIONS:
-        diff = days_diff(comp[1], now)
+        diff = caldays_diff(comp[1], now)
         if diff > 0:
             chat.send_message(f"{diff} days left until {comp[0]}.", creator)
             return
         else:
-            end_diff = days_diff(comp[2], now)
+            end_diff = caldays_diff(comp[2], now)
             if end_diff > 0:
                 chat.send_message(
-                    f"It is currently day {days_diff(now, comp[1]) + 1} of {comp[0]}.", creator)
+                    f"It is currently day {caldays_diff(now, comp[1]) + 1} of {comp[0]}.", creator)
                 return
     chat.send_message("No upcoming events.", creator)
 
@@ -432,7 +299,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message("Invalid syntax.", creator)
         return
 
-    to = get_chat_from_str(" ".join(s[1:]))
+    to = parse_chat_name(" ".join(s[1:]))
     if not to:
         chat.send_message("Forum/team not found", creator)
         return
@@ -451,10 +318,10 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             # First attempt to search for the ID in the list
             # if that fails then get it directly using a request
             msg_author = pyryver.get_obj_by_field(
-                users, pyryver.FIELD_ID, msg.get_author_id()) or msg.get_author()
+                org.users, pyryver.FIELD_ID, msg.get_author_id()) or msg.get_author()
             # Pretend to be another person
             msg_creator = pyryver.Creator(
-                msg_author.get_display_name(), user_avatars.get(msg_author.get_id(), ""))
+                msg_author.get_display_name(), org.user_avatars.get(msg_author.get_id(), ""))
 
         msg_body = sanitize(msg.get_body())
         # Handle reactions
@@ -465,7 +332,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
                 # Instead for each reaction, append a line at the bottom with the emoji
                 # and every user's display name who reacted with the reaction
                 u = [pyryver.get_obj_by_field(
-                    users, pyryver.FIELD_ID, person) for person in people]
+                    org.users, pyryver.FIELD_ID, person) for person in people]
                 msg_body += f"\n:{emoji}:: {', '.join([user.get_display_name() if user else 'unknown' for user in u])}"
 
         msg_id = to.send_message(msg_body, msg_creator)
@@ -536,7 +403,7 @@ def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     # Mentions
     if s.startswith("@"):
         s = s[1:]
-    user = pyryver.get_obj_by_field(users, pyryver.FIELD_USER_USERNAME, s)
+    user = pyryver.get_obj_by_field(org.users, pyryver.FIELD_USER_USERNAME, s)
     if not user:
         chat.send_message("Error: User not found.", creator)
         return
@@ -557,7 +424,7 @@ def _getallroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     }
     """
     all_roles = {}
-    for user in users:
+    for user in org.users:
         if user.get_activated():
             roles = parse_roles(user.get_about())
             for role in roles:
@@ -598,7 +465,7 @@ def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     usernames = []
 
     # Check roles for each user
-    for user in users:
+    for user in org.users:
         if user.get_activated():
             user_roles = parse_roles(user.get_about())
             # Test if the union of the two roles sets has any elements
@@ -613,7 +480,7 @@ def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     author = msg.get_author()
     # Pretend to be the creator
     msg_creator = pyryver.Creator(
-        author.get_display_name(), user_avatars.get(author.get_id(), ""))
+        author.get_display_name(), org.user_avatars.get(author.get_id(), ""))
     chat.send_message(f"{' '.join(usernames)}\n{message}", msg_creator)
     # Get rid of the original message
     msg.delete()
@@ -638,7 +505,7 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
             # The username can begin with an @ for mentions
             username = username[1:]
         user = pyryver.get_obj_by_field(
-            users, pyryver.FIELD_USER_USERNAME, username)
+            org.users, pyryver.FIELD_USER_USERNAME, username)
         if not user:
             chat.send_message(
                 f"User '{username}' not found! Try `@latexbot updateChats` to update the list of users.\nSkipping...", creator)
@@ -679,7 +546,7 @@ def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
             # The username can begin with an @ for mentions
             username = username[1:]
         user = pyryver.get_obj_by_field(
-            users, pyryver.FIELD_USER_USERNAME, username)
+            org.users, pyryver.FIELD_USER_USERNAME, username)
         if not user:
             chat.send_message(
                 f"User '{username}' not found! Try `@latexbot updateChats` to update the list of users.\nSkipping...", creator)
@@ -813,7 +680,7 @@ def _makeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     if s.startswith("@"):
         s = s[1:]
 
-    user = pyryver.get_obj_by_field(users, pyryver.FIELD_USERNAME, s)
+    user = pyryver.get_obj_by_field(org.users, pyryver.FIELD_USERNAME, s)
     if not user:
         chat.send_message(f"User not found.", creator)
         return
@@ -833,7 +700,7 @@ def _removeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     if s.startswith("@"):
         s = s[1:]
 
-    user = pyryver.get_obj_by_field(users, pyryver.FIELD_USERNAME, s)
+    user = pyryver.get_obj_by_field(org.users, pyryver.FIELD_USERNAME, s)
     if not user:
         chat.send_message(f"User not found.", creator)
         return
@@ -853,11 +720,11 @@ def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         "description": "Update the list of forums/teams and users."
     }
     """
-    update_org_data()
+    org.init()
     chat.send_message("Forums/Teams/Users updated.", creator)
 
 
-def _moveto(_chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
+def _moveto(chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
     """
     {
         "group": "Miscellaneous Commands",
@@ -865,17 +732,16 @@ def _moveto(_chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
         "description": "Move my home to another forum/team."
     }
     """
-    global chat
     if len(name) > 0:
         # Find new chat
-        new_chat = get_chat_from_str(name)
+        new_chat = parse_chat_name(name)
         if not new_chat:
             # Note the underscore
-            _chat.send_message("Forum/team not found.", creator)
+            chat.send_message("Forum/team not found.", creator)
         else:
-            _chat.send_message(f"LaTeX Bot has moved to {name}.", creator)
-            chat = new_chat
-            chat.send_message("LaTeX Bot has moved here.", creator)
+            chat.send_message(f"LaTeX Bot has moved to {name}.", creator)
+            org.chat = new_chat
+            org.chat.send_message("LaTeX Bot has moved here.", creator)
 
 
 def _setactivated(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -906,7 +772,7 @@ def _setactivated(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message("Invalid syntax.", creator)
         return
 
-    user = pyryver.get_obj_by_field(users, pyryver.FIELD_USERNAME, s)
+    user = pyryver.get_obj_by_field(org.users, pyryver.FIELD_USERNAME, s)
     if not user:
         chat.send_message(f"User not found.", creator)
         return
@@ -967,28 +833,8 @@ command_processors = {
 
 ################################ OTHER FUNCTIONS ################################
 
-def update_org_data():
-    global forums, teams, users, user_avatars
-    forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, force_update=True)
-    teams = ryver.get_cached_chats(pyryver.TYPE_TEAM, force_update=True)
-    users = ryver.get_cached_chats(pyryver.TYPE_USER, force_update=True)
-
-    # Get user avatar URLs
-    # This information is not included in the regular user info
-    # It is retrieved from a different URL
-    resp = requests.post(ryver.url_prefix +
-                         "Ryver.Info()?$format=json", headers=ryver.headers)
-    resp.raise_for_status()
-    users_json = resp.json()["d"]["users"]
-    user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
-
-
 def init():
-    global ryver, chat
-    ryver = pyryver.Ryver(
-        os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
-    update_org_data()
-    chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
+    org.init()
     generate_help_text()
 
 
@@ -996,11 +842,11 @@ def start():
     while True:
         try:
             # Clear notifs
-            ryver.mark_all_notifs_read()
+            org.ryver.mark_all_notifs_read()
             while True:
-                notifs = ryver.get_notifs(unread=True)
+                notifs = org.ryver.get_notifs(unread=True)
                 if len(notifs) > 0:
-                    ryver.mark_all_notifs_read()
+                    org.ryver.mark_all_notifs_read()
 
                 for notif in notifs:
                     print("New notification received!")
@@ -1014,10 +860,10 @@ def start():
                     message_id = via["id"]
                     chat_id = via["workroom"]["id"]
                     chat_source = pyryver.get_obj_by_field(
-                        forums + teams, pyryver.FIELD_ID, chat_id)
+                        org.forums + org.teams, pyryver.FIELD_ID, chat_id)
                     if not chat_source:
                         print("Error: Cannot find chat for: " + str(via))
-                        chat.send_message(
+                        org.chat.send_message(
                             "Error: Cannot find source of message. Try `@latexbot updateChats`.", creator)
                         continue
                     # We need to get the actual message from the chat, because the one in the notification may be cut off
@@ -1032,7 +878,7 @@ def start():
                         if enabled:
                             if text[1] in command_processors:
                                 # Check access level
-                                if not is_authorized(chat_source, chat_message, command_processors[text[1]][1]):
+                                if not is_authorized(chat_source, chat_message, command_processors[text[1]][1], admins):
                                     chat_source.send_message(
                                         get_access_denied_message(), creator)
                                     print("Access was denied.")
@@ -1045,8 +891,8 @@ def start():
                                     "Sorry, I didn't understand what you were asking me to do.", creator)
                                 print("Command syntax was invalid.")
                         elif text[1] == "enable":
-                            if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN):
-                                chat.send_message(
+                            if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN, admins):
+                                org.chat.send_message(
                                     get_access_denied_message(), creator)
                             else:
                                 enabled = True
@@ -1064,19 +910,19 @@ def start():
             print(msg)
             # Sleep for 10 seconds to hopefully have the connection fix itself
             time.sleep(10)
-            chat.send_message(
+            org.chat.send_message(
                 "An unexpected error has occurred:\n```\n" + msg + "\n```", creator)
-            chat.send_message(
+            org.chat.send_message(
                 "@tylertian Let's hope that never happens again.", creator)
 
-    chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
+    org.chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
 
 
 if __name__ == "__main__":
     print(f"LaTeX Bot {VERSION} has been started. Initializing...")
     init()
     print("LaTeX Bot is running!")
-    chat.send_message(
+    org.chat.send_message(
         f"LaTeX Bot {VERSION} is online! Note that to reduce load, I only check messages once per 3 seconds or more!", creator)
-    chat.send_message(help_text, creator)
+    org.chat.send_message(help_text, creator)
     start()
