@@ -47,43 +47,35 @@ def generate_help_text():
     help_text = ""
     commands = {}
     for name, command in command_processors.items():
-        try:
-            # Parse the docstring as a JSON
-            properties = json.loads(command[0].__doc__ or "")
-            try:
-                # Skip hidden commands
-                if properties["hidden"] == True:
-                    continue
-            except KeyError:
-                pass
+        if command[0].__doc__ == "":
+            print(f"Warning: Command {name} has no documentation, skipped")
+            continue
 
-            # Generate basic description
+        try:
+            properties = parse_doc(command[0].__doc__)
+            if properties.get("hidden", False) == "true":
+                # skip hidden commands
+                continue
+            
+            # Generate syntax string
             syntax = f"`@latexbot {name} {properties['syntax']}`" if properties["syntax"] else f"`@latexbot {name}`"
-            description = f"{syntax} - {properties['description']} {ACCESS_LEVEL_STRS[command[1]]}"
+            # Generate short description
+            description = f"{syntax} - {properties['short_desc']} {ACCESS_LEVEL_STRS[command[1]]}"
+
+            # Group commands
             group = properties['group']
             if group in commands:
                 commands[group].append(description)
             else:
                 commands[group] = [description]
+            
+            extended_description = properties["long_desc"] or "***No extended description provided.***"
+            examples = "\n".join("* " + ex for ex in properties["examples"]) if properties["examples"] else "***No examples provided.***"
 
-            # Generate full description
-            if "extended_description" in properties:
-                extended_description = ''.join(properties["extended_description"])
-            else:
-                extended_description = "***No extended description provided.***"
-            
-            # Examples
-            if "examples" in properties:
-                examples = '\n'.join(f"`{example}`" for example in properties["examples"])
-            else:
-                examples = "***No examples provided.***"
-            
             description += f"\n\n{extended_description}\n\n**Examples:**\n{examples}"
             extended_help_text[name] = description
-
-        except json.JSONDecodeError as e:
-            print(f"Warning: Failed to parse doc for command {name}!\n{e}")
-            pass
+        except (ValueError, KeyError) as e:
+            print(f"Error while parsing doc for {name}: {e}")
 
     for group, cmds in commands.items():
         help_text += group + ":\n"
@@ -98,18 +90,15 @@ def generate_help_text():
 
 
 def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
-    r"""
-    {
-        "group": "Basic Commands",
-        "syntax": "<formula>",
-        "description": "Render a LaTeX formula.",
-        "extended_description": [
-            "The formula is rendered in inline mode."
-        ],
-        "examples": [
-            "@latexbot render f(x) = \\sum_{i=0}^{n} \\frac{a_i}{1+x}"
-        ]
-    }
+    """
+    Render a LaTeX formula.
+
+    The formula is rendered in inline mode.
+    ---
+    group: Basic Commands
+    syntax: <formula>
+    ---
+    > `@latexbot render f(x) = \\sum_{i=0}^{n} \\frac{a_i}{1+x}`
     """
     if len(formula) > 0:
         img = ql_render(formula)
@@ -120,19 +109,16 @@ def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
 
 def _help(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Basic Commands",
-        "syntax": "[command]",
-        "description": "Get a list of all the commands, or details about a command.",
-        "extended_description": [
-            "Use this command without any arguments to get an overview of all the commands, ",
-            "or give the name of the command you would like to know more about."
-        ],
-        "examples": [
-            "@latexbot help",
-            "@latexbot help render"
-        ]
-    }
+    Get a list of all the commands, or details about a command.
+
+    Use this command without any arguments to get an overview of all the commands,
+    or give the name of the command you would like to know more about.
+    ---
+    group: Basic Commands
+    syntax: [command]
+    ---
+    > `@latexbot help` - Get general help
+    > `@latexbot help render` - Get help about the "render" command.
     """
     s = s.strip()
     if s == "":
@@ -144,11 +130,10 @@ def _help(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _ping(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Basic Commands",
-        "syntax": "",
-        "description": "I will respond with 'Pong' if I'm here."
-    }
+    I will respond with 'Pong' if I'm here.
+    ---
+    group: Basic Commands
+    syntax:
     """
     chat.send_message("Pong", creator)
 
@@ -174,17 +159,14 @@ no_msgs = [
 
 def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Basic Commands",
-        "syntax": "<thing>",
-        "description": "Ask my opinion of a thing!",
-        "extended_description": [
-            "Disclaimer: These are my own opinions, Tyler is not responsible for anything said."
-        ],
-        "examples": [
-            "@latexbot whatDoYouThink <insert controversial topic here>"
-        ]
-    }
+    Ask my opinion of a thing!
+
+    Disclaimer: These are my own opinions, Tyler is not responsible for anything said.
+    ---
+    group: Basic Commands
+    syntax: <thing>
+    ---
+    > `@latexbot whatDoYouThink <insert controversial topic here>`
     """
     msgs = no_msgs if hash(s.strip().lower()) % 2 == 0 else yes_msgs
     chat.send_message(msgs[randrange(len(msgs))], creator)
@@ -195,11 +177,10 @@ COMPETITIONS = None
 
 def _howmanydaysuntilcomp(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Basic Commands",
-        "syntax": "",
-        "description": "How many days until the next competition?"
-    }
+    Shows how many days until the next event.
+    ---
+    group: Basic Commands
+    syntax:
     """
     global COMPETITIONS
     # Load competitions if not already loaded
@@ -226,21 +207,19 @@ def _howmanydaysuntilcomp(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    r"""
-    {
-        "group": "Administrative Commands",
-        "syntax": "[<start>-]<end|count>",
-        "description": "Delete messages.",
-        "extended_description": [
-            "If no <start> is provided, this command deletes the last <count>/<end> messages.\n",
-            "If <start> is provided, this command deletes messages from <start> to <end> inclusive, with 1-based indexing.",
-            "\n\nThe command message itself is always deleted."
-        ],
-        "examples": [
-            "@latexbot deleteMessages 10",
-            "@latexbot deleteMessages 10-20"
-        ]
-    }
+    """
+    Delete messages.
+
+    If no <start> is provided, this command deletes the last <count>/<end> messages.
+    If <start> is provided, this command deletes messages from <start> to <end> inclusive, with 1-based indexing.
+
+    The command message itself is always deleted.
+    ---
+    group: Administrative Commands
+    syntax: [<start>-]<end|count>
+    ---
+    > `@latexbot deleteMessages 10` - Delete the last 10 messages.
+    > `@latexbot deleteMessages 10-20` - Delete the 10th last to 20th last messages, inclusive.
     """
     try:
         # Try and parse the range
@@ -263,23 +242,22 @@ def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    r"""
-    {
-        "group": "Administrative Commands",
-        "syntax": "[<start>-]<end|count> [(name|nickname)=]<forum|team>",
-        "description": "Moves messages to another forum or team.",
-        "extended_description": [
-            "If no <start> is provided, this command moves the last <count>/<end> messages.\n",
-            "If <start> is provided, this command moves messages from <start> to <end> inclusive, with 1-based indexing.\n\n",
-            "By default this command goes by the display name of the forum/team. ",
-            "Specify `nickname=` before the forum/team name to use nicknames instead.",
-            "\n\nNote that reactions cannot be moved perfectly, and are instead shown with text."
-        ],
-        "examples": [
-            "@latexbot moveMessages 10 Off-Topic",
-            "@latexbot moveMessages 10-20 nickname=OffTopic"
-        ]
-    }
+    """
+    Move messages to another forum or team.
+
+    If no <start> is provided, this command moves the last <count>/<end> messages.
+    If <start> is provided, this command moves messages from <start> to <end> inclusive, with 1-based indexing.
+
+    By default this command goes by the display name of the forum/team.
+    Specify `nickname=` before the forum/team name to use nicknames instead.
+
+    Note that reactions cannot be moved perfectly, and are instead shown with text.
+    ---
+    group: Administrative Commands
+    syntax: [<start>-]<end|count> [(name|nickname)=]<forum|team>
+    ---
+    > `@latexbot moveMessages 10 Off-Topic` - Move the last 10 messages to Off-Topic.
+    > `@latexbot moveMessages 10-20 nickname=OffTopic` - Move the 10th last to 20th last messages (inclusive) to a forum/team with the nickname +OffTopic.
     """
     s = s.split(" ")
     if len(s) < 2:
@@ -343,22 +321,22 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 def _countmessagessince(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    r"""
-    {
-        "group": "Administrative Commands",
-        "syntax": "<pattern>",
-        "description": "Count the number of messages since the first message that matches a pattern.",
-        "extended_description": [
-            "This command counts messages from the first message that matches <pattern> to the command message (inclusive). ",
-            "The search pattern is case insensitive.\n\n",
-            "If <pattern> is surrounded with slashes /like so/, it is treated as a regex, with the multiline and ignorecase flags.\n\n",
-            "This command will only search through the last 250 messages maximum."
-        ],
-        "examples": [
-            "@latexbot countMessagesSince foo bar",
-            "@latexbot countMessagesSince /(\\s|^)@(\\w+)(?=\\s|$)/"
-        ]
-    }
+    """
+    Count the number of messages since the first message that matches a pattern.
+
+    This command counts messages from the first message that matches <pattern> to the command message (inclusive).
+    It can be a very useful tool for deleting or moving long conversations without having to count the messages manually.
+    The search pattern is case insensitive.
+
+    If <pattern> is surrounded with slashes `/like so/`, it is treated as a regex, with the multiline and ignorecase flags.
+    
+    This command will only search through the last 250 messages maximum.
+    ---
+    group: Administrative Commands
+    syntax: <pattern>
+    ---
+    > `@latexbot countMessagesSince foo bar` - Count the number of messages since someone said "foo bar".
+    > `@latexbot countMessagesSince /(\\s|^)@(\\w+)(?=\\s|$)/` - Count the number of messages since someone last used an @ mention.
     """
     if s.startswith("/") and s.endswith("/"):
         try:
@@ -394,11 +372,12 @@ def _countmessagessince(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Roles Commands",
-        "syntax": "<user>",
-        "description": "List all roles of a user."
-    }
+    List all roles of a user.
+    ---
+    group: Roles Commands
+    syntax: <user>
+    ---
+    > `@latexbot getUserRoles tylertian` - Gets all the roles of Tyler.
     """
     # Mentions
     if s.startswith("@"):
@@ -417,11 +396,10 @@ def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _getallroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Roles Commands",
-        "syntax": "",
-        "description": "List all roles and users with those roles."
-    }
+    List all roles and users with those roles.
+    ---
+    group: Roles Commands
+    syntax:
     """
     all_roles = {}
     for user in org.users:
@@ -443,11 +421,15 @@ def _getallroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Roles Commands",
-        "syntax": "<roles> [message]",
-        "description": "@'s all users with a role. Roles are in a comma-separated list, e.g. Foo,Bar,Baz."
-    }
+    @ mention all users with any of the specified roles.
+    
+    Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
+    ---
+    group: Roles Commands
+    syntax: <roles> [message]
+    ---
+    > `@latexbot @role Foo` - Mention all users with the role "Foo".
+    > `@latexbot @role Foo,Bar Hello World` - Mention all users with the role "Foo" or the role "Bar" with the message "Hello World".
     """
     mention_roles = []
     message = ""
@@ -488,11 +470,17 @@ def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
     """
-    {
-        "group": "Roles Commands",
-        "syntax": "<roles> <people>",
-        "description": "Add people to a role. Note role names cannot contain spaces or commas. Roles are in a comma-separated list, e.g. Foo,Bar,Baz."
-    }
+    Add people to a role.
+
+    Role names cannot contain spaces or commas.
+    
+    Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
+    ---
+    group: Roles Commands
+    syntax: <roles> <people>
+    ---
+    > `@latexbot addToRole Foo tylertian` - Give Tyler the "Foo" role.
+    > `@latexbot addToRole Foo,Bar tylertian latexbot` Give Tyler and LaTeX Bot the "Foo" and "Bar" roles.
     """
     args = s.split(" ")
     if len(args) < 2:
@@ -529,11 +517,15 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
 
 def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
     """
-    {
-        "group": "Roles Commands",
-        "syntax": "<roles> <people>",
-        "description": "Remove people from a role. Roles are in a comma-separated list, e.g. Foo,Bar,Baz."
-    }
+    Remove people from a role.
+
+    Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
+    ---
+    group: Roles Commands
+    syntax: <roles> <people>
+    ---
+    > `@latexbot removeFromRole Foo tylertian` - Remove Tyler from the "Foo" role.
+    > `@latexbot removeFromRole Foo,Bar tylertian latexbot` Remove Tyler and LaTeX Bot from the "Foo" and "Bar" roles.
     """
     args = s.split(" ")
     if len(args) < 2:
@@ -571,11 +563,12 @@ def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
 
 def _disable(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Developer Commands",
-        "syntax": "",
-        "description": "Disable me."
-    }
+    Disable me.
+
+    Might be buggy. Why do you want to use this anyways?
+    ---
+    group: Developer Commands
+    syntax:
     """
     global enabled
     enabled = False
@@ -584,11 +577,13 @@ def _disable(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _kill(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Developer Commands",
-        "syntax": "",
-        "description": "Kill me (:fearful:)."
-    }
+    Kill me (:fearful:).
+
+    With the current settings, I will restart a few minutes after being killed.
+    Consider using the disable or sleep commands if you intend to disable me.
+    ---
+    group: Developer Commands
+    syntax:
     """
     chat.send_message("Goodbye, world.", creator)
     # Simulate Ctrl+C
@@ -597,11 +592,13 @@ def _kill(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _sleep(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Developer Commands",
-        "syntax": "<seconds>",
-        "description": "Put me to sleep."
-    }
+    Put me to sleep.
+
+    When sleeping, I will not respond to any commands.
+    If you accidentally put me to sleep for a long time, contact Tyler to wake me back up.
+    ---
+    group: Developer Commands
+    syntax: <seconds>
     """
     secs = 0
     try:
@@ -616,11 +613,20 @@ def _sleep(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _execute(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Developer Commands",
-        "syntax": "<code>",
-        "description": "Execute arbitrary Python code."
-    }
+    Execute arbitrary Python code.
+
+    Before you start messing around, keep in mind I run in a Docker container,
+    so everything you do here is sandboxed.
+
+    All output to stdout and stderr will be sent as a message after the code finishes executing.
+
+    Best to stay away from this command unless you're a dev.
+    ---
+    group: Developer Commands
+    syntax: <code>
+    ---
+    > `@latexbot execute print("Hello World")`
+    > `@latexbot execute chat.send_message("Hello from LaTeX Bot")`
     """
     # Temporarily replace stdout and stderr
     stdout = sys.stdout
@@ -635,7 +641,7 @@ def _execute(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message(output, creator)
     except Exception as e:
         chat.send_message(
-            f"An exception has occurred:\n{format_exc()}", creator)
+            f"An exception has occurred:\n```\n{format_exc()}\n```", creator)
     finally:
         sys.stdout = stdout
         sys.stderr = stderr
@@ -643,11 +649,21 @@ def _execute(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _changeaccess(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Developer Commands",
-        "syntax": "<command> <level>",
-        "description": "Change the access level of a command."
-    }
+    Change the access level of a command.
+    
+    The access level is a number. Here are the possible values:\n
+    0 - Everyone\n
+    1 - Forum Admins\n
+    2 - Org Admins\n
+    3 - Bot Admins\n
+    9001 - Tyler
+
+    Might contain bugs.
+    ---
+    group: Developer Commands
+    syntax: <command> <level>
+    ---
+    > `@latexbot changeAccess render 1` - Change the access level for "render" to Forum Admins or higher.
     """
     s = s.split()
     if len(s) != 2:
@@ -671,11 +687,10 @@ def _changeaccess(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _makeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Developer Commands",
-        "syntax": "<user>",
-        "description": "Make a user a Bot Admin."
-    }
+    Make a user a Bot Admin.
+    ---
+    group: Developer Commands
+    syntax: <user>
     """
     if s.startswith("@"):
         s = s[1:]
@@ -691,11 +706,10 @@ def _makeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _removeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Developer Commands",
-        "syntax": "<user>",
-        "description": "Remove a user from Bot Admins."
-    }
+    Remove a user from Bot Admins.
+    ---
+    group: Developer Commands
+    syntax: <user>
     """
     if s.startswith("@"):
         s = s[1:]
@@ -714,11 +728,14 @@ def _removeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Miscellaneous Commands",
-        "syntax": "",
-        "description": "Update the list of forums/teams and users."
-    }
+    Update the cached list of forums/teams and users.
+
+    As getting organization data takes time, LaTeX Bot caches this information,
+    so when org data is updated, such as when a new user joins, or when a new forum is created,
+    LaTeX Bot might fail to recognize it. Run this command to fix it.
+    ---
+    group: Miscellaneous Commands
+    syntax:
     """
     org.init()
     chat.send_message("Forums/Teams/Users updated.", creator)
@@ -726,11 +743,14 @@ def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _moveto(chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
     """
-    {
-        "group": "Miscellaneous Commands",
-        "syntax": "[(name|nickname)=]<forum|team>",
-        "description": "Move my home to another forum/team."
-    }
+    Move my home to another forum/team.
+
+    My home is where I'll send miscellaneous info such as crash backtraces.
+
+    The forum/team specification has the same syntax as moveMessages.
+    ---
+    group: Miscellaneous Commands
+    syntax: [(name|nickname)=]<forum|team>
     """
     if len(name) > 0:
         # Find new chat
@@ -746,12 +766,13 @@ def _moveto(chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
 
 def _setactivated(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Hidden Commands",
-        "syntax": "<user>",
-        "description": "Activates or deactivates a user.",
-        "hidden": true
-    }
+    Activates or deactivates a user.
+
+    Might be buggy.
+    ---
+    group: Hidden Commands
+    syntax: <user>
+    hidden: true
     """
     s = s.split()
 
@@ -782,12 +803,11 @@ def _setactivated(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _impersonate(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    {
-        "group": "Hidden Commands",
-        "syntax": "<displayname> <avatarurl>",
-        "description": "Impersonates someone.",
-        "hidden": true
-    }
+    Impersonates someone.
+    ---
+    group: Hidden Commands
+    syntax: <displayname> <avatarURL>
+    hidden: true
     """
     global creator
     s = shlex.split(s)
@@ -914,6 +934,7 @@ def start():
                 "An unexpected error has occurred:\n```\n" + msg + "\n```", creator)
             org.chat.send_message(
                 "@tylertian Let's hope that never happens again.", creator)
+        print("Recovered!")
 
     org.chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
 

@@ -4,6 +4,7 @@ import re
 import typing
 from datetime import datetime
 from random import randrange
+from textwrap import dedent
 
 
 ACCESS_LEVEL_EVERYONE = 0
@@ -144,6 +145,7 @@ def get_access_denied_message() -> str:
     """
     return ACCESS_DENIED_MESSAGES[randrange(len(ACCESS_DENIED_MESSAGES))]
 
+
 def caldays_diff(a: datetime, b: datetime) -> int:
     """
     Calculate the difference in calendar days between a and b (a - b).
@@ -153,3 +155,79 @@ def caldays_diff(a: datetime, b: datetime) -> int:
     a.replace(hour=0, minute=0, second=0, microsecond=0)
     b.replace(hour=0, minute=0, second=0, microsecond=0)
     return (a - b).days
+
+
+T = typing.TypeVar("T")
+
+
+def split_list(l: typing.List[T], v: T) -> typing.List[typing.List[T]]:
+    """
+    Split a list into smaller lists by value.
+    """
+    start = 0
+    result = []
+    for i, elem in enumerate(l):
+        if elem == v:
+            result.append(l[start:i])
+            start = i + 1
+    result.append(l[start:])
+    return result
+
+
+def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
+    """
+    Parse command documentation into a dictionary. 
+
+    Format:
+
+    <Short Description>
+
+    [Optional Long Description]
+    ---
+    group: <Command Group>
+    syntax: <Command Syntax>
+    [Other Attributes]
+    ---
+    > [Optional Examples]
+    > [More Examples]
+    """
+    doc = dedent(doc).strip().split("---")
+    if len(doc) < 2 or len(doc) > 3:
+        raise ValueError(
+            f"Doc must have between 2 or 3 sections, not {len(doc)}!")
+    # All sections
+    if len(doc) == 3:
+        desc, attrs, examples = doc
+    # No examples section
+    else:
+        desc, attrs = doc
+        examples = None
+
+    desc = split_list(desc.strip().splitlines(), "")
+    short_desc = ' '.join(s.strip() for s in desc[0])
+    # No extended description
+    if len(desc) == 1:
+        long_desc = None
+    else:
+        # Join by space for lines, then join by 2 newlines for paragraphs
+        # Skip first paragraph
+        long_desc = '\n\n'.join(' '.join(s.strip() for s in para) for para in desc[1:])
+    
+    if examples:
+        # Strip to remove possible leading space
+        # Only count lines starting with >
+        examples = [ex[1:].strip() for ex in examples.strip().splitlines() if ex.startswith(">")]
+    
+    doc_dict = {
+        "short_desc": short_desc,
+        "long_desc": long_desc,
+        "examples": examples,
+    }
+
+    for attr in attrs.strip().splitlines():
+        try:
+            name, val = attr.split(":")
+        except ValueError:
+            raise ValueError(f"Incorrect format: {attr}")
+        doc_dict[name.strip()] = val.strip()
+    return doc_dict
