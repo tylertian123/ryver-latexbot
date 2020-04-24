@@ -31,8 +31,6 @@ VERSION = "v0.4.0-dev"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 
-# Current admins are: @tylertian, @moeez
-admins = set([1311906, 1605991])
 enabled = True
 
 # Auto generated later
@@ -82,7 +80,7 @@ def generate_help_text():
         for description in cmds:
             help_text += f"  - {description}\n"
         help_text += "\n"
-    help_text += f"\nCurrent Bot Admins are: {', '.join([pyryver.get_obj_by_field(org.users, pyryver.FIELD_ID, uid).get_display_name() for uid in admins])}."
+    help_text += f"\nCurrent Bot Admins are: {', '.join([pyryver.get_obj_by_field(org.users, pyryver.FIELD_ID, uid).get_display_name() for uid in org.admins])}."
     help_text += "\n\nFor more details about a command, try `@latexbot help <command>`."
 
 
@@ -694,9 +692,10 @@ def _makeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     if not user:
         chat.send_message(f"User not found.", creator)
         return
-    admins.add(user.get_id())
+    org.admins.add(user.get_id())
     generate_help_text()
-    chat.send_message(f"User {s} has been added to Bot Admins.")
+    org.save_config()
+    chat.send_message(f"User {s} has been added to Bot Admins.", creator)
 
 
 def _removeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -714,11 +713,38 @@ def _removeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message(f"User not found.", creator)
         return
     try:
-        admins.remove(user.get_id())
+        org.admins.remove(user.get_id())
         generate_help_text()
-        chat.send_message(f"User {s} is no longer a Bot Admin.")
+        org.save_config()
+        chat.send_message(f"User {s} is no longer a Bot Admin.", creator)
     except KeyError:
         chat.send_message(f"User {s} is not a Bot Admin.", creator)
+
+
+def _exportconfig(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Export config as a JSON.
+    ---
+    group: Developer Commands
+    syntax:
+    """
+    chat.send_message(f"```json\n{json.dumps(org.make_config(), indent=2)}\n```", creator)
+
+
+def _importconfig(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Import config from JSON.
+    ---
+    group: Developer Commands
+    syntax: <data>
+    """
+    try:
+        org.init_config(json.loads(s))
+        generate_help_text()
+        org.save_config()
+        chat.send_message(f"Operation successful.", creator)
+    except (json.JSONDecodeError, KeyError) as e:
+        chat.send_message(f"Error decoding config: {e}", creator)
 
 
 def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -836,9 +862,11 @@ command_processors = {
     "kill": [_kill, ACCESS_LEVEL_BOT_ADMIN],
     "sleep": [_sleep, ACCESS_LEVEL_BOT_ADMIN],
     "execute": [_execute, ACCESS_LEVEL_BOT_ADMIN],
-    "changeAccess": [_changeaccess, ACCESS_LEVEL_TYLER],
-    "makeAdmin": [_makeadmin, ACCESS_LEVEL_TYLER],
-    "removeAdmin": [_removeadmin, ACCESS_LEVEL_TYLER],
+    "changeAccess": [_changeaccess, ACCESS_LEVEL_BOT_ADMIN],
+    "makeAdmin": [_makeadmin, ACCESS_LEVEL_BOT_ADMIN],
+    "removeAdmin": [_removeadmin, ACCESS_LEVEL_BOT_ADMIN],
+    "exportConfig": [_exportconfig, ACCESS_LEVEL_BOT_ADMIN],
+    "importConfig": [_importconfig, ACCESS_LEVEL_BOT_ADMIN],
 
     "updateChats": [_updatechats, ACCESS_LEVEL_FORUM_ADMIN],
     "moveTo": [_moveto, ACCESS_LEVEL_ORG_ADMIN],
@@ -895,7 +923,7 @@ def start():
                         if enabled:
                             if text[1] in command_processors:
                                 # Check access level
-                                if not is_authorized(chat_source, chat_message, command_processors[text[1]][1], admins):
+                                if not is_authorized(chat_source, chat_message, command_processors[text[1]][1]):
                                     chat_source.send_message(
                                         get_access_denied_message(), creator)
                                     print("Access was denied.")
@@ -908,7 +936,7 @@ def start():
                                     "Sorry, I didn't understand what you were asking me to do.", creator)
                                 print("Command syntax was invalid.")
                         elif text[1] == "enable":
-                            if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN, admins):
+                            if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN):
                                 org.chat.send_message(
                                     get_access_denied_message(), creator)
                             else:

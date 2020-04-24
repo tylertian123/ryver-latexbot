@@ -11,22 +11,9 @@ user_avatars = {}
 chat = None
 
 roles = {}
+admins = set()
 ROLES_FILE = "data/roles.json"
-
-def load_roles():
-    """
-    Load roles from the JSON file specified by ROLES_FILE.
-    """
-    global roles
-    try:
-        with open(ROLES_FILE, "r") as f:
-            roles = json.load(f)
-    except json.JSONDecodeError as e:
-        roles = roles or {}
-        print(f"Error while loading roles: {e}")
-    except FileNotFoundError as e:
-        roles = roles or {}
-        print(f"Roles file does not exist!")
+CONFIG_FILE = "data/config.json"
 
 
 def save_roles():
@@ -37,11 +24,36 @@ def save_roles():
         json.dump(roles, f)
 
 
+def make_config():
+    """
+    Generate a config dict to be saved as a JSON.
+    """
+    return {
+        "admins": list(admins)
+    }
+
+
+def init_config(config):
+    """
+    Initialize config data from a config dict.
+    """
+    global admins
+    admins = set(config["admins"])
+
+
+def save_config():
+    """
+    Save config to the JSON file specified by CONFIG_FILE.
+    """
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(make_config(), f)
+
+
 def init():
     """
     Initialize everything.
     """
-    global ryver, forums, teams, users, user_avatars, chat
+    global ryver, forums, teams, users, user_avatars, chat, roles
     if not ryver:
         ryver = pyryver.Ryver(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
     forums = ryver.get_chats(pyryver.TYPE_FORUM)
@@ -59,4 +71,17 @@ def init():
 
     chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
 
-    load_roles()
+    # Load roles
+    try:
+        with open(ROLES_FILE, "r") as f:
+            roles = json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        roles = roles or {}
+        print(f"Error while loading roles: {e}")
+    # Load config
+    try:
+        with open(CONFIG_FILE, "r") as f:
+            config = json.load(f)
+        init_config(config)
+    except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
+        print(f"Error while loading config: {e}")

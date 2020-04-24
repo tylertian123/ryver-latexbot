@@ -36,7 +36,7 @@ ACCESS_DENIED_MESSAGES = [
 MENTION_REGEX = re.compile(r"(\s|^)@(\w+)(?=\s|$)", flags=re.MULTILINE)
 
 
-def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, required_level: int, admins: typing.Set[int]) -> bool:
+def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, required_level: int) -> bool:
     """
     Check if the sender of a message has a particular access level or higher.
     """
@@ -46,7 +46,7 @@ def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, required_level: 
     if required_level <= ACCESS_LEVEL_TYLER and msg.get_author_id() == 1311906:
         return True
 
-    if required_level <= ACCESS_LEVEL_BOT_ADMIN and msg.get_author_id() in admins:
+    if required_level <= ACCESS_LEVEL_BOT_ADMIN and msg.get_author_id() in org.admins:
         return True
 
     user = pyryver.get_obj_by_field(
