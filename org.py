@@ -12,9 +12,10 @@ chat = None
 
 roles = {}
 admins = set()
+events = []
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
-
+EVENTS_FILE = "data/events.json"
 
 def save_roles():
     """
@@ -49,6 +50,14 @@ def save_config():
         json.dump(make_config(), f)
 
 
+def save_events():
+    """
+    Save events to the JSON file specified by EVENTS_FILE.
+    """
+    with open(EVENTS_FILE, "w") as f:
+        json.dump(events, f)
+
+
 def init():
     """
     Initialize everything.
@@ -76,7 +85,6 @@ def init():
         with open(ROLES_FILE, "r") as f:
             roles = json.load(f)
     except (json.JSONDecodeError, FileNotFoundError) as e:
-        roles = roles or {}
         print(f"Error while loading roles: {e}")
     # Load config
     try:
@@ -85,3 +93,9 @@ def init():
         init_config(config)
     except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
         print(f"Error while loading config: {e}")
+    # Load events
+    try:
+        with open(EVENTS_FILE, "r") as f:
+            events = json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Error while loading events: {e}")
