@@ -90,26 +90,6 @@ def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[
     return msgs
 
 
-def parse_roles(about: str) -> typing.List[str]:
-    """
-    Parse a user's About string for roles.
-
-    Each row must be specified on its own line with the format <Role: ROLE>,
-    where ROLE can be any combination of characters excluding spaces.
-    """
-    if not about:
-        return []
-    roles = []
-    for line in about.split("\n"):
-        if line.startswith("<Role: ") and line.endswith(">"):
-            role = line[line.index(":") + 2:-1]
-            # roles cannot have spaces
-            if " " in role:
-                continue
-            roles.append(role)
-    return roles
-
-
 def parse_chat_name(name: str) -> pyryver.Chat:
     """
     Parse a chat name expression in the form [(name|nickname)=]<forum|team> and return the correct chat.

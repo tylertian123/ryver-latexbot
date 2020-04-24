@@ -27,7 +27,7 @@ def print(*args, **kwargs):
 
 ################################ GLOBAL VARIABLES AND CONSTANTS ################################
 
-VERSION = "v0.3.8"
+VERSION = "v0.4.0-dev"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 
@@ -259,7 +259,7 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     > `@latexbot moveMessages 10 Off-Topic` - Move the last 10 messages to Off-Topic.
     > `@latexbot moveMessages 10-20 nickname=OffTopic` - Move the 10th last to 20th last messages (inclusive) to a forum/team with the nickname +OffTopic.
     """
-    s = s.split(" ")
+    s = s.split()
     if len(s) < 2:
         chat.send_message("Invalid syntax.", creator)
         return
@@ -382,11 +382,9 @@ def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     # Mentions
     if s.startswith("@"):
         s = s[1:]
-    user = pyryver.get_obj_by_field(org.users, pyryver.FIELD_USER_USERNAME, s)
-    if not user:
-        chat.send_message("Error: User not found.", creator)
-        return
-    roles = "\n".join(parse_roles(user.get_about()))
+
+    roles = "\n".join(role for role, usernames in org.roles.items() if s in usernames)
+    
     if roles:
         chat.send_message(
             f"User '{s}' has the following roles:\n{roles}", creator)
@@ -401,19 +399,8 @@ def _getallroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     group: Roles Commands
     syntax:
     """
-    all_roles = {}
-    for user in org.users:
-        if user.get_activated():
-            roles = parse_roles(user.get_about())
-            for role in roles:
-                if role in all_roles:
-                    all_roles[role].append(user.get_username())
-                else:
-                    all_roles[role] = [user.get_username()]
-
-    if all_roles:
-        roles_str = "\n".join(
-            [f"**{role}**: {', '.join(usernames)}" for role, usernames in all_roles.items()])
+    if org.roles:
+        roles_str = "\n".join(f"**{role}**: {', '.join(usernames)}" for role, usernames in org.roles.items())
         chat.send_message(f"All roles:\n{roles_str}", creator)
     else:
         chat.send_message(f"There are currently no roles.", creator)
@@ -443,27 +430,22 @@ def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         # If space not found, the entire string is the role
         role = s
         # Split by commas and strip
-        mention_roles = set([r.strip() for r in role.split(",")])
-    usernames = []
-
-    # Check roles for each user
-    for user in org.users:
-        if user.get_activated():
-            user_roles = parse_roles(user.get_about())
-            # Test if the union of the two roles sets has any elements
-            # i.e. See if there are any elements common to both
-            if set(user_roles) & mention_roles:
-                usernames.append("@" + user.get_username())
-
-    if len(usernames) == 0:
-        chat.send_message("Error: No users have that role.", creator)
-        return
+        mention_roles = [r.strip() for r in role.split(",")]
+    
+    # Use a set so there's no repeat mentions
+    usernames = set()
+    for role in mention_roles:
+        if not role in org.roles:
+            chat.send_message(f"Error: The role {role} does not exist.", creator)
+            return
+        # Add all users to set
+        usernames.update(org.roles[role])
 
     author = msg.get_author()
     # Pretend to be the creator
     msg_creator = pyryver.Creator(
         author.get_display_name(), org.user_avatars.get(author.get_id(), ""))
-    chat.send_message(f"{' '.join(usernames)}\n{message}", msg_creator)
+    chat.send_message(f"{' '.join('@' + username for username in usernames)}\n{message}", msg_creator)
     # Get rid of the original message
     msg.delete()
 
@@ -482,35 +464,28 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
     > `@latexbot addToRole Foo tylertian` - Give Tyler the "Foo" role.
     > `@latexbot addToRole Foo,Bar tylertian latexbot` Give Tyler and LaTeX Bot the "Foo" and "Bar" roles.
     """
-    args = s.split(" ")
+    args = s.split()
     if len(args) < 2:
         chat.send_message("Invalid syntax.", creator)
         return
 
     roles = [r.strip() for r in args[0].split(",")]
-    for username in args[1:]:
-        if username.startswith("@"):
-            # The username can begin with an @ for mentions
-            username = username[1:]
-        user = pyryver.get_obj_by_field(
-            org.users, pyryver.FIELD_USER_USERNAME, username)
-        if not user:
-            chat.send_message(
-                f"User '{username}' not found! Try `@latexbot updateChats` to update the list of users.\nSkipping...", creator)
+    usernames = [username[1:] if username.startswith("@") else username for username in args[1:]]
+
+    for role in roles:
+        if " " in role or "," in role:
+            chat.send_message(f"Invalid role: {role}. Role names must not contain spaces or commas. Skipping...", creator)
             continue
-        # Watch out for no about
-        existing_roles = parse_roles(
-            user.get_about()) if user.get_about() else []
-
-        # Add each role
-        for role in roles:
-            if role in existing_roles:
-                chat.send_message(
-                    f"Warning: User '{username}' already has role '{role}'.", creator)
-                continue
-
-            user.set_profile(about=(user.get_about() or "") +
-                             f"\n<Role: {role}>")
+        # Role already exists
+        if role in org.roles:
+            for username in usernames:
+                if username in org.roles[role]:
+                    chat.send_message(f"Warning: User '{username}' already has role '{role}'.", creator)
+                else:
+                    org.roles[role].append(username)
+        else:
+            org.roles[role] = usernames
+    org.save_roles()
 
     chat.send_message("Operation successful.", creator)
 
@@ -527,38 +502,58 @@ def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
     > `@latexbot removeFromRole Foo tylertian` - Remove Tyler from the "Foo" role.
     > `@latexbot removeFromRole Foo,Bar tylertian latexbot` Remove Tyler and LaTeX Bot from the "Foo" and "Bar" roles.
     """
-    args = s.split(" ")
+    args = s.split()
     if len(args) < 2:
         chat.send_message("Invalid syntax.", creator)
         return
 
     roles = [r.strip() for r in args[0].split(",")]
-    for username in args[1:]:
-        if username.startswith("@"):
-            # The username can begin with an @ for mentions
-            username = username[1:]
-        user = pyryver.get_obj_by_field(
-            org.users, pyryver.FIELD_USER_USERNAME, username)
-        if not user:
-            chat.send_message(
-                f"User '{username}' not found! Try `@latexbot updateChats` to update the list of users.\nSkipping...", creator)
+    usernames = [username[1:] if username.startswith("@") else username for username in args[1:]]
+
+    for role in roles:
+        if not role in org.roles:
+            chat.send_message(f"Error: The role {role} does not exist. Skipping...", creator)
             continue
-        # In case about is None
-        if not user.get_about():
-            chat.send_message(
-                f"Warning: User '{username}' does not have any roles.", creator)
-            continue
-        # Filter out all the lines that have any of the roles in it
-        role_strs = set([f"<Role: {role}>" for role in roles])
-        about = '\n'.join(
-            [l for l in user.get_about().split("\n") if l not in role_strs])
-        if len(about) == len(user.get_about()):
-            chat.send_message(
-                f"Warning: User '{username}' does not have any of the roles listed.", creator)
-            continue
-        user.set_profile(about=about)
+        
+        for username in usernames:
+            if not username in org.roles[role]:
+                chat.send_message(f"Warning: User {username} does not have the role {role}.", creator)
+                continue
+            org.roles[role].remove(username)
+        
+        # Delete empty roles
+        if len(org.roles[role]) == 0:
+            org.roles.pop(role)
+    org.save_roles()
 
     chat.send_message("Operation successful.", creator)
+
+
+def _exportroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Export roles data as a JSON. 
+    ---
+    group: Roles Commands
+    syntax:
+    """
+    chat.send_message(f"```json\n{json.dumps(org.roles, indent=2)}\n```", creator)
+
+
+def _importroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Import roles data as a JSON.
+    ---
+    group: Roles Commands
+    syntax: <data>
+    ---
+    > `@latexbot importRoles {}` - Clear all roles.
+    """
+    try:
+        org.roles = json.loads(s)
+        org.save_roles()
+        chat.send_message(f"Operation successful. Use `@latexbot getAllRoles` to view the updated roles.", creator)
+    except json.JSONDecodeError as e:
+        chat.send_message(f"Error decoding JSON: {e}", creator)
 
 
 def _disable(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -834,6 +829,8 @@ command_processors = {
     "@role": [_atrole, ACCESS_LEVEL_EVERYONE],
     "addToRole": [_addtorole, ACCESS_LEVEL_ORG_ADMIN],
     "removeFromRole": [_removefromrole, ACCESS_LEVEL_ORG_ADMIN],
+    "exportRoles": [_exportroles, ACCESS_LEVEL_ORG_ADMIN],
+    "importRoles": [_importroles, ACCESS_LEVEL_ORG_ADMIN],
 
     "disable": [_disable, ACCESS_LEVEL_ORG_ADMIN],
     "kill": [_kill, ACCESS_LEVEL_BOT_ADMIN],
@@ -889,7 +886,7 @@ def start():
                     # We need to get the actual message from the chat, because the one in the notification may be cut off
                     chat_message = chat_source.get_message_from_id(message_id)[
                         0]
-                    text = chat_message.get_body().split(" ")
+                    text = chat_message.get_body().split()
 
                     if text[0] == "@latexbot" and len(text) >= 2:
                         print(f"Command received from user {chat_message.get_author_id()}: " + " ".join(text))

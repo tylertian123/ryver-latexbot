@@ -1,8 +1,18 @@
-version: '3'
+version: '3.2'
 
 services:
   latexbot:
     build: .
-    image: docker-registry.i.mm12.xyz/latexbot:0.3.8
+    image: docker-registry.i.mm12.xyz/latexbot:0.4.0-dev
+    volumes: 
+      - type: volume
+        source: latexbot-data
+        target: /usr/src/latexbot/data
     environment: 
       - PYTHONHASHSEED=0
+      - LATEXBOT_ORG=${LATEXBOT_ORG}
+      - LATEXBOT_USER=${LATEXBOT_USER}
+      - LATEXBOT_PASS=${LATEXBOT_PASS}
+
+volumes: 
+  latexbot-data:
