@@ -22,7 +22,7 @@ old_print = print
 def print(*args, **kwargs):
     kwargs["flush"] = True
     # Add timestamp
-    old_print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), *args, **kwargs)
+    old_print(current_time().strftime("%Y-%m-%d %H:%M:%S"), *args, **kwargs)
 
 
 ################################ GLOBAL VARIABLES AND CONSTANTS ################################
@@ -189,7 +189,7 @@ def _howmanydaysuntilcomp(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             for comp in comps["comps"]:
                 COMPETITIONS.append((comp["name"], datetime.strptime(
                     comp["start"], "%Y-%m-%d"), datetime.strptime(comp["end"], "%Y-%m-%d")))
-    now = datetime.now()
+    now = current_time()
     for comp in COMPETITIONS:
         diff = caldays_diff(comp[1], now)
         if diff > 0:

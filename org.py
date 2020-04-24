@@ -13,6 +13,7 @@ chat = None
 roles = {}
 admins = set()
 events = []
+org_tz = "Canada/Central"
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 EVENTS_FILE = "data/events.json"
@@ -30,7 +31,8 @@ def make_config():
     Generate a config dict to be saved as a JSON.
     """
     return {
-        "admins": list(admins)
+        "admins": list(admins),
+        "organizationTimeZone": org_tz,
     }
 
 
@@ -38,8 +40,9 @@ def init_config(config):
     """
     Initialize config data from a config dict.
     """
-    global admins
+    global admins, org_tz
     admins = set(config["admins"])
+    org_tz = config["organizationTimeZone"]
 
 
 def save_config():

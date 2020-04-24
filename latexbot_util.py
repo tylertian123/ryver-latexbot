@@ -3,6 +3,7 @@ import pyryver
 import re
 import typing
 from datetime import datetime
+from dateutil import tz
 from random import randrange
 from textwrap import dedent
 
@@ -211,3 +212,12 @@ def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
             raise ValueError(f"Incorrect format: {attr}")
         doc_dict[name.strip()] = val.strip()
     return doc_dict
+
+
+tz_utc = tz.gettz("UTC")
+
+def current_time() -> datetime:
+    """
+    Get the current organization time, according to the server and org time zones.
+    """
+    return datetime.utcnow().replace(tzinfo=tz_utc).astimezone(tz.gettz(org.org_tz))
