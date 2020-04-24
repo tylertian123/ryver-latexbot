@@ -65,7 +65,7 @@ def init():
     """
     Initialize everything.
     """
-    global ryver, forums, teams, users, user_avatars, chat, roles
+    global ryver, forums, teams, users, user_avatars, chat, roles, events
     if not ryver:
         ryver = pyryver.Ryver(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
     forums = ryver.get_chats(pyryver.TYPE_FORUM)

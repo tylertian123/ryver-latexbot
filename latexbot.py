@@ -93,7 +93,7 @@ def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
 
     The formula is rendered in inline mode.
     ---
-    group: Basic Commands
+    group: General Commands
     syntax: <formula>
     ---
     > `@latexbot render f(x) = \\sum_{i=0}^{n} \\frac{a_i}{1+x}`
@@ -112,7 +112,7 @@ def _help(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     Use this command without any arguments to get an overview of all the commands,
     or give the name of the command you would like to know more about.
     ---
-    group: Basic Commands
+    group: General Commands
     syntax: [command]
     ---
     > `@latexbot help` - Get general help
@@ -130,7 +130,7 @@ def _ping(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     I will respond with 'Pong' if I'm here.
     ---
-    group: Basic Commands
+    group: General Commands
     syntax:
     """
     chat.send_message("Pong", creator)
@@ -161,7 +161,7 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
     Disclaimer: These are my own opinions, Tyler is not responsible for anything said.
     ---
-    group: Basic Commands
+    group: General Commands
     syntax: <thing>
     ---
     > `@latexbot whatDoYouThink <insert controversial topic here>`
@@ -170,38 +170,88 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     chat.send_message(msgs[randrange(len(msgs))], creator)
 
 
-COMPETITIONS = None
+date_format = "%Y-%m-%d %H:%M"
 
 
-def _howmanydaysuntilcomp(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    Shows how many days until the next event.
+    Display information about ongoing and upcoming events.
+    
+    If the count is not specified, this command will display the next 3 events.
     ---
-    group: Basic Commands
+    group: General Commands
+    syntax: [count]
+    ---
+    > `@latexbot events 5` - Get the next 5 events
+    """
+    try:
+        count = int(s) if s else 3
+        if count < 1:
+            raise ValueError
+    except ValueError:
+        chat.send_message(f"Error: Invalid number.", creator)
+        return
+    
+    # Make the timezone-aware datetime naive again for comparisons
+    now = current_time().replace(tzinfo=None)
+    ongoing = []
+    upcoming = []
+    for event in org.events:
+        end = datetime.strptime(event["end"], date_format)
+        # This event has passed
+        if now > end:
+            continue
+        start = datetime.strptime(event["start"], date_format)
+        # This event is ongoing
+        if now > start:
+            ongoing.append((event, start, end))
+        # This event hasn't started
+        else:
+            upcoming.append((event, start, end))
+            count -= 1
+            if count < 1:
+                break
+    
+    if len(ongoing) > 0:
+        resp = "Ongoing Events:\n"
+        resp += "\n".join(f"* Day **{caldays_diff(now, event[1]) + 1}** of {event[0]['name']} (**{event[0]['start']}** to **{event[0]['end']}**)" for event in ongoing)
+        resp += "\n\n"
+    else:
+        resp = ""
+    if len(upcoming) > 0:
+        resp += "Upcoming Events:\n"
+        resp += "\n".join(f"* **{caldays_diff(event[1], now)}** days until {event[0]['name']} (**{event[0]['start']}** to **{event[0]['end']}**)" for event in upcoming)
+    else:
+        resp += "***No upcoming events at the moment.***"
+
+    chat.send_message(resp, creator)
+
+
+def _exportevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Export events data as a JSON. 
+    ---
+    group: General Commands
     syntax:
     """
-    global COMPETITIONS
-    # Load competitions if not already loaded
-    if not COMPETITIONS:
-        COMPETITIONS = []
-        with open("comps.json", "r") as comps_json:
-            comps = json.load(comps_json)
-            for comp in comps["comps"]:
-                COMPETITIONS.append((comp["name"], datetime.strptime(
-                    comp["start"], "%Y-%m-%d"), datetime.strptime(comp["end"], "%Y-%m-%d")))
-    now = current_time()
-    for comp in COMPETITIONS:
-        diff = caldays_diff(comp[1], now)
-        if diff > 0:
-            chat.send_message(f"{diff} days left until {comp[0]}.", creator)
-            return
-        else:
-            end_diff = caldays_diff(comp[2], now)
-            if end_diff > 0:
-                chat.send_message(
-                    f"It is currently day {caldays_diff(now, comp[1]) + 1} of {comp[0]}.", creator)
-                return
-    chat.send_message("No upcoming events.", creator)
+    chat.send_message(f"```json\n{json.dumps(org.events, indent=2)}\n```", creator)
+
+
+def _importevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Import events data as a JSON.
+    ---
+    group: General Commands
+    syntax: <data>
+    ---
+    > `@latexbot importEvents {}` - Clear all events.
+    """
+    try:
+        org.events = json.loads(s)
+        org.save_events()
+        chat.send_message(f"Operation successful.", creator)
+    except json.JSONDecodeError as e:
+        chat.send_message(f"Error decoding JSON: {e}", creator)
 
 
 def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -844,7 +894,9 @@ command_processors = {
     "help": [_help, ACCESS_LEVEL_EVERYONE],
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
     "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],
-    "howManyDaysUntilComp": [_howmanydaysuntilcomp, ACCESS_LEVEL_EVERYONE],
+    "events": [_events, ACCESS_LEVEL_EVERYONE],
+    "exportEvents": [_exportevents, ACCESS_LEVEL_FORUM_ADMIN],
+    "importEvents": [_importevents, ACCESS_LEVEL_FORUM_ADMIN],
 
     "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
     "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],
