@@ -189,7 +189,7 @@ ALL_DATE_FORMATS = [
 
 def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    Display information about ongoing and upcoming events.
+    Display information about ongoing and upcoming events from Google Calendar.
 
     If the count is not specified, this command will display the next 3 events. 
     This number includes ongoing events.
@@ -275,6 +275,29 @@ def _allevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message(resp, creator)
     else:
         chat.send_message(f"There are no events at the moment.", creator)
+
+
+def _quickaddevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Add an event to Google Calendar based on a simple text string.
+
+    Powered by Google Magic. Don't ask me how it works.
+
+    For more details, see [the Google Calendar API Documentation for quickAdd](https://developers.google.com/calendar/v3/reference/events/quickAdd).
+    ---
+    group: General Commands
+    syntax: <event>
+    ---
+    > `@latexbot quickAddEvent Appointment at Somewhere on June 3rd 10am-10:25am`
+    """
+    event = org.calendar.quick_add(org.calendar_id, s)
+    start = Calendar.parse_time(event["start"])
+    end = Calendar.parse_time(event["end"])
+    # Correctly format based on whether the event is an all-day event
+    # All day events don't come with timezone info
+    start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if start.tzinfo else DATE_DISPLAY_FORMAT)
+    end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if end.tzinfo else DATE_DISPLAY_FORMAT)
+    chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).", creator)
 
 
 def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -1061,6 +1084,7 @@ command_processors = {
     "events": [_events, ACCESS_LEVEL_EVERYONE],
     "allEvents": [_allevents, ACCESS_LEVEL_EVERYONE],
     "addEvent": [_addevent, ACCESS_LEVEL_FORUM_ADMIN],
+    "quickAddEvent": [_quickaddevent, ACCESS_LEVEL_FORUM_ADMIN],
     "removeEvent": [_removeevent, ACCESS_LEVEL_FORUM_ADMIN],
     "exportEvents": [_exportevents, ACCESS_LEVEL_EVERYONE],
     "importEvents": [_importevents, ACCESS_LEVEL_FORUM_ADMIN],

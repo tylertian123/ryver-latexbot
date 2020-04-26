@@ -23,6 +23,12 @@ class Calendar:
         results = self.service.events().list(calendarId=calendar_id, timeMin=timeMin, maxResults=maxResults, singleEvents=True, orderBy='startTime').execute()
         return results.get("items", None)
     
+    def quick_add(self, calendar_id, text):
+        """
+        Use quickAdd to add an event based on a simple text string.
+        """
+        return self.service.events().quickAdd(calendarId=calendar_id, text=text).execute()
+    
     @staticmethod
     def parse_time(t):
         if "date" in t:
