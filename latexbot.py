@@ -9,6 +9,8 @@ import sys
 import time
 import typing
 from datetime import datetime
+from dateutil import tz
+from gcalendar import Calendar
 from latexbot_util import *
 from quicklatex_render import ql_render
 from random import randrange
@@ -188,12 +190,13 @@ def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Display information about ongoing and upcoming events.
 
-    If the count is not specified, this command will display the next 3 events.
+    If the count is not specified, this command will display the next 3 events. 
+    This number includes ongoing events.
     ---
     group: General Commands
     syntax: [count]
     ---
-    > `@latexbot events 5` - Get the next 5 events
+    > `@latexbot events 5` - Get the next 5 events, including ongoing events.
     """
     try:
         count = int(s) if s else 3
@@ -202,38 +205,37 @@ def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     except ValueError:
         chat.send_message(f"Error: Invalid number.", creator)
         return
+    
+    events = org.calendar.get_upcoming_events(org.calendar_id, count)
 
-    # Make the timezone-aware datetime naive again for comparisons
-    now = current_time().replace(tzinfo=None)
+    now = current_time()
     ongoing = []
     upcoming = []
-    for event in org.events:
-        end = datetime.strptime(event["end"], DATE_FORMAT)
-        # This event has passed
-        if now > end:
-            continue
-        start = datetime.strptime(event["start"], DATE_FORMAT)
-        # This event is ongoing
+    
+    # Process all the events
+    for event in events:
+        start = Calendar.parse_time(event["start"])
+        end = Calendar.parse_time(event["end"])
+        # See if the event has started
+        # If the date has no timezone info, make it the organization timezone for comparisons
+        if not start.tzinfo:
+            start = start.replace(tzinfo=tz.gettz(org.org_tz))
         if now > start:
             ongoing.append((event, start, end))
-        # This event hasn't started
         else:
             upcoming.append((event, start, end))
-            count -= 1
-            if count < 1:
-                break
 
     if len(ongoing) > 0:
         resp = "Ongoing Events:\n"
         resp += "\n".join(
-            f"* Day **{caldays_diff(now, event[1]) + 1}** of {event[0]['name']} (**{datetime.strftime(event[1], DATE_DISPLAY_FORMAT)}** to **{datetime.strftime(event[2], DATE_DISPLAY_FORMAT)}**)" for event in ongoing)
+            f"* Day **{caldays_diff(now, event[1]) + 1}** of {event[0]['summary']} (**{datetime.strftime(event[1], DATE_DISPLAY_FORMAT)}** to **{datetime.strftime(event[2], DATE_DISPLAY_FORMAT)}**)" for event in ongoing)
         resp += "\n\n"
     else:
         resp = ""
     if len(upcoming) > 0:
         resp += "Upcoming Events:\n"
         resp += "\n".join(
-            f"* **{caldays_diff(event[1], now)}** days until {event[0]['name']} (**{datetime.strftime(event[1], DATE_DISPLAY_FORMAT)}** to **{datetime.strftime(event[2], DATE_DISPLAY_FORMAT)}**)" for event in upcoming)
+            f"* **{caldays_diff(event[1], now)}** days until {event[0]['summary']} (**{datetime.strftime(event[1], DATE_DISPLAY_FORMAT)}** to **{datetime.strftime(event[2], DATE_DISPLAY_FORMAT)}**)" for event in upcoming)
     else:
         resp += "***No upcoming events at the moment.***"
 

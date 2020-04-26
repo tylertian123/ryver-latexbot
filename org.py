@@ -2,6 +2,7 @@ import json
 import os
 import pyryver
 import requests
+import gcalendar
 
 ryver = None
 forums = []
@@ -15,9 +16,13 @@ events = []
 org_tz = "EST5EDT"
 home_chat = None
 announcements_chat = None
+calendar_id = None
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 EVENTS_FILE = "data/events.json"
+
+SERVICE_ACCOUNT_FILE = "calendar_credentials.json"
+calendar = gcalendar.Calendar(SERVICE_ACCOUNT_FILE)
 
 def save_roles():
     """
@@ -36,6 +41,7 @@ def make_config():
         "organizationTimeZone": org_tz,
         "homeChat": home_chat.get_nickname(),
         "announcementsChat": announcements_chat.get_nickname(),
+        "googleCalendarId": calendar_id,
     }
 
 
@@ -43,11 +49,12 @@ def init_config(config):
     """
     Initialize config data from a config dict.
     """
-    global admins, org_tz, home_chat, announcements_chat
+    global admins, org_tz, home_chat, announcements_chat, calendar_id
     admins = set(config["admins"])
     org_tz = config["organizationTimeZone"]
     home_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, config["homeChat"])
     announcements_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, config["announcementsChat"])
+    calendar_id = config["googleCalendarId"]
 
 
 def save_config():
