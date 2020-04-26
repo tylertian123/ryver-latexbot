@@ -294,15 +294,15 @@ def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
     The time is optional; if not specified, the event will be created as an all-day event.
 
-    The date must be in one of the formats shown below:\n
-    - YYYY-MM-DD, e.g. 2020-01-01\n
-    - YYYY/MM/DD, e.g. 2020/01/01\n
-    - MMM DD YYYY, e.g. Jan 01 2020\n
+    The date must be in one of the formats shown below:
+    - YYYY-MM-DD, e.g. 2020-01-01
+    - YYYY/MM/DD, e.g. 2020/01/01
+    - MMM DD YYYY, e.g. Jan 01 2020
     - MMM DD, YYYY, e.g. Jan 01, 2020
 
-    The time must be in one of the formats shown below:\n
-    - HH:MM, e.g. 00:00\n
-    - HH:MM (AM/PM), e.g. 12:00 AM\n
+    The time must be in one of the formats shown below:
+    - HH:MM, e.g. 00:00
+    - HH:MM (AM/PM), e.g. 12:00 AM
     - HH:MM(AM/PM), e.g. 12:00AM
     ---
     group: General Commands
@@ -881,11 +881,11 @@ def _changeaccess(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Change the access level of a command.
 
-    The access level is a number. Here are the possible values:\n
-    0 - Everyone\n
-    1 - Forum Admins\n
-    2 - Org Admins\n
-    3 - Bot Admins\n
+    The access level is a number. Here are the possible values:
+    0 - Everyone
+    1 - Forum Admins
+    2 - Org Admins
+    3 - Bot Admins
     9001 - Tyler
 
     Might contain bugs.

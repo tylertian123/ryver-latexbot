@@ -209,7 +209,22 @@ def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
     else:
         # Join by space for lines, then join by 2 newlines for paragraphs
         # Skip first paragraph
-        long_desc = '\n\n'.join(' '.join(s.strip() for s in para) for para in desc[1:])
+        paras = []
+        for para in desc[1:]:
+            p = ""
+            # Process each line
+            for line in para:
+                # If line starts with -, it is a list
+                # List items are separated by newlines
+                if line.startswith("-"):
+                    if p != "":
+                        p += "\n"
+                # Otherwise, separate by space
+                elif p != "":
+                    p += " "
+                p += line
+            paras.append(p)
+        long_desc = '\n\n'.join(paras)
     
     if examples:
         # Strip to remove possible leading space
