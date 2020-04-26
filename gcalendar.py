@@ -29,6 +29,13 @@ class Calendar:
         """
         return self.service.events().quickAdd(calendarId=calendar_id, text=text).execute()
     
+    def add_event(self, calendar_id, event):
+        """
+        Add an event.
+        """
+        return self.service.events().insert(calendarId=calendar_id, body=event).execute()
+
+    
     @staticmethod
     def parse_time(t):
         if "date" in t:

@@ -37,6 +37,23 @@ ACCESS_DENIED_MESSAGES = [
 MENTION_REGEX = re.compile(r"(\s|^)@(\w+)(?=\s|$)", flags=re.MULTILINE)
 
 
+DATE_FORMAT = "%Y-%m-%d %H:%M"
+CALENDAR_DATE_FORMAT = "%Y-%m-%d"
+DATE_DISPLAY_FORMAT = "%b %d %Y"
+DATETIME_DISPLAY_FORMAT = "%b %d %Y %I:%M %p"
+ALL_DATE_FORMATS = [
+    "%Y-%m-%d",
+    "%Y/%m/%d",
+    "%b %d %Y",
+    "%b %d, %Y",
+]
+ALL_TIME_FORMATS = [
+    "%H:%M",
+    "%I:%M %p",
+    "%I:%M%p",
+]
+
+
 def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, required_level: int) -> bool:
     """
     Check if the sender of a message has a particular access level or higher.
@@ -221,3 +238,16 @@ def current_time() -> datetime:
     Get the current organization time, according to the server and org time zones.
     """
     return datetime.utcnow().replace(tzinfo=tz_utc).astimezone(tz.gettz(org.org_tz))
+
+def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
+    """
+    Tries to parse the given string with any of the formats listed.
+
+    If all formats fail, returns None.
+    """
+    for fmt in formats:
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            pass
+    return None

@@ -173,20 +173,6 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     chat.send_message(msgs[randrange(len(msgs))], creator)
 
 
-DATE_FORMAT = "%Y-%m-%d %H:%M"
-DATE_DISPLAY_FORMAT = "%b %d %Y"
-DATETIME_DISPLAY_FORMAT = "%b %d %Y %I:%M %p"
-ALL_DATE_FORMATS = [
-    "%Y-%m-%d_%H:%M",
-    "%Y-%m-%d %H:%M",
-    "%Y-%m-%d %I:%M %p",
-    "%Y-%m-%d %I:%M%p",
-    "%b %d %Y %H:%M",
-    "%b %d %Y %I:%M %p",
-    "%b %d %Y %I:%M%p",
-]
-
-
 def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Display information about ongoing and upcoming events from Google Calendar.
@@ -297,79 +283,95 @@ def _quickaddevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     # All day events don't come with timezone info
     start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if start.tzinfo else DATE_DISPLAY_FORMAT)
     end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if end.tzinfo else DATE_DISPLAY_FORMAT)
-    chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).", creator)
+    chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
 
 
 def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Add an event.
 
-    If the event name or start/end time contains spaces, surround it with quotes (").
+    If the event name or start/end time/date contains spaces, surround it with quotes (").
 
-    Here are examples for all the accepted formats for start/end times:\n
-    - 2020-01-01_00:00\n
-    - 2020-01-01 00:00\n
-    - 2020-01-01 12:00AM\n
-    - 2020-01-01 12:00 AM\n
-    - Jan 1 2020 00:00\n
-    - Jan 1 2020 12:00AM\n
-    - Jan 1 2020 12:00 AM
+    The time is optional; if not specified, the event will be created as an all-day event.
+
+    The date must be in one of the formats shown below:\n
+    - YYYY-MM-DD, e.g. 2020-01-01\n
+    - YYYY/MM/DD, e.g. 2020/01/01\n
+    - MMM DD YYYY, e.g. Jan 01 2020\n
+    - MMM DD, YYYY, e.g. Jan 01, 2020
+
+    The time must be in one of the formats shown below:\n
+    - HH:MM, e.g. 00:00\n
+    - HH:MM (AM/PM), e.g. 12:00 AM\n
+    - HH:MM(AM/PM), e.g. 12:00AM
     ---
     group: General Commands
-    syntax: <name> <start> <end>
+    syntax: <name> <startdate> [starttime] <enddate> [endtime]
     ---
-    > `@latexbot addEvent "Foo Bar" "2021-01-01 11:00" "2021-01-01 13:00"` - Add an event named "Foo Bar", starting on 2020-01-01 at 11:00 and ending at 13:00 the same day.
-    > `@latexbot addEvent Baz "Jan 1 2020 12:00 AM" "Jan 3 2020 12:00 AM"` - Add an event named "Baz", with the specified times.
+    > `@latexbot addEvent "Foo Bar" 2020-01-01 2020-01-02` - Add an event named "Foo Bar", starting on 2020-01-01 and ending the next day.
+    > `@latexbot addEvent "Foo Bar" "Jan 1, 2020" "Jan 2, 2020"` - An alternative syntax for creating the same event.
+    > `@latexbot addEvent Foo 2020-01-01 00:00 2020-01-01 12:00` - Add an event named "Foo", starting midnight on 2020-01-01 and ending 12 PM on the same day.
     """
     s = shlex.split(s)
-    if len(s) != 3:
-        chat.send_message("Error: Invalid syntax. Check `@latexbot help addEvent` for help.", creator)
+    if len(s) != 3 and len(s) != 5:
+        chat.send_message("Error: Invalid syntax. Check `@latexbot help addEvent` for help. You may have to use quotes if any of the parameters contain spaces.", creator)
         return
     
-    # Try parsing dates
-    start = None
-    end = None
-    # Try every possible format
-    for fmt in ALL_DATE_FORMATS:
-        try:
-            start = datetime.strptime(s[1], fmt)
-            break
-        except ValueError:
-            pass
-    if not start:
-        chat.send_message(f"Error: The date {s[1]} is invalid. Check `@latexbot help addEvent` for help.", creator)
-        return
-    for fmt in ALL_DATE_FORMATS:
-        try:
-            end = datetime.strptime(s[2], fmt)
-            break
-        except ValueError:
-            pass
-    if not end:
-        chat.send_message(f"Error: The date {s[2]} is invalid. Check `@latexbot help addEvent` for help.", creator)
-        return
-    
-    # Events are ordered by start date
-    evt = None
-    for i, event in enumerate(org.events):
-        if start < datetime.strptime(event["start"], DATE_FORMAT):
-            evt = {
-                "name": s[0],
-                "start": datetime.strftime(start, DATE_FORMAT),
-                "end": datetime.strftime(end, DATE_FORMAT),
+    # No times specified
+    if len(s) == 3:
+        start = tryparse_datetime(s[1], ALL_DATE_FORMATS)
+        if not start:
+            chat.send_message(f"Error: The date {s[1]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            return
+        end = tryparse_datetime(s[2], ALL_DATE_FORMATS)
+        if not end:
+            chat.send_message(f"Error: The date {s[2]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            return
+        event_body = {
+            "start": {
+                "date": datetime.strftime(start, CALENDAR_DATE_FORMAT),
+            },
+            "end": {
+                "date": datetime.strftime(end, CALENDAR_DATE_FORMAT),
             }
-            org.events.insert(i, evt)
-            break
-    # If not inserted in the loop, this event is at the end
-    if not evt:
-        evt = {
-                "name": s[0],
-                "start": datetime.strftime(start, DATE_FORMAT),
-                "end": datetime.strftime(end, DATE_FORMAT),
+        }
+    else:
+        start_date = tryparse_datetime(s[1], ALL_DATE_FORMATS)
+        if not start_date:
+            chat.send_message(f"Error: The date {s[1]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            return
+        start_time = tryparse_datetime(s[2], ALL_TIME_FORMATS)
+        if not start_time:
+            chat.send_message(f"Error: The time {s[2]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            return
+
+        end_date = tryparse_datetime(s[3], ALL_DATE_FORMATS)
+        if not end_date:
+            chat.send_message(f"Error: The date {s[3]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            return
+        end_time = tryparse_datetime(s[4], ALL_TIME_FORMATS)
+        if not end_time:
+            chat.send_message(f"Error: The time {s[4]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            return
+        
+        # Merge to get datetimes
+        start = datetime.combine(start_date, start_time.time())
+        end = datetime.combine(end_date, end_time.time())
+        event_body = {
+            "start": {
+                "dateTime": start.isoformat(),
+                "timeZone": org.org_tz,
+            },
+            "end": {
+                "dateTime": end.isoformat(),
+                "timeZone": org.org_tz,
             }
-        org.events.append(evt)
-    org.save_events()
-    chat.send_message(f"Successfully added event {evt['name']} starting **{evt['start']}** and ending **{evt['end']}**.", creator)
+        }
+    event_body["summary"] = s[0]
+    event = org.calendar.add_event(org.calendar_id, event_body)
+    start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if len(s) == 5 else DATE_DISPLAY_FORMAT)
+    end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if len(s) == 5 else DATE_DISPLAY_FORMAT)
+    chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
 
 
 def _removeevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
