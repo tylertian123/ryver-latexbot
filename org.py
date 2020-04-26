@@ -12,14 +12,12 @@ user_avatars = {}
 
 roles = {}
 admins = set()
-events = []
 org_tz = "EST5EDT"
 home_chat = None
 announcements_chat = None
 calendar_id = None
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
-EVENTS_FILE = "data/events.json"
 
 SERVICE_ACCOUNT_FILE = "calendar_credentials.json"
 calendar = gcalendar.Calendar(SERVICE_ACCOUNT_FILE)
@@ -65,21 +63,13 @@ def save_config():
         json.dump(make_config(), f)
 
 
-def save_events():
-    """
-    Save events to the JSON file specified by EVENTS_FILE.
-    """
-    with open(EVENTS_FILE, "w") as f:
-        json.dump(events, f)
-
-
 def init(force_reload=False):
     """
     Initialize everything.
 
     If force_reload is True, cached data will not be used.
     """
-    global ryver, forums, teams, users, user_avatars, roles, events
+    global ryver, forums, teams, users, user_avatars, roles
     if not ryver:
         ryver = pyryver.Ryver(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
     forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, name="data/pyryver.forums.json", force_update=force_reload)
@@ -112,9 +102,3 @@ def init(force_reload=False):
         # Defaults for home and announcements
         home_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, "Test")
         announcements_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, "Gen")
-    # Load events
-    try:
-        with open(EVENTS_FILE, "r") as f:
-            events = json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error while loading events: {e}")

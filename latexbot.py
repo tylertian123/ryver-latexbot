@@ -245,24 +245,6 @@ def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     chat.send_message(resp, creator)
 
 
-def _allevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    """
-    Display all events, even the ones that have already passed.
-
-    Unlike events, this command displays even the events that have already ended,
-    and does not show any info about the duration until events.
-    ---
-    group: General Commands
-    syntax: 
-    """
-    if len(org.events) > 0:
-        resp = "Events:\n"
-        resp += "\n".join(f"* {event['name']} from **{event['start']}** to **{event['end']}**" for event in org.events)
-        chat.send_message(resp, creator)
-    else:
-        chat.send_message(f"There are no events at the moment.", creator)
-
-
 def _quickaddevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Add an event to Google Calendar based on a simple text string.
@@ -288,7 +270,7 @@ def _quickaddevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    Add an event.
+    Add an event to Google Calendar.
 
     If the event name or start/end time/date contains spaces, surround it with quotes (").
 
@@ -374,59 +356,42 @@ def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
 
 
-def _removeevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+def _deleteevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    Remove an event by name.
+    Delete an event by name from Google Calendar.
 
     Note that the event name only has to be a partial match, and is case-insensitive.
     Therefore, try to be as specific as possible to avoid accidentally deleting the wrong event.
+
+    This command can only remove events that have not ended.
 
     Unlike addEvent, this command only takes a single argument, so quotes should not be used.
     ---
     group: General Commands
     syntax: <name>
     ---
-    > `@latexbot removeEvent Foo Bar` - Remove the event "Foo Bar".
+    > `@latexbot deleteEvent Foo Bar` - Remove the event "Foo Bar".
     """
     s = s.lower()
-    evt = None
-    for i, event in enumerate(org.events):
-        if s in event["name"].lower():
-            evt = org.events.pop(i)
+    events = org.calendar.get_upcoming_events(org.calendar_id)
+    matched_event = None
+    
+    for event in events:
+        # Found a match
+        if s in event["summary"].lower():
+            matched_event = event
             break
-    if evt:
-        org.save_events()
-        chat.send_message(f"Removed event {evt['name']} (**{evt['start']}** to **{evt['end']}**).", creator)
+    
+    if matched_event:
+        org.calendar.remove_event(org.calendar_id, matched_event["id"])
+        # Format the start and end of the event into strings
+        start = Calendar.parse_time(matched_event["start"])
+        end = Calendar.parse_time(matched_event["end"])
+        start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if start.tzinfo else DATE_DISPLAY_FORMAT)
+        end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if end.tzinfo else DATE_DISPLAY_FORMAT)
+        chat.send_message(f"Deleted event {matched_event['summary']} (**{start_str}** to **{end_str}**).", creator)
     else:
-        chat.send_message(f"Error: No event has that name.", creator)
-
-
-def _exportevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    """
-    Export events data as a JSON. 
-    ---
-    group: General Commands
-    syntax:
-    """
-    chat.send_message(
-        f"```json\n{json.dumps(org.events, indent=2)}\n```", creator)
-
-
-def _importevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
-    """
-    Import events data as a JSON.
-    ---
-    group: General Commands
-    syntax: <data>
-    ---
-    > `@latexbot importEvents {}` - Clear all events.
-    """
-    try:
-        org.events = json.loads(s)
-        org.save_events()
-        chat.send_message(f"Operation successful.", creator)
-    except json.JSONDecodeError as e:
-        chat.send_message(f"Error decoding JSON: {e}", creator)
+        chat.send_message(f"Error: No event matches that name.", creator)
 
 
 def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -1084,12 +1049,9 @@ command_processors = {
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
     "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],
     "events": [_events, ACCESS_LEVEL_EVERYONE],
-    "allEvents": [_allevents, ACCESS_LEVEL_EVERYONE],
-    "addEvent": [_addevent, ACCESS_LEVEL_FORUM_ADMIN],
-    "quickAddEvent": [_quickaddevent, ACCESS_LEVEL_FORUM_ADMIN],
-    "removeEvent": [_removeevent, ACCESS_LEVEL_FORUM_ADMIN],
-    "exportEvents": [_exportevents, ACCESS_LEVEL_EVERYONE],
-    "importEvents": [_importevents, ACCESS_LEVEL_FORUM_ADMIN],
+    "addEvent": [_addevent, ACCESS_LEVEL_ORG_ADMIN],
+    "quickAddEvent": [_quickaddevent, ACCESS_LEVEL_ORG_ADMIN],
+    "deleteEvent": [_deleteevent, ACCESS_LEVEL_ORG_ADMIN],
 
     "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
     "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],

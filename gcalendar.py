@@ -34,6 +34,12 @@ class Calendar:
         Add an event.
         """
         return self.service.events().insert(calendarId=calendar_id, body=event).execute()
+    
+    def remove_event(self, calendar_id, event_id):
+        """
+        Remove an event.
+        """
+        self.service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
 
     
     @staticmethod
