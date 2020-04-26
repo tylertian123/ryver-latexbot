@@ -133,8 +133,8 @@ def caldays_diff(a: datetime, b: datetime) -> int:
 
     Note this is different from just the regular difference, as the passing of a calendar day can be less than 24h.
     """
-    a.replace(hour=0, minute=0, second=0, microsecond=0)
-    b.replace(hour=0, minute=0, second=0, microsecond=0)
+    a = a.replace(hour=0, minute=0, second=0, microsecond=0)
+    b = b.replace(hour=0, minute=0, second=0, microsecond=0)
     return (a - b).days
 
 

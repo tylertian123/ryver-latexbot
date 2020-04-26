@@ -174,7 +174,8 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
 
 DATE_FORMAT = "%Y-%m-%d %H:%M"
-DATE_DISPLAY_FORMAT = "%b %d %Y %I:%M %p"
+DATE_DISPLAY_FORMAT = "%b %d %Y"
+DATETIME_DISPLAY_FORMAT = "%b %d %Y %I:%M %p"
 ALL_DATE_FORMATS = [
     "%Y-%m-%d_%H:%M",
     "%Y-%m-%d %H:%M",
@@ -220,22 +221,38 @@ def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         # If the date has no timezone info, make it the organization timezone for comparisons
         if not start.tzinfo:
             start = start.replace(tzinfo=tz.gettz(org.org_tz))
-        if now > start:
-            ongoing.append((event, start, end))
+            # No timezone info means this was created as an all-day event
+            has_time = False
         else:
-            upcoming.append((event, start, end))
+            has_time = True
+        if now > start:
+            ongoing.append((event, start, end, has_time))
+        else:
+            upcoming.append((event, start, end, has_time))
 
     if len(ongoing) > 0:
-        resp = "Ongoing Events:\n"
-        resp += "\n".join(
-            f"* Day **{caldays_diff(now, event[1]) + 1}** of {event[0]['summary']} (**{datetime.strftime(event[1], DATE_DISPLAY_FORMAT)}** to **{datetime.strftime(event[2], DATE_DISPLAY_FORMAT)}**)" for event in ongoing)
+        resp = "Ongoing Events:"
+        for evt in ongoing:
+            event, start, end, has_time = evt
+            # The day number of the event
+            day = caldays_diff(now, start) + 1
+            # If the event does not have a time, then don't include the time
+            start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
+            end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
+            resp += f"\n* Day **{day}** of {event['summary']} (**{start_str}** to **{end_str}**)"
         resp += "\n\n"
     else:
         resp = ""
     if len(upcoming) > 0:
-        resp += "Upcoming Events:\n"
-        resp += "\n".join(
-            f"* **{caldays_diff(event[1], now)}** days until {event[0]['summary']} (**{datetime.strftime(event[1], DATE_DISPLAY_FORMAT)}** to **{datetime.strftime(event[2], DATE_DISPLAY_FORMAT)}**)" for event in upcoming)
+        resp += "Upcoming Events:"
+        for evt in upcoming:
+            event, start, end, has_time = evt
+            # days until the event
+            day = caldays_diff(start, now)
+            # If the event does not have a time, then don't include the time
+            start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
+            end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
+            resp += f"\n* **{day}** day(s) until {event['summary']} (**{start_str}** to **{end_str}**)"
     else:
         resp += "***No upcoming events at the moment.***"
 
