@@ -54,7 +54,7 @@ def generate_help_text():
             if properties.get("hidden", False) == "true":
                 # skip hidden commands
                 continue
-            
+
             # Generate syntax string
             syntax = f"`@latexbot {name} {properties['syntax']}`" if properties["syntax"] else f"`@latexbot {name}`"
             # Generate short description
@@ -66,9 +66,10 @@ def generate_help_text():
                 commands[group].append(description)
             else:
                 commands[group] = [description]
-            
+
             extended_description = properties["long_desc"] or "***No extended description provided.***"
-            examples = "\n".join("* " + ex for ex in properties["examples"]) if properties["examples"] else "***No examples provided.***"
+            examples = "\n".join(
+                "* " + ex for ex in properties["examples"]) if properties["examples"] else "***No examples provided.***"
 
             description += f"\n\n{extended_description}\n\n**Examples:**\n{examples}"
             extended_help_text[name] = description
@@ -122,8 +123,8 @@ def _help(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     if s == "":
         chat.send_message(help_text, creator)
     else:
-        chat.send_message(extended_help_text.get(s, 
-            f"Error: {s} is not a valid command, or does not have an extended description."), creator)
+        chat.send_message(extended_help_text.get(s,
+                                                 f"Error: {s} is not a valid command, or does not have an extended description."), creator)
 
 
 def _ping(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -170,13 +171,23 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     chat.send_message(msgs[randrange(len(msgs))], creator)
 
 
-date_format = "%Y-%m-%d %H:%M"
+DATE_FORMAT = "%Y-%m-%d %H:%M"
+DATE_DISPLAY_FORMAT = "%b %d %Y %I:%M %p"
+ALL_DATE_FORMATS = [
+    "%Y-%m-%d_%H:%M",
+    "%Y-%m-%d %H:%M",
+    "%Y-%m-%d %I:%M %p",
+    "%Y-%m-%d %I:%M%p",
+    "%b %d %Y %H:%M",
+    "%b %d %Y %I:%M %p",
+    "%b %d %Y %I:%M%p",
+]
 
 
 def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Display information about ongoing and upcoming events.
-    
+
     If the count is not specified, this command will display the next 3 events.
     ---
     group: General Commands
@@ -191,17 +202,17 @@ def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     except ValueError:
         chat.send_message(f"Error: Invalid number.", creator)
         return
-    
+
     # Make the timezone-aware datetime naive again for comparisons
     now = current_time().replace(tzinfo=None)
     ongoing = []
     upcoming = []
     for event in org.events:
-        end = datetime.strptime(event["end"], date_format)
+        end = datetime.strptime(event["end"], DATE_FORMAT)
         # This event has passed
         if now > end:
             continue
-        start = datetime.strptime(event["start"], date_format)
+        start = datetime.strptime(event["start"], DATE_FORMAT)
         # This event is ongoing
         if now > start:
             ongoing.append((event, start, end))
@@ -211,20 +222,139 @@ def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             count -= 1
             if count < 1:
                 break
-    
+
     if len(ongoing) > 0:
         resp = "Ongoing Events:\n"
-        resp += "\n".join(f"* Day **{caldays_diff(now, event[1]) + 1}** of {event[0]['name']} (**{event[0]['start']}** to **{event[0]['end']}**)" for event in ongoing)
+        resp += "\n".join(
+            f"* Day **{caldays_diff(now, event[1]) + 1}** of {event[0]['name']} (**{datetime.strftime(event[1], DATE_DISPLAY_FORMAT)}** to **{datetime.strftime(event[2], DATE_DISPLAY_FORMAT)}**)" for event in ongoing)
         resp += "\n\n"
     else:
         resp = ""
     if len(upcoming) > 0:
         resp += "Upcoming Events:\n"
-        resp += "\n".join(f"* **{caldays_diff(event[1], now)}** days until {event[0]['name']} (**{event[0]['start']}** to **{event[0]['end']}**)" for event in upcoming)
+        resp += "\n".join(
+            f"* **{caldays_diff(event[1], now)}** days until {event[0]['name']} (**{datetime.strftime(event[1], DATE_DISPLAY_FORMAT)}** to **{datetime.strftime(event[2], DATE_DISPLAY_FORMAT)}**)" for event in upcoming)
     else:
         resp += "***No upcoming events at the moment.***"
 
     chat.send_message(resp, creator)
+
+
+def _allevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Display all events, even the ones that have already passed.
+
+    Unlike events, this command displays even the events that have already ended,
+    and does not show any info about the duration until events.
+    ---
+    group: General Commands
+    syntax: 
+    """
+    if len(org.events) > 0:
+        resp = "Events:\n"
+        resp += "\n".join(f"* {event['name']} from **{event['start']}** to **{event['end']}**" for event in org.events)
+        chat.send_message(resp, creator)
+    else:
+        chat.send_message(f"There are no events at the moment.", creator)
+
+
+def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Add an event.
+
+    If the event name or start/end time contains spaces, surround it with quotes (").
+
+    Here are examples for all the accepted formats for start/end times:\n
+    - 2020-01-01_00:00\n
+    - 2020-01-01 00:00\n
+    - 2020-01-01 12:00AM\n
+    - 2020-01-01 12:00 AM\n
+    - Jan 1 2020 00:00\n
+    - Jan 1 2020 12:00AM\n
+    - Jan 1 2020 12:00 AM
+    ---
+    group: General Commands
+    syntax: <name> <start> <end>
+    ---
+    > `@latexbot addEvent "Foo Bar" "2021-01-01 11:00" "2021-01-01 13:00"` - Add an event named "Foo Bar", starting on 2020-01-01 at 11:00 and ending at 13:00 the same day.
+    > `@latexbot addEvent Baz "Jan 1 2020 12:00 AM" "Jan 3 2020 12:00 AM"` - Add an event named "Baz", with the specified times.
+    """
+    s = shlex.split(s)
+    if len(s) != 3:
+        chat.send_message("Error: Invalid syntax. Check `@latexbot help addEvent` for help.", creator)
+        return
+    
+    # Try parsing dates
+    start = None
+    end = None
+    # Try every possible format
+    for fmt in ALL_DATE_FORMATS:
+        try:
+            start = datetime.strptime(s[1], fmt)
+            break
+        except ValueError:
+            pass
+    if not start:
+        chat.send_message(f"Error: The date {s[1]} is invalid. Check `@latexbot help addEvent` for help.", creator)
+        return
+    for fmt in ALL_DATE_FORMATS:
+        try:
+            end = datetime.strptime(s[2], fmt)
+            break
+        except ValueError:
+            pass
+    if not end:
+        chat.send_message(f"Error: The date {s[2]} is invalid. Check `@latexbot help addEvent` for help.", creator)
+        return
+    
+    # Events are ordered by start date
+    evt = None
+    for i, event in enumerate(org.events):
+        if start < datetime.strptime(event["start"], DATE_FORMAT):
+            evt = {
+                "name": s[0],
+                "start": datetime.strftime(start, DATE_FORMAT),
+                "end": datetime.strftime(end, DATE_FORMAT),
+            }
+            org.events.insert(i, evt)
+            break
+    # If not inserted in the loop, this event is at the end
+    if not evt:
+        evt = {
+                "name": s[0],
+                "start": datetime.strftime(start, DATE_FORMAT),
+                "end": datetime.strftime(end, DATE_FORMAT),
+            }
+        org.events.append(evt)
+    org.save_events()
+    chat.send_message(f"Successfully added event {evt['name']} starting **{evt['start']}** and ending **{evt['end']}**.", creator)
+
+
+def _removeevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Remove an event by name.
+
+    Note that the event name only has to be a partial match, and is case-insensitive.
+    Therefore, try to be as specific as possible to avoid accidentally deleting the wrong event.
+
+    Unlike addEvent, this command only takes a single argument, so quotes should not be used.
+    ---
+    group: General Commands
+    syntax: <name>
+    ---
+    > `@latexbot removeEvent Foo Bar` - Remove the event "Foo Bar".
+    """
+    s = s.lower()
+    evt = None
+    for i, event in enumerate(org.events):
+        if s in event["name"].lower():
+            evt = org.events.pop(i)
+            break
+    if evt:
+        org.save_events()
+        chat.send_message(f"Removed event {evt['name']} (**{evt['start']}** to **{evt['end']}**).", creator)
+    else:
+        chat.send_message(f"Error: No event has that name.", creator)
 
 
 def _exportevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -234,7 +364,8 @@ def _exportevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     group: General Commands
     syntax:
     """
-    chat.send_message(f"```json\n{json.dumps(org.events, indent=2)}\n```", creator)
+    chat.send_message(
+        f"```json\n{json.dumps(org.events, indent=2)}\n```", creator)
 
 
 def _importevents(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -377,7 +508,7 @@ def _countmessagessince(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     The search pattern is case insensitive.
 
     If <pattern> is surrounded with slashes `/like so/`, it is treated as a regex, with the multiline and ignorecase flags.
-    
+
     This command will only search through the last 250 messages maximum.
     ---
     group: Administrative Commands
@@ -431,8 +562,9 @@ def _getuserroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     if s.startswith("@"):
         s = s[1:]
 
-    roles = "\n".join(role for role, usernames in org.roles.items() if s in usernames)
-    
+    roles = "\n".join(
+        role for role, usernames in org.roles.items() if s in usernames)
+
     if roles:
         chat.send_message(
             f"User '{s}' has the following roles:\n{roles}", creator)
@@ -448,7 +580,8 @@ def _getallroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     syntax:
     """
     if org.roles:
-        roles_str = "\n".join(f"**{role}**: {', '.join(usernames)}" for role, usernames in org.roles.items())
+        roles_str = "\n".join(
+            f"**{role}**: {', '.join(usernames)}" for role, usernames in org.roles.items())
         chat.send_message(f"All roles:\n{roles_str}", creator)
     else:
         chat.send_message(f"There are currently no roles.", creator)
@@ -457,7 +590,7 @@ def _getallroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     @ mention all users with any of the specified roles.
-    
+
     Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
     ---
     group: Roles Commands
@@ -479,12 +612,13 @@ def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         role = s
         # Split by commas and strip
         mention_roles = [r.strip() for r in role.split(",")]
-    
+
     # Use a set so there's no repeat mentions
     usernames = set()
     for role in mention_roles:
         if not role in org.roles:
-            chat.send_message(f"Error: The role {role} does not exist.", creator)
+            chat.send_message(
+                f"Error: The role {role} does not exist.", creator)
             return
         # Add all users to set
         usernames.update(org.roles[role])
@@ -493,7 +627,8 @@ def _atrole(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     # Pretend to be the creator
     msg_creator = pyryver.Creator(
         author.get_display_name(), org.user_avatars.get(author.get_id(), ""))
-    chat.send_message(f"{' '.join('@' + username for username in usernames)}\n{message}", msg_creator)
+    chat.send_message(
+        f"{' '.join('@' + username for username in usernames)}\n{message}", msg_creator)
     # Get rid of the original message
     msg.delete()
 
@@ -503,7 +638,7 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
     Add people to a role.
 
     Role names cannot contain spaces or commas.
-    
+
     Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
     ---
     group: Roles Commands
@@ -518,17 +653,20 @@ def _addtorole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
         return
 
     roles = [r.strip() for r in args[0].split(",")]
-    usernames = [username[1:] if username.startswith("@") else username for username in args[1:]]
+    usernames = [username[1:] if username.startswith(
+        "@") else username for username in args[1:]]
 
     for role in roles:
         if " " in role or "," in role:
-            chat.send_message(f"Invalid role: {role}. Role names must not contain spaces or commas. Skipping...", creator)
+            chat.send_message(
+                f"Invalid role: {role}. Role names must not contain spaces or commas. Skipping...", creator)
             continue
         # Role already exists
         if role in org.roles:
             for username in usernames:
                 if username in org.roles[role]:
-                    chat.send_message(f"Warning: User '{username}' already has role '{role}'.", creator)
+                    chat.send_message(
+                        f"Warning: User '{username}' already has role '{role}'.", creator)
                 else:
                     org.roles[role].append(username)
         else:
@@ -556,19 +694,22 @@ def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
         return
 
     roles = [r.strip() for r in args[0].split(",")]
-    usernames = [username[1:] if username.startswith("@") else username for username in args[1:]]
+    usernames = [username[1:] if username.startswith(
+        "@") else username for username in args[1:]]
 
     for role in roles:
         if not role in org.roles:
-            chat.send_message(f"Error: The role {role} does not exist. Skipping...", creator)
+            chat.send_message(
+                f"Error: The role {role} does not exist. Skipping...", creator)
             continue
-        
+
         for username in usernames:
             if not username in org.roles[role]:
-                chat.send_message(f"Warning: User {username} does not have the role {role}.", creator)
+                chat.send_message(
+                    f"Warning: User {username} does not have the role {role}.", creator)
                 continue
             org.roles[role].remove(username)
-        
+
         # Delete empty roles
         if len(org.roles[role]) == 0:
             org.roles.pop(role)
@@ -584,7 +725,8 @@ def _exportroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     group: Roles Commands
     syntax:
     """
-    chat.send_message(f"```json\n{json.dumps(org.roles, indent=2)}\n```", creator)
+    chat.send_message(
+        f"```json\n{json.dumps(org.roles, indent=2)}\n```", creator)
 
 
 def _importroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -599,7 +741,8 @@ def _importroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     try:
         org.roles = json.loads(s)
         org.save_roles()
-        chat.send_message(f"Operation successful. Use `@latexbot getAllRoles` to view the updated roles.", creator)
+        chat.send_message(
+            f"Operation successful. Use `@latexbot getAllRoles` to view the updated roles.", creator)
     except json.JSONDecodeError as e:
         chat.send_message(f"Error decoding JSON: {e}", creator)
 
@@ -693,7 +836,7 @@ def _execute(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 def _changeaccess(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Change the access level of a command.
-    
+
     The access level is a number. Here are the possible values:\n
     0 - Everyone\n
     1 - Forum Admins\n
@@ -778,7 +921,8 @@ def _exportconfig(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     group: Developer Commands
     syntax:
     """
-    chat.send_message(f"```json\n{json.dumps(org.make_config(), indent=2)}\n```", creator)
+    chat.send_message(
+        f"```json\n{json.dumps(org.make_config(), indent=2)}\n```", creator)
 
 
 def _importconfig(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -808,7 +952,7 @@ def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     group: Miscellaneous Commands
     syntax:
     """
-    org.init()
+    org.init(force_reload=True)
     chat.send_message("Forums/Teams/Users updated.", creator)
 
 
@@ -895,7 +1039,10 @@ command_processors = {
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
     "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],
     "events": [_events, ACCESS_LEVEL_EVERYONE],
-    "exportEvents": [_exportevents, ACCESS_LEVEL_FORUM_ADMIN],
+    "allEvents": [_allevents, ACCESS_LEVEL_EVERYONE],
+    "addEvent": [_addevent, ACCESS_LEVEL_FORUM_ADMIN],
+    "removeEvent": [_removeevent, ACCESS_LEVEL_FORUM_ADMIN],
+    "exportEvents": [_exportevents, ACCESS_LEVEL_EVERYONE],
     "importEvents": [_importevents, ACCESS_LEVEL_FORUM_ADMIN],
 
     "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
@@ -907,7 +1054,7 @@ command_processors = {
     "@role": [_atrole, ACCESS_LEVEL_EVERYONE],
     "addToRole": [_addtorole, ACCESS_LEVEL_ORG_ADMIN],
     "removeFromRole": [_removefromrole, ACCESS_LEVEL_ORG_ADMIN],
-    "exportRoles": [_exportroles, ACCESS_LEVEL_ORG_ADMIN],
+    "exportRoles": [_exportroles, ACCESS_LEVEL_EVERYONE],
     "importRoles": [_importroles, ACCESS_LEVEL_ORG_ADMIN],
 
     "disable": [_disable, ACCESS_LEVEL_ORG_ADMIN],
@@ -917,7 +1064,7 @@ command_processors = {
     "changeAccess": [_changeaccess, ACCESS_LEVEL_BOT_ADMIN],
     "makeAdmin": [_makeadmin, ACCESS_LEVEL_BOT_ADMIN],
     "removeAdmin": [_removeadmin, ACCESS_LEVEL_BOT_ADMIN],
-    "exportConfig": [_exportconfig, ACCESS_LEVEL_BOT_ADMIN],
+    "exportConfig": [_exportconfig, ACCESS_LEVEL_EVERYONE],
     "importConfig": [_importconfig, ACCESS_LEVEL_BOT_ADMIN],
 
     "updateChats": [_updatechats, ACCESS_LEVEL_FORUM_ADMIN],
@@ -969,7 +1116,8 @@ def start():
                     text = chat_message.get_body().split()
 
                     if text[0] == "@latexbot" and len(text) >= 2:
-                        print(f"Command received from user {chat_message.get_author_id()}: " + " ".join(text))
+                        print(
+                            f"Command received from user {chat_message.get_author_id()}: " + " ".join(text))
 
                         global enabled
                         if enabled:
