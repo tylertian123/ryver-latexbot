@@ -8,12 +8,13 @@ forums = []
 teams = []
 users = []
 user_avatars = {}
-chat = None
 
 roles = {}
 admins = set()
 events = []
-org_tz = "Canada/Central"
+org_tz = "EST5EDT"
+home_chat = None
+announcements_chat = None
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 EVENTS_FILE = "data/events.json"
@@ -33,6 +34,8 @@ def make_config():
     return {
         "admins": list(admins),
         "organizationTimeZone": org_tz,
+        "homeChat": home_chat.get_nickname(),
+        "announcementsChat": announcements_chat.get_nickname(),
     }
 
 
@@ -40,9 +43,11 @@ def init_config(config):
     """
     Initialize config data from a config dict.
     """
-    global admins, org_tz
+    global admins, org_tz, home_chat, announcements_chat
     admins = set(config["admins"])
     org_tz = config["organizationTimeZone"]
+    home_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, config["homeChat"])
+    announcements_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, config["announcementsChat"])
 
 
 def save_config():
@@ -67,7 +72,7 @@ def init(force_reload=False):
 
     If force_reload is True, cached data will not be used.
     """
-    global ryver, forums, teams, users, user_avatars, chat, roles, events
+    global ryver, forums, teams, users, user_avatars, roles, events
     if not ryver:
         ryver = pyryver.Ryver(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
     forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, name="data/pyryver.forums.json", force_update=force_reload)
@@ -83,8 +88,6 @@ def init(force_reload=False):
     users_json = resp.json()["d"]["users"]
     user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 
-    chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NAME, "Test")
-
     # Load roles
     try:
         with open(ROLES_FILE, "r") as f:
@@ -98,6 +101,10 @@ def init(force_reload=False):
         init_config(config)
     except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
         print(f"Error while loading config: {e}")
+        global home_chat, announcements_chat
+        # Defaults for home and announcements
+        home_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, "Test")
+        announcements_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, "Gen")
     # Load events
     try:
         with open(EVENTS_FILE, "r") as f:

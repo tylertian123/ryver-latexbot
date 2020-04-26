@@ -974,9 +974,10 @@ def _moveto(chat: pyryver.Chat, msg: pyryver.ChatMessage, name: str):
             # Note the underscore
             chat.send_message("Forum/team not found.", creator)
         else:
+            org.home_chat = new_chat
+            org.save_config()
             chat.send_message(f"LaTeX Bot has moved to {name}.", creator)
-            org.chat = new_chat
-            org.chat.send_message("LaTeX Bot has moved here.", creator)
+            org.home_chat.send_message("LaTeX Bot has moved here.", creator)
 
 
 def _setactivated(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -1107,7 +1108,7 @@ def start():
                         org.forums + org.teams, pyryver.FIELD_ID, chat_id)
                     if not chat_source:
                         print("Error: Cannot find chat for: " + str(via))
-                        org.chat.send_message(
+                        org.home_chat.send_message(
                             "Error: Cannot find source of message. Try `@latexbot updateChats`.", creator)
                         continue
                     # We need to get the actual message from the chat, because the one in the notification may be cut off
@@ -1137,7 +1138,7 @@ def start():
                                 print("Command syntax was invalid.")
                         elif text[1] == "enable":
                             if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN):
-                                org.chat.send_message(
+                                org.home_chat.send_message(
                                     get_access_denied_message(), creator)
                             else:
                                 enabled = True
@@ -1155,20 +1156,20 @@ def start():
             print(msg)
             # Sleep for 10 seconds to hopefully have the connection fix itself
             time.sleep(10)
-            org.chat.send_message(
+            org.home_chat.send_message(
                 "An unexpected error has occurred:\n```\n" + msg + "\n```", creator)
-            org.chat.send_message(
+            org.home_chat.send_message(
                 "@tylertian Let's hope that never happens again.", creator)
         print("Recovered!")
 
-    org.chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
+    org.home_chat.send_message("LaTeX Bot has been killed. Goodbye!", creator)
 
 
 if __name__ == "__main__":
     print(f"LaTeX Bot {VERSION} has been started. Initializing...")
     init()
     print("LaTeX Bot is running!")
-    org.chat.send_message(
+    org.home_chat.send_message(
         f"LaTeX Bot {VERSION} is online! Note that to reduce load, I only check messages once per 3 seconds or more!", creator)
-    org.chat.send_message(help_text, creator)
+    org.home_chat.send_message(help_text, creator)
     start()
