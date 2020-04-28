@@ -226,6 +226,9 @@ def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
             end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
             resp += f"\n* Day **{day}** of {event['summary']} (**{start_str}** to **{end_str}**)"
+            if "description" in event and event["description"] != "":
+                # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+                resp += f"\u200B:\n  * {strip_html(event['description'])}"
         resp += "\n\n"
     else:
         resp = ""
@@ -239,6 +242,9 @@ def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
             end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
             resp += f"\n* **{day}** day(s) until {event['summary']} (**{start_str}** to **{end_str}**)"
+            if "description" in event and event["description"] != "":
+                # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+                resp += f"\u200B:\n  * {strip_html(event['description'])}"
     else:
         resp += "***No upcoming events at the moment.***"
 
@@ -274,6 +280,9 @@ def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
     If the event name or start/end time/date contains spaces, surround it with quotes (").
 
+    The description is optional but must be on a new line separate from the rest of the command.
+    To type a newline in the chat box, use Shift+Enter.
+
     The time is optional; if not specified, the event will be created as an all-day event.
 
     The date must be in one of the formats shown below:
@@ -288,13 +297,24 @@ def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     - HH:MM(AM/PM), e.g. 12:00AM
     ---
     group: General Commands
-    syntax: <name> <startdate> [starttime] <enddate> [endtime]
+    syntax: <name> <startdate> [starttime] <enddate> [endtime] [description on a new line]
     ---
     > `@latexbot addEvent "Foo Bar" 2020-01-01 2020-01-02` - Add an event named "Foo Bar", starting on 2020-01-01 and ending the next day.
     > `@latexbot addEvent "Foo Bar" "Jan 1, 2020" "Jan 2, 2020"` - An alternative syntax for creating the same event.
     > `@latexbot addEvent Foo 2020-01-01 00:00 2020-01-01 12:00` - Add an event named "Foo", starting midnight on 2020-01-01 and ending 12 PM on the same day.
     """
-    s = shlex.split(s)
+    # If a description is included
+    if "\n" in s:
+        i = s.index("\n")
+        desc = s[i + 1:]
+        s = s[:i]
+    else:
+        desc = None
+    try:
+        s = shlex.split(s)
+    except ValueError as e:
+        chat.send_message(f"Invalid syntax: {e}", creator)
+        return  
     if len(s) != 3 and len(s) != 5:
         chat.send_message("Error: Invalid syntax. Check `@latexbot help addEvent` for help. You may have to use quotes if any of the parameters contain spaces.", creator)
         return
@@ -350,10 +370,16 @@ def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             }
         }
     event_body["summary"] = s[0]
+    if desc:
+        event_body["description"] = desc
     event = org.calendar.add_event(org.calendar_id, event_body)
     start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if len(s) == 5 else DATE_DISPLAY_FORMAT)
     end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if len(s) == 5 else DATE_DISPLAY_FORMAT)
-    chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
+    if not desc:
+        chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
+    else:
+        # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+        chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**)\u200B:\n{strip_html(event['description'])}\n\nLink: {event['htmlLink']}", creator)
 
 
 def _deleteevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -1035,7 +1061,11 @@ def _impersonate(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     hidden: true
     """
     global creator
-    s = shlex.split(s)
+    try:
+        s = shlex.split(s)
+    except ValueError as e:
+        chat.send_message(f"Invalid syntax: {e}", creator)
+        return
     if len(s) != 2:
         chat.send_message("Invalid syntax.", creator)
         return
@@ -1119,32 +1149,39 @@ def start():
                             "Error: Cannot find source of message. Try `@latexbot updateChats`.", creator)
                         continue
                     # We need to get the actual message from the chat, because the one in the notification may be cut off
-                    chat_message = chat_source.get_message_from_id(message_id)[
-                        0]
-                    text = chat_message.get_body().split()
-
-                    if text[0] == "@latexbot" and len(text) >= 2:
-                        print(
-                            f"Command received from user {chat_message.get_author_id()}: " + " ".join(text))
+                    message = chat_source.get_message_from_id(message_id)[0]
+                    
+                    if message.get_body().startswith("@latexbot ") and len(message.get_body()) > len("@latexbot "):
+                        print(f"Command received from user {message.get_author_id()}: {message.get_body()}")
+                        # Chop off the beginning
+                        text = message.get_body()[len("@latexbot "):]
+                        # Separate command from args
+                        try:
+                            i = text.index(" ")
+                            command = text[:i]
+                            args = text[i + 1:]
+                        except ValueError:
+                            command = text
+                            args = ""
 
                         global enabled
                         if enabled:
-                            if text[1] in command_processors:
+                            if command in command_processors:
                                 # Check access level
-                                if not is_authorized(chat_source, chat_message, command_processors[text[1]][1]):
+                                if not is_authorized(chat_source, message, command_processors[command][1]):
                                     chat_source.send_message(
                                         get_access_denied_message(), creator)
                                     print("Access was denied.")
                                 else:
-                                    command_processors[text[1]][0](
-                                        chat_source, chat_message, " ".join(text[2:]))
+                                    command_processors[command][0](
+                                        chat_source, message, args)
                                     print("Command processed.")
                             else:
                                 chat_source.send_message(
                                     "Sorry, I didn't understand what you were asking me to do.", creator)
                                 print("Command syntax was invalid.")
-                        elif text[1] == "enable":
-                            if not is_authorized(chat_source, chat_message, ACCESS_LEVEL_ORG_ADMIN):
+                        elif command == "enable":
+                            if not is_authorized(chat_source, message, ACCESS_LEVEL_ORG_ADMIN):
                                 org.home_chat.send_message(
                                     get_access_denied_message(), creator)
                             else:
