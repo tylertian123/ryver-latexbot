@@ -1115,6 +1115,39 @@ command_processors = {
 
 ################################ OTHER FUNCTIONS ################################
 
+def remind_events():
+    """
+    Send event reminder messages for today's events.
+    """
+    print("Checking today's events...")
+    now = current_time()
+    events = org.calendar.get_today_events(org.calendar_id, now)
+    if not events:
+        print("No events today!")
+        return
+    
+    resp = "Reminder: These events are happening today:"
+    for event in events:
+        start = Calendar.parse_time(event["start"])
+        end = Calendar.parse_time(event["end"])
+
+        # The event has a time, and it starts today (not already started)
+        if start.tzinfo and start > now:
+            resp += f"\n* {event['summary']} today at **{start.strftime(TIME_DISPLAY_FORMAT)}**"
+        else:
+            # Otherwise format like normal
+            start_str = start.strftime(DATETIME_DISPLAY_FORMAT if start.tzinfo else DATE_DISPLAY_FORMAT)
+            end_str = end.strftime(DATETIME_DISPLAY_FORMAT if end.tzinfo else DATE_DISPLAY_FORMAT)
+            resp += f"\n* {event['summary']} (**{start_str}** to **{end_str}**, already started)"
+
+        # Add description if there is one
+        if "description" in event and event["description"] != "":
+            # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+            resp += f"\u200B:\n  * {strip_html(event['description'])}"
+    org.announcements_chat.send_message(resp, creator)
+    print("Events reminder sent!")
+
+
 def init():
     org.init()
     generate_help_text()

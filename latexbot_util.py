@@ -41,7 +41,8 @@ MENTION_REGEX = re.compile(r"(\s|^)@(\w+)(?=\s|$)", flags=re.MULTILINE)
 DATE_FORMAT = "%Y-%m-%d %H:%M"
 CALENDAR_DATE_FORMAT = "%Y-%m-%d"
 DATE_DISPLAY_FORMAT = "%b %d %Y"
-DATETIME_DISPLAY_FORMAT = "%b %d %Y %I:%M %p"
+TIME_DISPLAY_FORMAT = "%I:%M %p"
+DATETIME_DISPLAY_FORMAT = DATE_DISPLAY_FORMAT + " " + TIME_DISPLAY_FORMAT
 ALL_DATE_FORMATS = [
     "%Y-%m-%d",
     "%Y/%m/%d",
@@ -275,4 +276,4 @@ def strip_html(text: str) -> str:
     Strip HTML tags from input.
     """
     # Replace <br> tags with newlines
-    return BeautifulSoup(text.replace("<br>", "\n")).get_text()
+    return BeautifulSoup(text.replace("<br>", "\n"), features="html.parser").get_text()
