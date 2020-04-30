@@ -180,7 +180,7 @@ def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     If the count is not specified, this command will display the next 3 events. 
     This number includes ongoing events.
     ---
-    group: General Commands
+    group: Events/Google Calendar Commands
     syntax: [count]
     ---
     > `@latexbot events 5` - Get the next 5 events, including ongoing events.
@@ -259,7 +259,7 @@ def _quickaddevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
     For more details, see [the Google Calendar API Documentation for quickAdd](https://developers.google.com/calendar/v3/reference/events/quickAdd).
     ---
-    group: General Commands
+    group: Events/Google Calendar Commands
     syntax: <event>
     ---
     > `@latexbot quickAddEvent Appointment at Somewhere on June 3rd 10am-10:25am`
@@ -296,7 +296,7 @@ def _addevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     - HH:MM (AM/PM), e.g. 12:00 AM
     - HH:MM(AM/PM), e.g. 12:00AM
     ---
-    group: General Commands
+    group: Events/Google Calendar Commands
     syntax: <name> <startdate> [starttime] <enddate> [endtime] [description on a new line]
     ---
     > `@latexbot addEvent "Foo Bar" 2020-01-01 2020-01-02` - Add an event named "Foo Bar", starting on 2020-01-01 and ending the next day.
@@ -393,7 +393,7 @@ def _deleteevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 
     Unlike addEvent, this command only takes a single argument, so quotes should not be used.
     ---
-    group: General Commands
+    group: Events/Google Calendar Commands
     syntax: <name>
     ---
     > `@latexbot deleteEvent Foo Bar` - Remove the event "Foo Bar".
@@ -418,6 +418,40 @@ def _deleteevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message(f"Deleted event {matched_event['summary']} (**{start_str}** to **{end_str}**).", creator)
     else:
         chat.send_message(f"Error: No event matches that name.", creator)
+
+
+def _setreminderstime(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Set the time event reminder messages are sent each day or turn them on/off.
+
+    The time must be in the "HH:MM" format (24-hour clock).
+    Use the argument "off" to turn reminders off.
+    ---
+    group: Events/Google Calendar Commands
+    syntax: <time|off>
+    ---
+    > `@latexbot setRemindersTime 00:00` - Set event reminder messages to be sent at 12am each day.
+    > `@latexbot setRemindersTime off` - Turn off reminders.
+    """
+    if s.lower() == "off":
+        org.event_reminder_time = None
+    else:
+        # Try parse to ensure validity
+        try:
+            datetime.strptime(s, "%H:%M")
+        except ValueError:
+            chat.send_message("Invalid time format.", creator)
+            return
+        org.event_reminder_time = s
+    # Cancel existing and reschedule
+    if org.reminder_event:
+        org.scheduler.cancel(org.reminder_event)
+    schedule_next_reminder()
+    org.save_config()
+    if org.event_reminder_time:
+        chat.send_message(f"Reminders will now be sent at {s} daily.", creator)
+    else:
+        chat.send_message(f"Reminders have been disabled.", creator)
 
 
 def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -1078,10 +1112,12 @@ command_processors = {
     "help": [_help, ACCESS_LEVEL_EVERYONE],
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
     "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],
+
     "events": [_events, ACCESS_LEVEL_EVERYONE],
     "addEvent": [_addevent, ACCESS_LEVEL_ORG_ADMIN],
     "quickAddEvent": [_quickaddevent, ACCESS_LEVEL_ORG_ADMIN],
     "deleteEvent": [_deleteevent, ACCESS_LEVEL_ORG_ADMIN],
+    "setRemindersTime": [_setreminderstime, ACCESS_LEVEL_ORG_ADMIN],
 
     "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
     "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],
