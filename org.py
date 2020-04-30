@@ -1,7 +1,10 @@
 import json
+import latexbot
 import os
 import pyryver
 import requests
+import sched
+import time
 import gcalendar
 
 ryver = None
@@ -16,11 +19,15 @@ org_tz = "EST5EDT"
 home_chat = None
 announcements_chat = None
 calendar_id = None
+event_reminder_time = None
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 
 SERVICE_ACCOUNT_FILE = "calendar_credentials.json"
 calendar = gcalendar.Calendar(SERVICE_ACCOUNT_FILE)
+
+scheduler = sched.scheduler(time.time, time.sleep)
+reminder_event = None
 
 def save_roles():
     """
@@ -40,6 +47,7 @@ def make_config():
         "homeChat": home_chat.get_nickname(),
         "announcementsChat": announcements_chat.get_nickname(),
         "googleCalendarId": calendar_id,
+        "eventReminderTime": event_reminder_time,
     }
 
 
@@ -47,12 +55,18 @@ def init_config(config):
     """
     Initialize config data from a config dict.
     """
-    global admins, org_tz, home_chat, announcements_chat, calendar_id
+    global admins, org_tz, home_chat, announcements_chat, calendar_id, event_reminder_time
     admins = set(config["admins"])
     org_tz = config["organizationTimeZone"]
     home_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, config["homeChat"])
     announcements_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, config["announcementsChat"])
     calendar_id = config["googleCalendarId"]
+    event_reminder_time = config["eventReminderTime"]
+    if event_reminder_time:
+        # Cancel the existing event
+        if reminder_event:
+            scheduler.cancel(reminder_event)
+        latexbot.schedule_next_reminder()
 
 
 def save_config():

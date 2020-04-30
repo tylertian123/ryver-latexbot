@@ -8,7 +8,7 @@ import shlex
 import sys
 import time
 import typing
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil import tz
 from gcalendar import Calendar
 from latexbot_util import *
@@ -1138,7 +1138,7 @@ def remind_events():
             # Otherwise format like normal
             start_str = start.strftime(DATETIME_DISPLAY_FORMAT if start.tzinfo else DATE_DISPLAY_FORMAT)
             end_str = end.strftime(DATETIME_DISPLAY_FORMAT if end.tzinfo else DATE_DISPLAY_FORMAT)
-            resp += f"\n* {event['summary']} (**{start_str}** to **{end_str}**, already started)"
+            resp += f"\n* {event['summary']} (**{start_str}** to **{end_str}**)"
 
         # Add description if there is one
         if "description" in event and event["description"] != "":
@@ -1146,6 +1146,27 @@ def remind_events():
             resp += f"\u200B:\n  * {strip_html(event['description'])}"
     org.announcements_chat.send_message(resp, creator)
     print("Events reminder sent!")
+    # Clear the scheduler event and schedule the next event
+    org.reminder_event = None
+    schedule_next_reminder()
+
+
+def schedule_next_reminder():
+    """
+    Schedule the next reminder event.
+    """
+    if not org.event_reminder_time:
+        print("Next reminder event not scheduled because time isn't defined.")
+        return
+    t = datetime.strptime(org.event_reminder_time, "%H:%M")
+    now = current_time()
+    # Get that time, today
+    t = datetime.combine(now, t.time(), tzinfo=tz.gettz(org.org_tz))
+    # If already passed, get that time the next day
+    if t < now:
+        t += timedelta(days=1)
+    timestamp = t.astimezone(tz_utc).timestamp()
+    org.scheduler.enterabs(timestamp, 1, remind_events)
 
 
 def init():
@@ -1224,6 +1245,7 @@ def start():
                     else:
                         print("Notification was not a proper command. Skipping...")
 
+                org.scheduler.run(blocking=False)
                 time.sleep(1)
         except KeyboardInterrupt:
             break

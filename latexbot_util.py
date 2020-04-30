@@ -248,7 +248,7 @@ def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
     return doc_dict
 
 
-tz_utc = tz.gettz("UTC")
+tz_utc = tz.tzutc()
 
 def current_time() -> datetime:
     """
