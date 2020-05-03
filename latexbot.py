@@ -8,12 +8,14 @@ import shlex
 import sys
 import time
 import typing
+import xkcd
 from datetime import datetime, timedelta
 from dateutil import tz
 from gcalendar import Calendar
 from latexbot_util import *
 from quicklatex_render import ql_render
 from random import randrange
+from requests import HTTPError
 from traceback import format_exc
 
 # Make print() flush immediately
@@ -171,6 +173,41 @@ def _whatdoyouthink(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     msgs = no_msgs if hash(s.strip().lower()) % 2 == 0 else yes_msgs
     chat.send_message(msgs[randrange(len(msgs))], creator)
+
+
+def _xkcd(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+    """
+    Get the latest xkcd or a specific xkcd by number.
+    ---
+    group: General Commands
+    syntax: [number]
+    ---
+    > `@latexbot xkcd` - Get the latest xkcd.
+    > `@latexbot xkcd 149` - Get xkcd #149.
+    """
+    if s:
+        try:
+            number = int(s)
+        except ValueError:
+            chat.send_message(f"Invalid number.", creator)
+            return
+    else:
+        number = None
+    
+    try:
+        comic = xkcd.get_comic(number)
+        if not comic:
+            chat.send_message(f"Error: This comic does not exist (404). Have this image of a turtle instead.\n\n![A turtle](https://cdn.britannica.com/66/195966-138-F9E7A828/facts-turtles.jpg)", creator)
+            return
+        
+        resp = f"Comic #{comic['num']} (Posted {comic['year']}-{comic['month'].zfill(2)}-{comic['day'].zfill(2)}):\n\n"
+        resp += f"# {comic['title']}\n![{comic['alt']}]({comic['img']})"
+        if "extra_parts" in comic:
+            resp += "\n\n***Note: This comic contains extra parts that cannot be displayed here. "
+            resp += f"Check out the full comic at https://xkcd.com/{comic['num']}.***"
+        chat.send_message(resp, creator)
+    except HTTPError as e:
+        chat.send_message(f"An error occurred: {e}", creator)
 
 
 def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -481,9 +518,13 @@ def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message("Invalid syntax.", creator)
         return
 
-    # Cut off the end (newer messages)
-    # Subtract 1 for 1-based indexing
-    msgs = get_msgs_before(chat, msg.get_id(), end)[:-(start - 1)]
+    # Special case for start = 1
+    if start == 1:
+        msgs = get_msgs_before(chat, msg.get_id(), end)
+    else:
+        # Cut off the end (newer messages)
+        # Subtract 1 for 1-based indexing
+        msgs = get_msgs_before(chat, msg.get_id(), end)[:-(start - 1)]
     for message in msgs:
         message.delete()
     msg.delete()
@@ -530,9 +571,13 @@ def _movemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message("Forum/team not found", creator)
         return
 
-    # Cut off the end (newer messages)
-    # Subtract 1 for 1-based indexing
-    msgs = get_msgs_before(chat, msg.get_id(), end)[:-(start - 1)]
+    # Special case for start = 1
+    if start == 1:
+        msgs = get_msgs_before(chat, msg.get_id(), end)
+    else:
+        # Cut off the end (newer messages)
+        # Subtract 1 for 1-based indexing
+        msgs = get_msgs_before(chat, msg.get_id(), end)[:-(start - 1)]
 
     to.send_message(f"# Begin Moved Message\n\n---", creator)
 
@@ -1112,6 +1157,7 @@ command_processors = {
     "help": [_help, ACCESS_LEVEL_EVERYONE],
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
     "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],
+    "xkcd": [_xkcd, ACCESS_LEVEL_EVERYONE],
 
     "events": [_events, ACCESS_LEVEL_EVERYONE],
     "addEvent": [_addevent, ACCESS_LEVEL_ORG_ADMIN],
