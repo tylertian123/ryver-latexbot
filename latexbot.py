@@ -94,9 +94,12 @@ def generate_help_text():
 
 def _render(chat: pyryver.Chat, msg: pyryver.ChatMessage, formula: str):
     """
-    Render a LaTeX formula.
+    Render a LaTeX formula. Powered by QuickLaTeX.
 
     The formula is rendered in inline mode.
+    Put \\displaystyle before the formula to switch to display mode.
+
+    Thanks to QuickLaTeX (https://quicklatex.com/)!
     ---
     group: General Commands
     syntax: <formula>
