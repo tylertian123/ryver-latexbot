@@ -460,21 +460,21 @@ def _deleteevent(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         chat.send_message(f"Error: No event matches that name.", creator)
 
 
-def _setreminderstime(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
+def _setdailymessagetime(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    Set the time event reminder messages are sent each day or turn them on/off.
+    Set the time daily messages are sent each day or turn them on/off.
 
     The time must be in the "HH:MM" format (24-hour clock).
-    Use the argument "off" to turn reminders off.
+    Use the argument "off" to turn daily messages off.
     ---
     group: Events/Google Calendar Commands
     syntax: <time|off>
     ---
-    > `@latexbot setRemindersTime 00:00` - Set event reminder messages to be sent at 12am each day.
-    > `@latexbot setRemindersTime off` - Turn off reminders.
+    > `@latexbot setDailyMessageTime 00:00` - Set daily messages to be sent at 12am each day.
+    > `@latexbot setDailyMessageTime off` - Turn off daily messages.
     """
     if s.lower() == "off":
-        org.event_reminder_time = None
+        org.daily_message_time = None
     else:
         # Try parse to ensure validity
         try:
@@ -482,16 +482,16 @@ def _setreminderstime(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
         except ValueError:
             chat.send_message("Invalid time format.", creator)
             return
-        org.event_reminder_time = s
+        org.daily_message_time = s
     # Cancel existing and reschedule
-    if org.reminder_event:
-        org.scheduler.cancel(org.reminder_event)
-    schedule_next_reminder()
+    if org.daily_message_event:
+        org.scheduler.cancel(org.daily_message_event)
+    schedule_next_message()
     org.save_config()
-    if org.event_reminder_time:
-        chat.send_message(f"Reminders will now be sent at {s} daily.", creator)
+    if org.daily_message_time:
+        chat.send_message(f"Messages will now be sent at {s} daily.", creator)
     else:
-        chat.send_message(f"Reminders have been disabled.", creator)
+        chat.send_message(f"Messages have been disabled.", creator)
 
 
 def _deletemessages(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -1166,7 +1166,7 @@ command_processors = {
     "addEvent": [_addevent, ACCESS_LEVEL_ORG_ADMIN],
     "quickAddEvent": [_quickaddevent, ACCESS_LEVEL_ORG_ADMIN],
     "deleteEvent": [_deleteevent, ACCESS_LEVEL_ORG_ADMIN],
-    "setRemindersTime": [_setreminderstime, ACCESS_LEVEL_ORG_ADMIN],
+    "setDailyMessageTime": [_setdailymessagetime, ACCESS_LEVEL_ORG_ADMIN],
 
     "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
     "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],
@@ -1200,9 +1200,9 @@ command_processors = {
 
 ################################ OTHER FUNCTIONS ################################
 
-def remind_events():
+def daily_message():
     """
-    Send event reminder messages for today's events.
+    Send the daily message.
     """
     print("Checking today's events...")
     now = current_time()
@@ -1232,18 +1232,18 @@ def remind_events():
     org.announcements_chat.send_message(resp, creator)
     print("Events reminder sent!")
     # Clear the scheduler event and schedule the next event
-    org.reminder_event = None
-    schedule_next_reminder()
+    org.daily_message_event = None
+    schedule_next_message()
 
 
-def schedule_next_reminder():
+def schedule_next_message():
     """
-    Schedule the next reminder event.
+    Schedule the next daily message.
     """
-    if not org.event_reminder_time:
-        print("Next reminder event not scheduled because time isn't defined.")
+    if not org.daily_message_time:
+        print("Next daily message not scheduled because time isn't defined.")
         return
-    t = datetime.strptime(org.event_reminder_time, "%H:%M")
+    t = datetime.strptime(org.daily_message_time, "%H:%M")
     now = current_time()
     # Get that time, today
     t = datetime.combine(now, t.time(), tzinfo=tz.gettz(org.org_tz))
@@ -1251,7 +1251,7 @@ def schedule_next_reminder():
     if t < now:
         t += timedelta(days=1)
     timestamp = t.astimezone(tz_utc).timestamp()
-    org.scheduler.enterabs(timestamp, 1, remind_events)
+    org.scheduler.enterabs(timestamp, 1, daily_message)
 
 
 def init():
