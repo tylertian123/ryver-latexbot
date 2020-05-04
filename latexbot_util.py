@@ -55,6 +55,8 @@ ALL_TIME_FORMATS = [
     "%I:%M%p",
 ]
 
+XKCD_PROFILE = "https://www.explainxkcd.com/wiki/images/6/6d/BlackHat_head.png"
+
 
 def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, required_level: int) -> bool:
     """

@@ -188,11 +188,12 @@ def _xkcd(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     > `@latexbot xkcd` - Get the latest xkcd.
     > `@latexbot xkcd 149` - Get xkcd #149.
     """
+    xkcd_creator = pyryver.Creator(creator.name, XKCD_PROFILE)
     if s:
         try:
             number = int(s)
         except ValueError:
-            chat.send_message(f"Invalid number.", creator)
+            chat.send_message(f"Invalid number.", xkcd_creator)
             return
     else:
         number = None
@@ -200,12 +201,12 @@ def _xkcd(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     try:
         comic = xkcd.get_comic(number)
         if not comic:
-            chat.send_message(f"Error: This comic does not exist (404). Have this image of a turtle instead.\n\n![A turtle](https://cdn.britannica.com/66/195966-138-F9E7A828/facts-turtles.jpg)", creator)
+            chat.send_message(f"Error: This comic does not exist (404). Have this image of a turtle instead.\n\n![A turtle](https://cdn.britannica.com/66/195966-138-F9E7A828/facts-turtles.jpg)", xkcd_creator)
             return
         
-        chat.send_message(xkcd.comic_to_str(comic), creator)
+        chat.send_message(xkcd.comic_to_str(comic), xkcd_creator)
     except HTTPError as e:
-        chat.send_message(f"An error occurred: {e}", creator)
+        chat.send_message(f"An error occurred: {e}", xkcd_creator)
 
 
 def _events(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -1231,7 +1232,8 @@ def daily_message():
         print(f"No new xkcd found (latest is {comic['num']}).")
     else:
         print(f"New comic found! (#{comic['num']})")
-        org.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", creator)
+        xkcd_creator = pyryver.Creator(creator.name, XKCD_PROFILE)
+        org.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
         # Update xkcd number
         org.last_xkcd = comic['num']
         org.save_config()
