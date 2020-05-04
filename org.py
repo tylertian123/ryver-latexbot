@@ -21,6 +21,7 @@ announcements_chat = None
 messages_chat = None
 calendar_id = None
 daily_message_time = None
+last_xkcd = None
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 
@@ -50,6 +51,7 @@ def make_config():
     - "messagesChat": The nickname of the chat to send off-topic messages to. (string)
     - "googleCalendarId": The ID of the Google calendar to use for events. (string)
     - "dailyMessageTime": The time of day when daily messages are sent, in the format "HH:MM". If null, daily messages will be disabled. (string)
+    - "lastXKCD": The number of the latest xkcd. Used to check for new comics. (int)
     """
     return {
         "admins": list(admins),
@@ -59,6 +61,7 @@ def make_config():
         "messagesChat": messages_chat.get_nickname(),
         "googleCalendarId": calendar_id,
         "dailyMessageTime": daily_message_time,
+        "lastXKCD": last_xkcd,
     }
 
 
@@ -66,7 +69,7 @@ def init_config(config):
     """
     Initialize config data from a config dict.
     """
-    global admins, org_tz, home_chat, announcements_chat, calendar_id, daily_message_time, messages_chat
+    global admins, org_tz, home_chat, announcements_chat, calendar_id, daily_message_time, messages_chat, last_xkcd
     try:
         admins = set(config["admins"])
     except KeyError:
@@ -105,6 +108,11 @@ def init_config(config):
         if daily_message_event:
             scheduler.cancel(daily_message_event)
         latexbot.schedule_next_message()
+    try:
+        last_xkcd = config["lastXKCD"]
+    except KeyError:
+        print("Error: 'lastXKCD' not specified. Defaulting to 0 or leaving unchanged.")
+        last_xkcd = last_xkcd or 0
 
 
 def save_config():

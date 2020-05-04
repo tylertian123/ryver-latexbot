@@ -203,12 +203,7 @@ def _xkcd(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             chat.send_message(f"Error: This comic does not exist (404). Have this image of a turtle instead.\n\n![A turtle](https://cdn.britannica.com/66/195966-138-F9E7A828/facts-turtles.jpg)", creator)
             return
         
-        resp = f"Comic #{comic['num']} (Posted {comic['year']}-{comic['month'].zfill(2)}-{comic['day'].zfill(2)}):\n\n"
-        resp += f"# {comic['title']}\n![{comic['alt']}]({comic['img']})"
-        if "extra_parts" in comic:
-            resp += "\n\n***Note: This comic contains extra parts that cannot be displayed here. "
-            resp += f"Check out the full comic at https://xkcd.com/{comic['num']}.***"
-        chat.send_message(resp, creator)
+        chat.send_message(xkcd.comic_to_str(comic), creator)
     except HTTPError as e:
         chat.send_message(f"An error occurred: {e}", creator)
 
@@ -1209,28 +1204,38 @@ def daily_message():
     events = org.calendar.get_today_events(org.calendar_id, now)
     if not events:
         print("No events today!")
-        return
-    
-    resp = "Reminder: These events are happening today:"
-    for event in events:
-        start = Calendar.parse_time(event["start"])
-        end = Calendar.parse_time(event["end"])
+    else:
+        resp = "Reminder: These events are happening today:"
+        for event in events:
+            start = Calendar.parse_time(event["start"])
+            end = Calendar.parse_time(event["end"])
 
-        # The event has a time, and it starts today (not already started)
-        if start.tzinfo and start > now:
-            resp += f"\n* {event['summary']} today at **{start.strftime(TIME_DISPLAY_FORMAT)}**"
-        else:
-            # Otherwise format like normal
-            start_str = start.strftime(DATETIME_DISPLAY_FORMAT if start.tzinfo else DATE_DISPLAY_FORMAT)
-            end_str = end.strftime(DATETIME_DISPLAY_FORMAT if end.tzinfo else DATE_DISPLAY_FORMAT)
-            resp += f"\n* {event['summary']} (**{start_str}** to **{end_str}**)"
+            # The event has a time, and it starts today (not already started)
+            if start.tzinfo and start > now:
+                resp += f"\n* {event['summary']} today at **{start.strftime(TIME_DISPLAY_FORMAT)}**"
+            else:
+                # Otherwise format like normal
+                start_str = start.strftime(DATETIME_DISPLAY_FORMAT if start.tzinfo else DATE_DISPLAY_FORMAT)
+                end_str = end.strftime(DATETIME_DISPLAY_FORMAT if end.tzinfo else DATE_DISPLAY_FORMAT)
+                resp += f"\n* {event['summary']} (**{start_str}** to **{end_str}**)"
 
-        # Add description if there is one
-        if "description" in event and event["description"] != "":
-            # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
-            resp += f"\u200B:\n  * {strip_html(event['description'])}"
-    org.announcements_chat.send_message(resp, creator)
-    print("Events reminder sent!")
+            # Add description if there is one
+            if "description" in event and event["description"] != "":
+                # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+                resp += f"\u200B:\n  * {strip_html(event['description'])}"
+        org.announcements_chat.send_message(resp, creator)
+        print("Events reminder sent!")
+    print("Checking for a new xkcd...")
+    comic = xkcd.get_comic()
+    if comic['num'] <= org.last_xkcd:
+        print(f"No new xkcd found (latest is {comic['num']}).")
+    else:
+        print(f"New comic found! (#{comic['num']})")
+        org.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", creator)
+        # Update xkcd number
+        org.last_xkcd = comic['num']
+        org.save_config()
+    print("Daily message sent.")
     # Clear the scheduler event and schedule the next event
     org.daily_message_event = None
     schedule_next_message()
@@ -1252,6 +1257,7 @@ def schedule_next_message():
         t += timedelta(days=1)
     timestamp = t.astimezone(tz_utc).timestamp()
     org.scheduler.enterabs(timestamp, 1, daily_message)
+    print("Next daily message scheduled!")
 
 
 def init():
