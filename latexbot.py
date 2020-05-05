@@ -4,6 +4,7 @@ import org
 import os
 import pyryver
 import re
+import requests
 import shlex
 import sys
 import time
@@ -15,7 +16,6 @@ from gcalendar import Calendar
 from latexbot_util import *
 from quicklatex_render import ql_render
 from random import randrange
-from requests import HTTPError
 from traceback import format_exc
 
 # Make print() flush immediately
@@ -205,7 +205,7 @@ def _xkcd(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
             return
         
         chat.send_message(xkcd.comic_to_str(comic), xkcd_creator)
-    except HTTPError as e:
+    except requests.HTTPError as e:
         chat.send_message(f"An error occurred: {e}", xkcd_creator)
 
 
@@ -834,25 +834,50 @@ def _removefromrole(chat: pyryver.Chat, msg: pyryver.Message, s: str):
 def _exportroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Export roles data as a JSON. 
+
+    If the data is less than 1k characters long, it will be sent as a chat message.
+    Otherwise it will be sent as a file attachment.
     ---
     group: Roles Commands
     syntax:
     """
-    chat.send_message(
-        f"```json\n{json.dumps(org.roles, indent=2)}\n```", creator)
+    data = json.dumps(org.roles, indent=2)
+    if len(data) < 1000:
+        chat.send_message(f"```json\n{data}\n```", creator)
+    else:
+        file = org.ryver.upload_file("roles.json", data, pyryver.File.MIME_TYPE_JSON).get_file()
+        chat.send_message(f"Roles: [{file.get_name()}]({file.get_url()})", creator)
 
 
 def _importroles(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
-    Import roles data as a JSON.
+    Import JSON roles data from the message, or from a file attachment.
+
+    If a file is attached to the message, the roles will always be imported from the file.
     ---
     group: Roles Commands
-    syntax: <data>
+    syntax: <data|fileattachment>
     ---
     > `@latexbot importRoles {}` - Clear all roles.
     """
+    file = msg.get_attached_file()
+    if file:
+        # Get the actual contents
+        resp = requests.get(file.get_url())
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as e:
+            chat.send_message(f"Error while trying to GET file attachment: {e}", creator)
+            return
+        try:
+            data = resp.content.decode("utf-8")
+        except UnicodeDecodeError as e:
+            chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
+    else:
+        data = s
+    
     try:
-        org.roles = json.loads(s)
+        org.roles = json.loads(data)
         org.save_roles()
         chat.send_message(
             f"Operation successful. Use `@latexbot getAllRoles` to view the updated roles.", creator)
@@ -1030,28 +1055,56 @@ def _removeadmin(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
 def _exportconfig(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Export config as a JSON.
+
+    If the data is less than 1k characters long, it will be sent as a chat message.
+    Otherwise it will be sent as a file attachment.
     ---
     group: Developer Commands
     syntax:
     """
-    chat.send_message(
-        f"```json\n{json.dumps(org.make_config(), indent=2)}\n```", creator)
+    data = json.dumps(org.make_config(), indent=2)
+    if len(data) < 1000:
+        chat.send_message(f"```json\n{data}\n```", creator)
+    else:
+        file = org.ryver.upload_file("config.json", data, pyryver.File.MIME_TYPE_JSON).get_file()
+        chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
 
 
 def _importconfig(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
     """
     Import config from JSON.
+
+    Note that although it is encouraged, the config JSON does not have to contain all fields.
+    If a field is not specified, it will just be left unchanged.
+
+    If a file is attached to this message, the config will always be imported from the file.
     ---
     group: Developer Commands
     syntax: <data>
     """
+    file = msg.get_attached_file()
+    if file:
+        # Get the actual contents
+        resp = requests.get(file.get_url())
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as e:
+            chat.send_message(f"Error while trying to GET file attachment: {e}", creator)
+            return
+        try:
+            data = resp.content.decode("utf-8")
+        except UnicodeDecodeError as e:
+            chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
+    else:
+        data = s
+    
     try:
-        org.init_config(json.loads(s))
+        org.init_config(json.loads(data))
         generate_help_text()
         org.save_config()
         chat.send_message(f"Operation successful.", creator)
-    except (json.JSONDecodeError, KeyError) as e:
-        chat.send_message(f"Error decoding config: {e}", creator)
+    except json.JSONDecodeError as e:
+        chat.send_message(f"Error decoding JSON: {e}", creator)
 
 
 def _updatechats(chat: pyryver.Chat, msg: pyryver.ChatMessage, s: str):
@@ -1303,11 +1356,12 @@ def start():
                         # Chop off the beginning
                         text = message.get_body()[len("@latexbot "):]
                         # Separate command from args
-                        try:
-                            i = text.index(" ")
+
+                        if " " in text or "\n" in text:
+                            i = min(text.index(" ") if " " in text else float("inf"), text.index("\n") if "\n" in text else float("inf"))
                             command = text[:i]
                             args = text[i + 1:]
-                        except ValueError:
+                        else:
                             command = text
                             args = ""
 
@@ -1326,7 +1380,7 @@ def start():
                             else:
                                 chat_source.send_message(
                                     "Sorry, I didn't understand what you were asking me to do.", creator)
-                                print("Command syntax was invalid.")
+                                print(f"Command {command} isn't a valid command.")
                         elif command == "enable":
                             if not is_authorized(chat_source, message, ACCESS_LEVEL_ORG_ADMIN):
                                 org.home_chat.send_message(
