@@ -21,7 +21,7 @@ def print(*args, **kwargs):
 
 ################################ GLOBAL VARIABLES AND CONSTANTS ################################
 
-VERSION = "v0.4.0-dev"
+VERSION = "v0.5.0-dev-ASYNC"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 
@@ -87,7 +87,7 @@ def generate_help_text(ryver: pyryver.Ryver):
 ################################ COMMAND PROCESSORS ################################
 
 
-async def _render(chat: pyryver.Chat, formula: str):
+async def _render(chat: pyryver.Chat, msg_id: str, formula: str):
     """
     Render a LaTeX formula. Powered by QuickLaTeX.
 
@@ -108,7 +108,7 @@ async def _render(chat: pyryver.Chat, formula: str):
         await chat.send_message("Formula can't be empty.", creator)
 
 
-async def _help(chat: pyryver.Chat, s: str):
+async def _help(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Get a list of all the commands, or details about a command.
 
@@ -129,7 +129,7 @@ async def _help(chat: pyryver.Chat, s: str):
         await chat.send_message(extended_help_text.get(s, default), creator)
 
 
-async def _ping(chat: pyryver.Chat, s: str):
+async def _ping(chat: pyryver.Chat, msg_id: str, s: str):
     """
     I will respond with 'Pong' if I'm here.
     ---
@@ -158,7 +158,7 @@ no_msgs = [
 ]
 
 
-async def _whatdoyouthink(chat: pyryver.Chat, s: str):
+async def _whatdoyouthink(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Ask my opinion of a thing!
 
@@ -173,7 +173,7 @@ async def _whatdoyouthink(chat: pyryver.Chat, s: str):
     await chat.send_message(msgs[randrange(len(msgs))], creator)
 
 
-async def _xkcd(chat: pyryver.Chat, s: str):
+async def _xkcd(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Get the latest xkcd or a specific xkcd by number.
     ---
@@ -204,12 +204,187 @@ async def _xkcd(chat: pyryver.Chat, s: str):
         await chat.send_message(f"An error occurred: {e}", xkcd_creator)
 
 
+async def _deletemessages(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Delete messages.
+
+    If no <start> is provided, this command deletes the last <count>/<end> messages.
+    If <start> is provided, this command deletes messages from <start> to <end> inclusive, with 1-based indexing.
+
+    The command message itself is always deleted.
+    ---
+    group: Administrative Commands
+    syntax: [<start>-]<end|count>
+    ---
+    > `@latexbot deleteMessages 10` - Delete the last 10 messages.
+    > `@latexbot deleteMessages 10-20` - Delete the 10th last to 20th last messages, inclusive.
+    """
+    try:
+        # Try and parse the range
+        if "-" in s:
+            start = int(s[:s.index("-")].strip())
+            s = s[s.index("-") + 1:].strip()
+        else:
+            start = 1
+        end = int(s)
+    except (ValueError, IndexError):
+        await chat.send_message("Invalid syntax.", creator)
+        return
+
+    # Special case for start = 1
+    if start == 1:
+        msgs = await get_msgs_before(chat, msg_id, end)
+    else:
+        # Cut off the end (newer messages)
+        # Subtract 1 for 1-based indexing
+        msgs = (await get_msgs_before(chat, msg_id, end))[:-(start - 1)]
+    for message in msgs:
+        await message.delete()
+    await (await chat.get_message_from_id(msg_id))[0].delete()
+
+
+async def _movemessages(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Move messages to another forum or team.
+
+    If no <start> is provided, this command moves the last <count>/<end> messages.
+    If <start> is provided, this command moves messages from <start> to <end> inclusive, with 1-based indexing.
+
+    By default this command goes by the display name of the forum/team.
+    Specify `nickname=` before the forum/team name to use nicknames instead.
+
+    Note that reactions cannot be moved perfectly, and are instead shown with text.
+    ---
+    group: Administrative Commands
+    syntax: [<start>-]<end|count> [(name|nickname)=]<forum|team>
+    ---
+    > `@latexbot moveMessages 10 Off-Topic` - Move the last 10 messages to Off-Topic.
+    > `@latexbot moveMessages 10-20 nickname=OffTopic` - Move the 10th last to 20th last messages (inclusive) to a forum/team with the nickname +OffTopic.
+    """
+    s = s.split()
+    if len(s) < 2:
+        chat.send_message("Invalid syntax.", creator)
+        return
+
+    msg_range = s[0]
+    try:
+        # Try and parse the range
+        if "-" in msg_range:
+            start = int(msg_range[:msg_range.index("-")].strip())
+            msg_range = msg_range[msg_range.index("-") + 1:].strip()
+        else:
+            start = 1
+        end = int(msg_range)
+    except (ValueError, IndexError):
+        await chat.send_message("Invalid syntax.", creator)
+        return
+
+    to = parse_chat_name(chat.get_ryver(), " ".join(s[1:]))
+    if not to:
+        await chat.send_message("Forum/team not found", creator)
+        return
+
+    # Special case for start = 1
+    if start == 1:
+        msgs = await get_msgs_before(chat, msg_id, end)
+    else:
+        # Cut off the end (newer messages)
+        # Subtract 1 for 1-based indexing
+        msgs = (await get_msgs_before(chat, msg_id, end))[:-(start - 1)]
+
+    await to.send_message(f"# Begin Moved Message\n\n---", creator)
+
+    for msg in msgs:
+        # Get the creator
+        msg_creator = msg.get_creator()
+        # If no creator then get author
+        if not msg_creator:
+            # First attempt to search for the ID in the list
+            # if that fails then get it directly using a request
+            msg_author = chat.get_ryver().get_user(id=msg.get_author_id) or (await msg.get_author())
+            # Pretend to be another person
+            msg_creator = pyryver.Creator(
+                msg_author.get_display_name(), org.user_avatars.get(msg_author.get_id(), ""))
+
+        msg_body = sanitize(msg.get_body())
+        # Handle reactions
+        # Because reactions are from multiple people they can't really be moved the same way
+        if msg.get_reactions():
+            msg_body += "\n"
+            for emoji, people in msg.get_reactions().items():
+                # Instead for each reaction, append a line at the bottom with the emoji
+                # and every user's display name who reacted with the reaction
+                u = [chat.get_ryver().get_user(id=person.get_id()) for person in people]
+                msg_body += f"\n:{emoji}:: {', '.join([user.get_display_name() if user else 'unknown' for user in u])}"
+
+        await to.send_message(msg_body, msg_creator)
+        await msg.delete()
+    await msgs[-1].delete()
+
+    await to.send_message("---\n\n# End Moved Message", creator)
+
+
+async def _countmessagessince(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Count the number of messages since the first message that matches a pattern.
+
+    This command counts messages from the first message that matches <pattern> to the command message (inclusive).
+    It can be a very useful tool for deleting or moving long conversations without having to count the messages manually.
+    The search pattern is case insensitive.
+
+    If <pattern> is surrounded with slashes `/like so/`, it is treated as a regex, with the multiline and ignorecase flags.
+
+    This command will only search through the last 250 messages maximum.
+    ---
+    group: Administrative Commands
+    syntax: <pattern>
+    ---
+    > `@latexbot countMessagesSince foo bar` - Count the number of messages since someone said "foo bar".
+    > `@latexbot countMessagesSince /(\\s|^)@(\\w+)(?=\\s|$)/` - Count the number of messages since someone last used an @ mention.
+    """
+    if s.startswith("/") and s.endswith("/"):
+        try:
+            expr = re.compile(s[1:-1], re.MULTILINE | re.IGNORECASE)
+            # Use the regex search function as the match function
+            match = expr.search
+        except re.error as e:
+            await chat.send_message("Invalid regex: " + str(e), creator)
+            return
+    else:
+        s = s.lower()
+        # Case insensitive match
+        def match(x): return x.lower().find(s) >= 0
+
+    count = 1
+    # Max search depth: 250
+    while count < 250:
+        # Reverse the messages as by default the oldest is the first
+        # Search 50 at a time
+        msgs = (await get_msgs_before(chat, msg_id, 50))[::-1]
+        for message in msgs:
+            count += 1
+            if match(message.get_body()):
+                # Found a match
+                resp = f"There are a total of {count} messages, including your command but not this message."
+                resp += f"\n\nMessage matched (sent by {(await message.get_author()).get_display_name()}):\n{sanitize(message.get_body())}"
+                await chat.send_message(resp, creator)
+                return
+        # No match - change anchor
+        msg_id = msgs[-1].get_id()
+    await chat.send_message(
+        "Error: Max search depth of 250 messages exceeded without finding a match.", creator)
+
+
 command_processors = {
     "render": [_render, ACCESS_LEVEL_EVERYONE],
     "help": [_help, ACCESS_LEVEL_EVERYONE],
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
     "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],
     "xkcd": [_xkcd, ACCESS_LEVEL_EVERYONE],
+
+    "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
+    "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],
+    "countMessagesSince": [_countmessagessince, ACCESS_LEVEL_FORUM_ADMIN],
 }
 
 
@@ -269,7 +444,7 @@ async def main():
                             await to.send_message(get_access_denied_message(), creator)
                             print("Access was denied.")
                         else:
-                            await command_processors[command][0](to, args)
+                            await command_processors[command][0](to, msg['key'], args)
                             print("Command processed.")
                     else:
                         print("Invalid command.")
