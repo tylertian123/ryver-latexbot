@@ -1,7 +1,7 @@
-import requests
+import aiohttp
 from typing import *
 
-def get_comic(number: int = None) -> Union[Dict[str, Any], None]:
+async def get_comic(number: int = None) -> Union[Dict[str, Any], None]:
     """
     Get an xkcd by number or the latest xkcd.
 
@@ -21,12 +21,13 @@ def get_comic(number: int = None) -> Union[Dict[str, Any], None]:
     - "news": Additional info (str)
     - "extra_parts": Used for special comics, usually interactive ones (may not exist) (obj)
     """
-    resp = requests.get(f"https://xkcd.com/{number}/info.0.json" if number else "https://xkcd.com/info.0.json")
-    # Comic does not exist
-    if resp.status_code == 404:
-        return None
-    resp.raise_for_status()
-    return resp.json()
+    url = f"https://xkcd.com/{number}/info.0.json" if number else "https://xkcd.com/info.0.json"
+    async with aiohttp.request("GET", url) as resp:
+        # Comic does not exist
+        if resp.status == 404:
+            return None
+        resp.raise_for_status()
+        return await resp.json()
 
 
 def comic_to_str(comic: Dict[str, Any]) -> str:

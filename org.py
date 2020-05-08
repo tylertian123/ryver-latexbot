@@ -1,7 +1,7 @@
+import pyryver
 import json
 import latexbot
 import os
-import pyryver
 import requests
 import sched
 import time

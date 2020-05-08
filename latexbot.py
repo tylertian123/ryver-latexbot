@@ -1,8 +1,11 @@
 import asyncio
 import org
+import aiohttp # DON'T MOVE THIS!
 import os
 import pyryver
+import quicklatex_render
 import typing
+import xkcd
 from latexbot_util import *
 
 # Make print() flush immediately
@@ -84,6 +87,48 @@ def generate_help_text(ryver: pyryver.Ryver):
 ################################ COMMAND PROCESSORS ################################
 
 
+async def _render(chat: pyryver.Chat, formula: str):
+    """
+    Render a LaTeX formula. Powered by QuickLaTeX.
+
+    The formula is rendered in inline mode.
+    Put \\displaystyle before the formula to switch to display mode.
+
+    Thanks to QuickLaTeX (https://quicklatex.com/)!
+    ---
+    group: General Commands
+    syntax: <formula>
+    ---
+    > `@latexbot render f(x) = \\sum_{i=0}^{n} \\frac{a_i}{1+x}`
+    """
+    if len(formula) > 0:
+        img = quicklatex_render.ql_render(formula)
+        await chat.send_message(f"Formula: `{formula}`\n![{formula}]({img})", creator)
+    else:
+        await chat.send_message("Formula can't be empty.", creator)
+
+
+async def _help(chat: pyryver.Chat, s: str):
+    """
+    Get a list of all the commands, or details about a command.
+
+    Use this command without any arguments to get an overview of all the commands,
+    or give the name of the command you would like to know more about.
+    ---
+    group: General Commands
+    syntax: [command]
+    ---
+    > `@latexbot help` - Get general help
+    > `@latexbot help render` - Get help about the "render" command.
+    """
+    s = s.strip()
+    if s == "":
+        await chat.send_message(help_text, creator)
+    else:
+        default = f"Error: {s} is not a valid command, or does not have an extended description."
+        await chat.send_message(extended_help_text.get(s, default), creator)
+
+
 async def _ping(chat: pyryver.Chat, s: str):
     """
     I will respond with 'Pong' if I'm here.
@@ -93,8 +138,78 @@ async def _ping(chat: pyryver.Chat, s: str):
     """
     await chat.send_message("Pong", creator)
 
+
+yes_msgs = [
+    "Yes.",
+    "I like it!",
+    "Brilliant!",
+    "Genius!",
+    "Do it!",
+    "It's good.",
+    ":thumbsup:",
+]
+no_msgs = [
+    "No.",
+    ":thumbsdown:",
+    "I hate it.",
+    "Please no.",
+    "It's bad.",
+    "It's stupid.",
+]
+
+
+async def _whatdoyouthink(chat: pyryver.Chat, s: str):
+    """
+    Ask my opinion of a thing!
+
+    Disclaimer: These are my own opinions, Tyler is not responsible for anything said.
+    ---
+    group: General Commands
+    syntax: <thing>
+    ---
+    > `@latexbot whatDoYouThink <insert controversial topic here>`
+    """
+    msgs = no_msgs if hash(s.strip().lower()) % 2 == 0 else yes_msgs
+    await chat.send_message(msgs[randrange(len(msgs))], creator)
+
+
+async def _xkcd(chat: pyryver.Chat, s: str):
+    """
+    Get the latest xkcd or a specific xkcd by number.
+    ---
+    group: General Commands
+    syntax: [number]
+    ---
+    > `@latexbot xkcd` - Get the latest xkcd.
+    > `@latexbot xkcd 149` - Get xkcd #149.
+    """
+    xkcd_creator = pyryver.Creator(creator.name, XKCD_PROFILE)
+    if s:
+        try:
+            number = int(s)
+        except ValueError:
+            await chat.send_message(f"Invalid number.", xkcd_creator)
+            return
+    else:
+        number = None
+    
+    try:
+        comic = await xkcd.get_comic(number)
+        if not comic:
+            await chat.send_message(f"Error: This comic does not exist (404). Have this image of a turtle instead.\n\n![A turtle](https://cdn.britannica.com/66/195966-138-F9E7A828/facts-turtles.jpg)", xkcd_creator)
+            return
+        
+        await chat.send_message(xkcd.comic_to_str(comic), xkcd_creator)
+    except aiohttp.ClientResponseError as e:
+        await chat.send_message(f"An error occurred: {e}", xkcd_creator)
+
+
 command_processors = {
+    "render": [_render, ACCESS_LEVEL_EVERYONE],
+    "help": [_help, ACCESS_LEVEL_EVERYONE],
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
+    "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],
+    "xkcd": [_xkcd, ACCESS_LEVEL_EVERYONE],
 }
 
 
@@ -120,6 +235,7 @@ async def main():
             @session.on_chat
             async def _on_chat(msg: typing.Dict[str, str]):
                 text = msg["text"]
+                # TODO: Make the prefix optional in DMs
                 if text.startswith(org.command_prefix) and len(text) > len(org.command_prefix):
                     # Check the sender
                     from_user = ryver.get_user(jid=msg["from"])
@@ -133,7 +249,9 @@ async def main():
                         # For DMs special processing is required
                         # Since we don't want to reply to ourselves, reply to the sender directly instead
                         to = from_user
-                    
+                    await session.send_typing(to)
+                    # TODO: This can be removed after latexbot with pyryver 0.2.0 completely replaces the old latexbot
+                    await ryver.mark_all_notifs_read()
                     # Chop off the beginning
                     text = text[len(org.command_prefix):]
                     # Separate command from args
@@ -147,7 +265,7 @@ async def main():
                     
                     if command in command_processors:
                         # Check the access level
-                        if not is_authorized(to, from_user, command_processors[command][1]):
+                        if not await is_authorized(to, from_user, command_processors[command][1]):
                             await to.send_message(get_access_denied_message(), creator)
                             print("Access was denied.")
                         else:
