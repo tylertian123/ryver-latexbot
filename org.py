@@ -5,12 +5,9 @@ import pyryver
 import requests
 import sched
 import time
+import typing
 import gcalendar
 
-ryver = None
-forums = []
-teams = []
-users = []
 user_avatars = {}
 
 roles = {}
@@ -22,6 +19,7 @@ messages_chat = None
 calendar_id = None
 daily_message_time = None
 last_xkcd = None
+command_prefix = "@latexbot " # TODO: Make this customizeable
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 
@@ -65,7 +63,7 @@ def make_config():
     }
 
 
-def init_config(config):
+def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
     """
     Initialize config data from a config dict.
     """
@@ -81,20 +79,20 @@ def init_config(config):
         print("Error: 'organizationTimeZone' not specified. Defaulting to UTC or leaving unchanged.")
         org_tz = org_tz or "UTC"
     try:
-        home_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, config["homeChat"])
+        home_chat = ryver.get_groupchat(nickname=config["homeChat"])
     except KeyError:
         print("Error: 'homeChat' not specified. Defaulting to +Test or leaving unchanged.")
-        home_chat = home_chat or pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, "Test")
+        home_chat = home_chat or ryver.get_groupchat(nickname="Test")
     try:
-        announcements_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, config["announcementsChat"])
+        announcements_chat = ryver.get_groupchat(nickname=config["announcementsChat"])
     except KeyError:
         print("Error: 'announcementsChat' not specified. Defaulting to +Gen or leaving unchanged.")
-        announcements_chat = announcements_chat or pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, "Gen")
+        announcements_chat = announcements_chat or ryver.get_groupchat(nickname="Gen")
     try:
-        messages_chat = pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, config["messagesChat"])
+        messages_chat = ryver.get_groupchat(nickname=config["messagesChat"])
     except KeyError:
         print("Error: 'messagesChat' not specified. Defaulting to +Test or leaving unchanged.")
-        messages_chat = messages_chat or pyryver.get_obj_by_field(forums, pyryver.FIELD_NICKNAME, "Test")
+        messages_chat = messages_chat or ryver.get_groupchat(nickname="Test")
     try:
         calendar_id = config["googleCalendarId"]
     except KeyError:
@@ -107,7 +105,7 @@ def init_config(config):
         # Cancel the existing event
         if daily_message_event:
             scheduler.cancel(daily_message_event)
-        latexbot.schedule_next_message()
+        #latexbot.schedule_next_message()
     try:
         last_xkcd = config["lastXKCD"]
     except KeyError:
@@ -123,26 +121,16 @@ def save_config():
         json.dump(make_config(), f)
 
 
-def init(force_reload=False):
+async def init(ryver: pyryver.Ryver):
     """
     Initialize everything.
-
-    If force_reload is True, cached data will not be used.
     """
-    global ryver, forums, teams, users, user_avatars, roles
-    if not ryver:
-        ryver = pyryver.Ryver(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"])
-    forums = ryver.get_cached_chats(pyryver.TYPE_FORUM, name="data/pyryver.forums.json", force_update=force_reload)
-    teams = ryver.get_cached_chats(pyryver.TYPE_TEAM, name="data/pyryver.teams.json", force_update=force_reload)
-    users = ryver.get_cached_chats(pyryver.TYPE_USER, name="data/pyryver.users.json", force_update=force_reload)
+    global user_avatars, roles
 
     # Get user avatar URLs
     # This information is not included in the regular user info
-    # It is retrieved from a different URL
-    resp = requests.post(ryver.url_prefix +
-                         "Ryver.Info()?$format=json", headers=ryver.headers)
-    resp.raise_for_status()
-    users_json = resp.json()["d"]["users"]
+    info = await ryver.get_info()
+    users_json = info["users"]
     user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 
     # Load roles
@@ -156,9 +144,9 @@ def init(force_reload=False):
     try:
         with open(CONFIG_FILE, "r") as f:
             config = json.load(f)
-        init_config(config)
+        init_config(ryver, config)
     except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
         print(f"Error while loading config: {e}. Using the following defaults:")
         # Call init_config with an empty dict so variables are initialized to their defaults
-        init_config({})
+        init_config(ryver, {})
         

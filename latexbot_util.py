@@ -58,30 +58,27 @@ ALL_TIME_FORMATS = [
 XKCD_PROFILE = "https://www.explainxkcd.com/wiki/images/6/6d/BlackHat_head.png"
 
 
-def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, required_level: int) -> bool:
+async def is_authorized(chat: pyryver.Chat, user: pyryver.User, required_level: int) -> bool:
     """
-    Check if the sender of a message has a particular access level or higher.
+    Check if a user has a particular access level or higher.
     """
     if required_level <= ACCESS_LEVEL_EVERYONE:
         return True
 
-    if required_level <= ACCESS_LEVEL_TYLER and msg.get_author_id() == 1311906:
+    if required_level <= ACCESS_LEVEL_TYLER and user.get_id() == 1311906:
         return True
 
-    if required_level <= ACCESS_LEVEL_BOT_ADMIN and msg.get_author_id() in org.admins:
+    if required_level <= ACCESS_LEVEL_BOT_ADMIN and user.get_id() in org.admins:
         return True
-
-    user = pyryver.get_obj_by_field(
-        org.users, pyryver.FIELD_ID, msg.get_author_id())
-    if not user:
-        return False
 
     if required_level <= ACCESS_LEVEL_ORG_ADMIN and user.is_admin():
         return True
 
+    # Check if the user is a forum admin
     is_forum_admin = False
+    # First make sure that the chat isn't a DM
     if isinstance(chat, pyryver.GroupChat):
-        member = chat.get_member(msg.get_author_id())
+        member = await chat.get_member(user.get_id())
         if member:
             is_forum_admin = member.is_admin()
 
@@ -91,7 +88,7 @@ def is_authorized(chat: pyryver.Chat, msg: pyryver.ChatMessage, required_level: 
     return False
 
 
-def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
+async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
     """
     Get any number of messages before a message from an ID.
 
@@ -102,34 +99,32 @@ def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[
     msgs = []
     # Get around the 25 message restriction
     # Cut off the last one (that one is the message with the id specified)
-    msgs = chat.get_message_from_id(msg_id, before=min(25, count))[:-1]
+    msgs = await chat.get_message_from_id(msg_id, before=min(25, count))[:-1]
     count -= len(msgs)
     while count > 0:
-        prev_msgs = chat.get_message_from_id(
-            msgs[0].get_id(), before=min(25, count))[:-1]
+        prev_msgs = await chat.get_message_from_id(msgs[0].get_id(), before=min(25, count))[:-1]
         msgs = prev_msgs + msgs
         count -= len(prev_msgs)
     return msgs
 
 
-def parse_chat_name(name: str) -> pyryver.Chat:
+def parse_chat_name(ryver: pyryver.Ryver, name: str) -> pyryver.Chat:
     """
     Parse a chat name expression in the form [(name|nickname)=]<forum|team> and return the correct chat.
     """
     field = pyryver.FIELD_NAME
     # Handle the name= or nickname= syntax
     if name.startswith("name="):
-        field = pyryver.FIELD_NAME
         # Slice off the beginning
         name = name[len("name="):]
+        return ryver.get_groupchat(name=name)
     elif name.startswith("nickname="):
-        field = pyryver.FIELD_NICKNAME
         name = name[len("nickname="):]
+        return ryver.get_groupchat(nickname=name)
     # Handle names starting with a + (nickname reference)
     elif name.startswith("+"):
-        field = pyryver.FIELD_NICKNAME
         name = name[1:]
-    return pyryver.get_obj_by_field(org.forums + org.teams, field, name)
+        return ryver.get_groupchat(nickname=name)
 
 
 def sanitize(msg: str) -> str:
