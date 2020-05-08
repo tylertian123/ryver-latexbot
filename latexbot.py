@@ -596,13 +596,13 @@ async def main():
             @session.on_chat
             async def _on_chat(msg: typing.Dict[str, str]):
                 text = msg["text"]
-                # TODO: Make the prefix optional in DMs
+                # Check the sender
+                from_user = ryver.get_user(jid=msg["from"])
+                # Ignore messages sent by us
+                if from_user.get_username() == os.environ["LATEXBOT_USER"]:
+                    return
+                
                 if text.startswith(org.command_prefix) and len(text) > len(org.command_prefix):
-                    # Check the sender
-                    from_user = ryver.get_user(jid=msg["from"])
-                    # Ignore messages sent by us
-                    if from_user.get_username() == os.environ["LATEXBOT_USER"]:
-                        return
                     to = ryver.get_chat(jid=msg["to"])
                     print(f"Command received from {from_user.get_name()} to {to.get_name()}: {text}")
                     # Check if this is a DM
@@ -635,6 +635,39 @@ async def main():
                     else:
                         print("Invalid command.")
                         await to.send_message(f"Sorry, I didn't understand what you were asking me to do.", creator)
+                # Not a command
+                else:
+                    # Check for roles
+                    if MENTION_REGEX.search(text):
+                        # Replace roles and re-send
+                        def replace_func(match):
+                            whitespace = match.group(1)
+                            name = match.group(2)
+                            if name in org.roles:
+                                name = " @".join(org.roles[name])
+                            return f"{whitespace}@{name}"
+                        new_text = MENTION_REGEX.sub(replace_func, text)
+                        if new_text != text:
+                            # Get the message object
+                            to = ryver.get_chat(jid=msg["to"])
+                            print(f"Role mention received from {from_user.get_name()} to {to.get_name()}: {text}")
+                            # Check if this is a DM
+                            is_dm = False
+                            if isinstance(to, pyryver.User):
+                                # For DMs special processing is required
+                                # Since we don't want to reply to ourselves, reply to the sender directly instead
+                                to = from_user
+                                is_dm = True
+                            await session.send_typing(to)
+                            # Pretend to be the creator
+                            msg_creator = pyryver.Creator(
+                                from_user.get_name(), org.user_avatars.get(from_user.get_id(), ""))
+                            await to.send_message(new_text, msg_creator)
+                            # Can't delete the other person's messages in DMs, so skip
+                            if not is_dm:
+                                msg = (await to.get_message_from_id(msg["key"]))[0]
+                                await msg.delete()
+                            
 
             print("LaTeX Bot is running!")
             await org.home_chat.send_message( 
