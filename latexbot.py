@@ -1,4 +1,5 @@
 import asyncio
+import json
 import org
 import aiohttp # DON'T MOVE THIS!
 import os
@@ -375,6 +376,185 @@ async def _countmessagessince(chat: pyryver.Chat, msg_id: str, s: str):
         "Error: Max search depth of 250 messages exceeded without finding a match.", creator)
 
 
+async def _roles(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Get information about roles.
+
+    If a username is supplied, this command gets all roles of the user.
+    If a role name is supplied, this command gets all users with that role.
+    If no parameters are supplied, this command gets all roles and users
+    with roles.
+    ---
+    group: Roles Commands
+    syntax: [user|role]
+    """
+    if not org.roles:
+        await chat.send_message(f"There are currently no roles.", creator)
+    if s == "":
+        if org.roles:
+            roles_str = "\n".join(
+                f"**{role}**: {', '.join(usernames)}" for role, usernames in org.roles.items())
+            await chat.send_message(f"All roles:\n{roles_str}", creator)
+    else:
+        # A mention
+        if s.startswith("@"):
+            s = s[1:]
+        # A role
+        if s in org.roles:
+            users = "\n".join(org.roles[s])
+            await chat.send_message(f"These users have the role '{s}':\n{users}", creator)
+        # Check if it's a username
+        elif chat.get_ryver().get_user(username=s):
+            roles = "\n".join(role for role, usernames in org.roles.items() if s in usernames)
+            if roles:
+                await chat.send_message(
+                    f"User '{s}' has the following roles:\n{roles}", creator)
+            else:
+                await chat.send_message(f"User '{s}' has no roles.", creator)
+        else:
+            await chat.send_message(f"'{s}' is not a valid username or role name.", creator)
+
+
+async def _addtorole(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Add people to a role.
+
+    Role names cannot contain spaces or commas.
+
+    Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
+    ---
+    group: Roles Commands
+    syntax: <roles> <people>
+    ---
+    > `@latexbot addToRole Foo tylertian` - Give Tyler the "Foo" role.
+    > `@latexbot addToRole Foo,Bar tylertian latexbot` Give Tyler and LaTeX Bot the "Foo" and "Bar" roles.
+    """
+    args = s.split()
+    if len(args) < 2:
+        await chat.send_message("Invalid syntax.", creator)
+        return
+
+    roles = [r.strip() for r in args[0].split(",")]
+    usernames = [username[1:] if username.startswith(
+        "@") else username for username in args[1:]]
+
+    for role in roles:
+        if " " in role or "," in role:
+            await chat.send_message(
+                f"Invalid role: {role}. Role names must not contain spaces or commas. Skipping...", creator)
+            continue
+        # Role already exists
+        if role in org.roles:
+            for username in usernames:
+                if username in org.roles[role]:
+                    await chat.send_message(
+                        f"Warning: User '{username}' already has role '{role}'.", creator)
+                else:
+                    org.roles[role].append(username)
+        else:
+            org.roles[role] = usernames
+    org.save_roles()
+
+    await chat.send_message("Operation successful.", creator)
+
+
+async def _removefromrole(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Remove people from a role.
+
+    Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
+    ---
+    group: Roles Commands
+    syntax: <roles> <people>
+    ---
+    > `@latexbot removeFromRole Foo tylertian` - Remove Tyler from the "Foo" role.
+    > `@latexbot removeFromRole Foo,Bar tylertian latexbot` Remove Tyler and LaTeX Bot from the "Foo" and "Bar" roles.
+    """
+    args = s.split()
+    if len(args) < 2:
+        await chat.send_message("Invalid syntax.", creator)
+        return
+
+    roles = [r.strip() for r in args[0].split(",")]
+    usernames = [username[1:] if username.startswith(
+        "@") else username for username in args[1:]]
+
+    for role in roles:
+        if not role in org.roles:
+            await chat.send_message(
+                f"Error: The role {role} does not exist. Skipping...", creator)
+            continue
+        
+        for username in usernames:
+            if not username in org.roles[role]:
+                await chat.send_message(
+                    f"Warning: User {username} does not have the role {role}.", creator)
+                continue
+            org.roles[role].remove(username)
+
+        # Delete empty roles
+        if len(org.roles[role]) == 0:
+            org.roles.pop(role)
+    org.save_roles()
+
+    await chat.send_message("Operation successful.", creator)
+
+
+async def _exportroles(chat: pyryver.Chat, msg_id, s: str):
+    """
+    Export roles data as a JSON. 
+
+    If the data is less than 1k characters long, it will be sent as a chat message.
+    Otherwise it will be sent as a file attachment.
+    ---
+    group: Roles Commands
+    syntax:
+    """
+    data = json.dumps(org.roles, indent=2)
+    if len(data) < 1000:
+        await chat.send_message(f"```json\n{data}\n```", creator)
+    else:
+        file = (await chat.get_ryver().upload_file("roles.json", data, "application/json")).get_file()
+        await chat.send_message(f"Roles: [{file.get_name()}]({file.get_url()})", creator)
+
+
+async def _importroles(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Import JSON roles data from the message, or from a file attachment.
+
+    If a file is attached to the message, the roles will always be imported from the file.
+    ---
+    group: Roles Commands
+    syntax: <data|fileattachment>
+    ---
+    > `@latexbot importRoles {}` - Clear all roles.
+    """
+    msg = (await chat.get_message_from_id(msg_id))[0]
+    file = msg.get_attached_file()
+    if file:
+        # Get the actual contents
+        try:
+            async with aiohttp.request("GET", file.get_url()) as resp:
+                contents = await resp.content.read()
+        except aiohttp.ClientResponseError as e:
+            await chat.send_message(f"Error while trying to GET file attachment: {e}", creator)
+            return
+        try:
+            data = contents.decode("utf-8")
+        except UnicodeDecodeError as e:
+            chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
+    else:
+        data = s
+    
+    try:
+        org.roles = json.loads(data)
+        org.save_roles()
+        await chat.send_message(
+            f"Operation successful. Use `@latexbot roles` to view the updated roles.", creator)
+    except json.JSONDecodeError as e:
+        await chat.send_message(f"Error decoding JSON: {e}", creator)
+
+
 command_processors = {
     "render": [_render, ACCESS_LEVEL_EVERYONE],
     "help": [_help, ACCESS_LEVEL_EVERYONE],
@@ -385,6 +565,12 @@ command_processors = {
     "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
     "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],
     "countMessagesSince": [_countmessagessince, ACCESS_LEVEL_FORUM_ADMIN],
+
+    "roles": [_roles, ACCESS_LEVEL_EVERYONE],
+    "addToRole": [_addtorole, ACCESS_LEVEL_ORG_ADMIN],
+    "removeFromRole": [_removefromrole, ACCESS_LEVEL_ORG_ADMIN],
+    "exportRoles": [_exportroles, ACCESS_LEVEL_EVERYONE],
+    "importRoles": [_importroles, ACCESS_LEVEL_ORG_ADMIN],
 }
 
 
