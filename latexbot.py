@@ -534,15 +534,13 @@ async def _importroles(chat: pyryver.Chat, msg_id: str, s: str):
     if file:
         # Get the actual contents
         try:
-            async with aiohttp.request("GET", file.get_url()) as resp:
-                contents = await resp.content.read()
+            data = (await file.download_data()).decode("utf-8")
         except aiohttp.ClientResponseError as e:
             await chat.send_message(f"Error while trying to GET file attachment: {e}", creator)
             return
-        try:
-            data = contents.decode("utf-8")
         except UnicodeDecodeError as e:
-            chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
+            await chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
+            return
     else:
         data = s
     
@@ -667,7 +665,10 @@ async def main():
                             if not is_dm:
                                 msg = (await to.get_message_from_id(msg["key"]))[0]
                                 await msg.delete()
-                            
+            
+            @session.on_chat_updated
+            async def _on_chat_updated(msg: typing.Dict[str, str]):
+                await _on_chat(msg)
 
             print("LaTeX Bot is running!")
             await org.home_chat.send_message( 
