@@ -1144,30 +1144,44 @@ async def main():
                 if from_user.get_username() == os.environ["LATEXBOT_USER"]:
                     return
                 
+                # Check if this is a DM
+                to = ryver.get_chat(jid=msg["to"])
+                if isinstance(to, pyryver.User):
+                    # For DMs special processing is required
+                    # Since we don't want to reply to ourselves, reply to the sender directly instead
+                    to = from_user
+                    is_dm = True
+                else:
+                    is_dm = False
+                
+                # Processing for re-enabling after disable
                 global enabled
                 if not enabled:
                     if text == org.command_prefix + "setEnabled true":
                         enabled = True
-                        to = ryver.get_chat(jid=msg["to"])
-                        print(f"Re-enabled by {from_user.get_name()}")
-                        if isinstance(to, pyryver.User):
-                            to = from_user
-                        await to.send_message("I have been re-enabled!")
+                        await to.send_message("I have been re-enabled!", creator)
                         return
                     else:
                         return
                 
+                # Check if this is a command
                 if text.startswith(org.command_prefix) and len(text) > len(org.command_prefix):
-                    to = ryver.get_chat(jid=msg["to"])
-                    print(f"Command received from {from_user.get_name()} to {to.get_name()}: {text}")
-                    # Check if this is a DM
-                    if isinstance(to, pyryver.User):
-                        # For DMs special processing is required
-                        # Since we don't want to reply to ourselves, reply to the sender directly instead
-                        to = from_user
-                    await session.send_typing(to)
-                    # Chop off the beginning
+                    is_command = True
+                    # Chop off the command prefix
                     text = text[len(org.command_prefix):]
+                # Command prefix is not required in DMs
+                elif is_dm:
+                    is_command = True
+                else:
+                    is_command = False
+                
+                if is_command:
+                    if is_dm:
+                        print(f"DM received from {from_user.get_name()}: {text}")
+                    else:
+                        print(f"Command received from {from_user.get_name()} to {to.get_name()}: {text}")
+                
+                    await session.send_typing(to)
                     # Separate command from args
                     if " " in text or "\n" in text:
                         i = min(text.index(" ") if " " in text else float("inf"), text.index("\n") if "\n" in text else float("inf"))
@@ -1208,13 +1222,6 @@ async def main():
                             # Get the message object
                             to = ryver.get_chat(jid=msg["to"])
                             print(f"Role mention received from {from_user.get_name()} to {to.get_name()}: {text}")
-                            # Check if this is a DM
-                            is_dm = False
-                            if isinstance(to, pyryver.User):
-                                # For DMs special processing is required
-                                # Since we don't want to reply to ourselves, reply to the sender directly instead
-                                to = from_user
-                                is_dm = True
                             await session.send_typing(to)
                             # Pretend to be the creator
                             msg_creator = pyryver.Creator(
