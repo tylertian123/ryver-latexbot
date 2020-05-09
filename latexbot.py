@@ -11,6 +11,7 @@ import sys
 import time
 import typing
 import xkcd
+from datetime import datetime, timedelta
 from latexbot_util import *
 from gcalendar import Calendar
 from traceback import format_exc
@@ -37,6 +38,8 @@ enabled = True
 # Auto generated later
 help_text = ""
 extended_help_text = {}
+
+daily_message_task = None # type: asyncio.Future
 
 
 ################################ UTILITY FUNCTIONS ################################
@@ -806,6 +809,43 @@ async def _deleteevent(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Error: No event matches that name.", creator)
 
 
+async def _setdailymessagetime(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Set the time daily messages are sent each day or turn them on/off.
+
+    The time must be in the "HH:MM" format (24-hour clock).
+    Use the argument "off" to turn daily messages off.
+    ---
+    group: Events/Google Calendar Commands
+    syntax: <time|off>
+    ---
+    > `@latexbot setDailyMessageTime 00:00` - Set daily messages to be sent at 12am each day.
+    > `@latexbot setDailyMessageTime off` - Turn off daily messages.
+    """
+    if s.lower() == "off":
+        org.daily_message_time = None
+    else:
+        # Try parse to ensure validity
+        try:
+            datetime.strptime(s, "%H:%M")
+        except ValueError:
+            await chat.send_message("Invalid time format.", creator)
+            return
+        org.daily_message_time = s
+    
+    # Schedule or unschedule the daily message task
+    if org.daily_message_time:
+        schedule_daily_message()
+    else:
+        if daily_message_task:
+            daily_message_task.cancel()
+    org.save_config()
+    if org.daily_message_time:
+        await chat.send_message(f"Messages will now be sent at {s} daily.", creator)
+    else:
+        await chat.send_message(f"Messages have been disabled.", creator)
+
+
 async def _setenabled(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Enable or disable me.
@@ -989,6 +1029,7 @@ command_processors = {
     "addEvent": [_addevent, ACCESS_LEVEL_ORG_ADMIN],
     "quickAddEvent": [_quickaddevent, ACCESS_LEVEL_ORG_ADMIN],
     "deleteEvent": [_deleteevent, ACCESS_LEVEL_ORG_ADMIN],
+    "setDailyMessageTime": [_setdailymessagetime, ACCESS_LEVEL_ORG_ADMIN],
 
     "setEnabled": [_setenabled, ACCESS_LEVEL_BOT_ADMIN],
     "kill": [_kill, ACCESS_LEVEL_BOT_ADMIN],
@@ -1001,6 +1042,81 @@ command_processors = {
 
 
 ################################ OTHER FUNCTIONS ################################
+
+
+async def daily_message(init_delay: float = 0):
+    """
+    Send the daily message.
+    """
+    try:
+        await asyncio.sleep(init_delay)
+        while True:
+            print("Checking today's events...")
+            now = current_time()
+            events = org.calendar.get_today_events(org.calendar_id, now)
+            if not events:
+                print("No events today!")
+            else:
+                resp = "Reminder: These events are happening today:"
+                for event in events:
+                    start = Calendar.parse_time(event["start"])
+                    end = Calendar.parse_time(event["end"])
+
+                    # The event has a time, and it starts today (not already started)
+                    if start.tzinfo and start > now:
+                        resp += f"\n* {event['summary']} today at **{start.strftime(TIME_DISPLAY_FORMAT)}**"
+                    else:
+                        # Otherwise format like normal
+                        start_str = start.strftime(DATETIME_DISPLAY_FORMAT if start.tzinfo else DATE_DISPLAY_FORMAT)
+                        end_str = end.strftime(DATETIME_DISPLAY_FORMAT if end.tzinfo else DATE_DISPLAY_FORMAT)
+                        resp += f"\n* {event['summary']} (**{start_str}** to **{end_str}**)"
+
+                    # Add description if there is one
+                    if "description" in event and event["description"] != "":
+                        # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+                        resp += f"\u200B:\n  * {strip_html(event['description'])}"
+                await org.announcements_chat.send_message(resp, creator)
+                print("Events reminder sent!")
+            print("Checking for a new xkcd...")
+            comic = await xkcd.get_comic()
+            if comic['num'] <= org.last_xkcd:
+                print(f"No new xkcd found (latest is {comic['num']}).")
+            else:
+                print(f"New comic found! (#{comic['num']})")
+                xkcd_creator = pyryver.Creator(creator.name, XKCD_PROFILE)
+                await org.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
+                # Update xkcd number
+                org.last_xkcd = comic['num']
+                org.save_config()
+            print("Daily message sent.")
+            # Sleep for an entire day
+            await asyncio.sleep(60 * 60 * 24)
+    except asyncio.CancelledError:
+        pass
+
+
+def schedule_daily_message():
+    """
+    Start the daily message task with the correct delay.
+    """
+    # Cancel the existing task
+    global daily_message_task
+    if daily_message_task:
+        daily_message_task.cancel()
+    
+    if not org.daily_message_time:
+        print("Daily message not scheduled because time isn't defined.")
+        return
+    t = datetime.strptime(org.daily_message_time, "%H:%M")
+    now = current_time()
+    # Get that time, today
+    t = datetime.combine(now, t.time(), tzinfo=tz.gettz(org.org_tz))
+    # If already passed, get that time the next day
+    if t < now:
+        t += timedelta(days=1)
+    init_delay = (t - now).total_seconds()
+    print(f"Daily message re-scheduled, starting after {init_delay} seconds.")
+    daily_message_task = asyncio.ensure_future(daily_message(init_delay))
 
 
 async def main():
@@ -1069,7 +1185,11 @@ async def main():
                             await to.send_message(get_access_denied_message(), creator)
                             print("Access was denied.")
                         else:
-                            await command_processors[command][0](to, msg['key'], args)
+                            try:
+                                result = await command_processors[command][0](to, msg['key'], args)
+                            except Exception as e:
+                                print(f"Exception raised:\n{format_exc()}")
+                                await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", creator)
                             print("Command processed.")
                     else:
                         print("Invalid command.")

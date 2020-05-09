@@ -3,7 +3,6 @@ import json
 import latexbot
 import os
 import requests
-import sched
 import time
 import typing
 import gcalendar
@@ -25,9 +24,6 @@ CONFIG_FILE = "data/config.json"
 
 SERVICE_ACCOUNT_FILE = "calendar_credentials.json"
 calendar = gcalendar.Calendar(SERVICE_ACCOUNT_FILE)
-
-scheduler = sched.scheduler(time.time, time.sleep)
-daily_message_event = None
 
 def save_roles():
     """
@@ -101,11 +97,12 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
         daily_message_time = config["dailyMessageTime"]
     except KeyError:
         print("Error: 'dailyMessageTime' not specified. Defaulting to null or leaving unchanged.")
+    # Schedule or unschedule the daily message task
     if daily_message_time:
-        # Cancel the existing event
-        if daily_message_event:
-            scheduler.cancel(daily_message_event)
-        #latexbot.schedule_next_message()
+        latexbot.schedule_daily_message()
+    else:
+        if latexbot.daily_message_task:
+            latexbot.daily_message_task.cancel()
     try:
         last_xkcd = config["lastXKCD"]
     except KeyError:
