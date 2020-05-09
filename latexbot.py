@@ -29,7 +29,7 @@ def print(*args, **kwargs):
 
 ################################ GLOBAL VARIABLES AND CONSTANTS ################################
 
-VERSION = "v0.5.0-dev-ASYNC"
+VERSION = "v0.5.0-dev"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 
@@ -1166,8 +1166,6 @@ async def main():
                         # Since we don't want to reply to ourselves, reply to the sender directly instead
                         to = from_user
                     await session.send_typing(to)
-                    # TODO: This can be removed after latexbot with pyryver 0.2.0 completely replaces the old latexbot
-                    await ryver.mark_all_notifs_read()
                     # Chop off the beginning
                     text = text[len(org.command_prefix):]
                     # Separate command from args
