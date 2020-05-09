@@ -1,4 +1,5 @@
 import asyncio
+import io
 import json
 import org
 import aiohttp # DON'T MOVE THIS!
@@ -6,10 +7,13 @@ import os
 import pyryver
 import quicklatex_render
 import shlex
+import sys
+import time
 import typing
 import xkcd
 from latexbot_util import *
 from gcalendar import Calendar
+from traceback import format_exc
 
 # Make print() flush immediately
 # Otherwise the logs won't show up in real time in Docker
@@ -802,6 +806,168 @@ async def _deleteevent(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Error: No event matches that name.", creator)
 
 
+async def _setenabled(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Enable or disable me.
+    ---
+    group: Developer Commands
+    syntax: true|false
+    """
+    if s == "true":
+        await chat.send_message("I'm already enabled.", creator)
+    elif s == "false":
+        global enabled
+        enabled = False
+        await chat.send_message("I'm now disabled!", creator)
+    else:
+        await chat.send_message(f"Invalid option: {s}", creator)
+
+
+async def _kill(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Kill me (:fearful:).
+
+    With the current settings, I will restart a few minutes after being killed.
+    Consider using the disable or sleep commands if you intend to disable me.
+    ---
+    group: Developer Commands
+    syntax:
+    """
+    await chat.send_message("Goodbye, world.", creator)
+    exit()
+
+
+async def _sleep(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Put me to sleep.
+
+    When sleeping, I will not respond to any commands.
+    If you accidentally put me to sleep for a long time, contact Tyler to wake me back up.
+    ---
+    group: Developer Commands
+    syntax: <seconds>
+    """
+    secs = 0
+    try:
+        secs = float(s)
+    except ValueError:
+        await chat.send_message("Invalid number.", creator)
+        return
+    await chat.send_message("Good night! :sleeping:", creator)
+    time.sleep(secs)
+    await chat.send_message("Good morning!", creator)
+
+
+async def _execute(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Execute arbitrary Python code.
+
+    Before you start messing around, keep in mind I run in a Docker container,
+    so everything you do here is sandboxed.
+
+    All output to stdout and stderr will be sent as a message after the code finishes executing.
+
+    Best to stay away from this command unless you're a dev.
+    ---
+    group: Developer Commands
+    syntax: <code>
+    ---
+    > `@latexbot execute print("Hello World")`
+    > `@latexbot execute chat.send_message("Hello from LaTeX Bot")`
+    """
+    # Temporarily replace stdout and stderr
+    stdout = sys.stdout
+    stderr = sys.stderr
+    # Fix print
+    global print
+    new_print = print
+    print = old_print
+    # Merge stdout and stderr
+    try:
+        sys.stdout = io.StringIO()
+        sys.stderr = sys.stdout
+        exec(s, globals(), locals())
+        output = sys.stdout.getvalue()
+
+        await chat.send_message(output, creator)
+    except Exception as e:
+        await chat.send_message(
+            f"An exception has occurred:\n```\n{format_exc()}\n```", creator)
+    finally:
+        sys.stdout = stdout
+        sys.stderr = stderr
+        print = new_print
+
+
+async def _exportconfig(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Export config as a JSON.
+
+    If the data is less than 1k characters long, it will be sent as a chat message.
+    Otherwise it will be sent as a file attachment.
+    ---
+    group: Developer Commands
+    syntax:
+    """
+    data = json.dumps(org.make_config(), indent=2)
+    if len(data) < 1000:
+        await chat.send_message(f"```json\n{data}\n```", creator)
+    else:
+        file = (await org.ryver.upload_file("config.json", data, pyryver.File.MIME_TYPE_JSON)).get_file()
+        await chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
+
+
+async def _importconfig(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Import config from JSON.
+
+    Note that although it is encouraged, the config JSON does not have to contain all fields.
+    If a field is not specified, it will just be left unchanged.
+
+    If a file is attached to this message, the config will always be imported from the file.
+    ---
+    group: Developer Commands
+    syntax: <data>
+    """
+    msg = (await chat.get_message_from_id(msg_id))[0]
+    file = msg.get_attached_file()
+    if file:
+        # Get the actual contents
+        try:
+            data = (await file.download_data()).decode("utf-8")
+        except aiohttp.ClientResponseError as e:
+            await chat.send_message(f"Error while trying to GET file attachment: {e}", creator)
+            return
+        except UnicodeDecodeError as e:
+            await chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
+            return
+    else:
+        data = s
+    
+    try:
+        org.init_config(chat.get_ryver(), json.loads(data))
+        generate_help_text(chat.get_ryver())
+        org.save_config()
+        await chat.send_message(f"Operation successful.", creator)
+    except json.JSONDecodeError as e:
+        await chat.send_message(f"Error decoding JSON: {e}", creator)
+
+
+async def _updatechats(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Update the cached list of forums/teams and users.
+
+    As getting organization data takes time, LaTeX Bot caches this information,
+    so when org data is updated, such as when a new user joins, or when a new forum is created,
+    LaTeX Bot might fail to recognize it. Run this command to fix it.
+    ---
+    group: Developer Commands
+    syntax:
+    """
+    await chat.get_ryver().load_chats()
+    await chat.send_message("Forums/Teams/Users updated.", creator)
+
+
 command_processors = {
     "render": [_render, ACCESS_LEVEL_EVERYONE],
     "help": [_help, ACCESS_LEVEL_EVERYONE],
@@ -823,6 +989,14 @@ command_processors = {
     "addEvent": [_addevent, ACCESS_LEVEL_ORG_ADMIN],
     "quickAddEvent": [_quickaddevent, ACCESS_LEVEL_ORG_ADMIN],
     "deleteEvent": [_deleteevent, ACCESS_LEVEL_ORG_ADMIN],
+
+    "setEnabled": [_setenabled, ACCESS_LEVEL_BOT_ADMIN],
+    "kill": [_kill, ACCESS_LEVEL_BOT_ADMIN],
+    "sleep": [_sleep, ACCESS_LEVEL_BOT_ADMIN],
+    "execute": [_execute, ACCESS_LEVEL_BOT_ADMIN],
+    "exportConfig": [_exportconfig, ACCESS_LEVEL_EVERYONE],
+    "importConfig": [_importconfig, ACCESS_LEVEL_BOT_ADMIN],
+    "updateChats": [_updatechats, ACCESS_LEVEL_FORUM_ADMIN],
 }
 
 
@@ -853,6 +1027,19 @@ async def main():
                 # Ignore messages sent by us
                 if from_user.get_username() == os.environ["LATEXBOT_USER"]:
                     return
+                
+                global enabled
+                if not enabled:
+                    if text == org.command_prefix + "setEnabled true":
+                        enabled = True
+                        to = ryver.get_chat(jid=msg["to"])
+                        print(f"Re-enabled by {from_user.get_name()}")
+                        if isinstance(to, pyryver.User):
+                            to = from_user
+                        await to.send_message("I have been re-enabled!")
+                        return
+                    else:
+                        return
                 
                 if text.startswith(org.command_prefix) and len(text) > len(org.command_prefix):
                     to = ryver.get_chat(jid=msg["to"])
@@ -928,9 +1115,7 @@ async def main():
                 await _on_chat(msg)
 
             print("LaTeX Bot is running!")
-            await org.home_chat.send_message( 
-                f"LaTeX Bot {VERSION} is online! Note that to reduce load, I only check messages once per 3 seconds or more!", creator)
-            await org.home_chat.send_message(help_text, creator)
+            await org.home_chat.send_message(f"LaTeX Bot {VERSION} is online! **I now respond to messages in real time!**\n\n{help_text}", creator)
 
             await session.run_forever()
 
