@@ -12,6 +12,23 @@ Send a POST request to /render with a JSON payload of the format:
     "transparent": false, // optional, if true (and if format is png) outputs a png with transparent background
     "resolution": 200 // optional, resolution of image (only valid for svg or png) in pixels per inch
 }
+
+It will return JSON of the format
+
+{
+    "status": "ok", // or error in error
+    
+    // if ok
+
+    "content_type": "image/png", // content MIME type
+    "result": "..." // base64 encoded result in the format of content_type
+
+    // if error
+
+    "reason": "invalid request", // reason for error
+    // sometimes, when serious error
+    "internal_error": "TypeError()" // repr() of internal error.
+}
 """
 
 from aiohttp import web
