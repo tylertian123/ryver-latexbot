@@ -10,7 +10,8 @@ Send a POST request to /render with a JSON payload of the format:
     "source": "\\frac{1}{2}", // required, text to render
     "wrap_in_equation": true, // optional, defaults to true, whether or not to automatically enter math mode
     "transparent": false, // optional, if true (and if format is png) outputs a png with transparent background
-    "resolution": 200 // optional, resolution of image (only valid for svg or png) in pixels per inch
+    "resolution": 200, // optional, resolution of image (only valid for svg or png) in pixels per inch
+    "color": "black" // optional, the colour of the text
 }
 
 It will return JSON of the format
@@ -117,6 +118,7 @@ async def render(req: web.Request):
     source = payload["source"]
     transparent = payload.get("transparent", False)
     resolution = payload.get("resolution", 200)
+    color = payload.get("color", "black")
 
     if "resolution" in payload and out_fmt == "pdf":
         print("slave: requested resolution")
@@ -135,10 +137,13 @@ async def render(req: web.Request):
 \\usepackage{{amsfonts}}
 \\usepackage{{amssymb}}
 \\usepackage{{fontspec}}
+\\usepackage{{xcolor}}
+\\everymath{{\\displaystyle}}
 {extra_includes}
 
 \\begin{{document}}
 \\nonstopmode
+\\color{{{color}}}
 {source}
 \\batchmode
 \\end{{document}}

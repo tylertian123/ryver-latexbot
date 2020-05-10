@@ -1170,7 +1170,7 @@ async def main():
             @session.on_connection_loss
             async def _on_conn_loss():
                 print("Error: Connection lost!")
-                session.close()
+                await session.close()
             
             @session.on_chat
             async def _on_chat(msg: typing.Dict[str, str]):
