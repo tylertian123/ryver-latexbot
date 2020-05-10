@@ -5,7 +5,7 @@ LaTeX Bot is a bot for [Ryver](https://ryver.com/), built for [Team Arctos 6135]
 As the name implies, LaTeX Bot's primary function is to render LaTeX.
 It also comes with a bunch of other features, like mass-deleting and moving messages, a Roles system, and Google Calendar integration. 
 
-LaTeX Bot uses [`pyryver`](https://github.com/tylertian123/pyryver) for interfacing with Ryver, and [QuickLaTeX](https://quicklatex.com/) for rendering equations. 
+LaTeX Bot uses [`pyryver`](https://github.com/tylertian123/pyryver) for interfacing with Ryver.
 
 # Building and Running LaTeX Bot
 

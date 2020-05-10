@@ -5,7 +5,7 @@ import org
 import aiohttp # DON'T MOVE THIS!
 import os
 import pyryver
-import quicklatex_render
+import render
 import shlex
 import sys
 import time
@@ -136,12 +136,11 @@ def preprocess_command(command: str, is_dm: bool):
 
 async def _render(chat: pyryver.Chat, msg_id: str, formula: str):
     """
-    Render a LaTeX formula. Powered by QuickLaTeX.
+    Render a LaTeX formula.
 
-    The formula is rendered in inline mode.
-    Put \\displaystyle before the formula to switch to display mode.
+    `\\displaystyle` is automatically put before the equation.
 
-    Thanks to QuickLaTeX (https://quicklatex.com/)!
+    Thank you to Matthew Mirvish for making this work!
     ---
     group: General Commands
     syntax: <formula>
@@ -149,8 +148,36 @@ async def _render(chat: pyryver.Chat, msg_id: str, formula: str):
     > `@latexbot render f(x) = \\sum_{i=0}^{n} \\frac{a_i}{1+x}`
     """
     if len(formula) > 0:
-        img = quicklatex_render.ql_render(formula)
-        await chat.send_message(f"Formula: `{formula}`\n![{formula}]({img})", creator)
+        try:
+            img_data = await render.render(formula, color="gray", transparent=True)
+        except ValueError as e:
+            await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```")
+            return
+        file = (await chat.get_ryver().upload_file("equation.png", img_data, "image/png")).get_file()
+        await chat.send_message(f"Formula: `{formula}`\n![{formula}]({file.get_url()})", creator)
+    else:
+        await chat.send_message("Formula can't be empty.", creator)
+
+
+async def _chem(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Render a chemical formula.
+
+    The formula is rendered with the mhchem package with LaTeX.
+    ---
+    group: General Commands
+    syntax: <formula>
+    ---
+    > `@latexbot chem HCl_{(aq)} + NaOH_{(aq)} -> H2O_{(l)} + NaCl_{(aq)}`
+    """
+    if len(s) > 0:
+        try:
+            img_data = await render.render(f"\\ce{{{s}}}", color="gray", transparent=True, extra_packages=["mhchem"])
+        except ValueError as e:
+            await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```\n\nDid you forget to put spaces on both sides of the reaction arrow?")
+            return
+        file = (await chat.get_ryver().upload_file("formula.png", img_data, "image/png")).get_file()
+        await chat.send_message(f"Formula: `{s}`\n![{s}]({file.get_url()})", creator)
     else:
         await chat.send_message("Formula can't be empty.", creator)
 
@@ -1047,6 +1074,7 @@ async def _updatechats(chat: pyryver.Chat, msg_id: str, s: str):
 
 command_processors = {
     "render": [_render, ACCESS_LEVEL_EVERYONE],
+    "chem": [_chem, ACCESS_LEVEL_EVERYONE],
     "help": [_help, ACCESS_LEVEL_EVERYONE],
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
     "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],

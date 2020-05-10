@@ -4,8 +4,6 @@ services:
   tex-slave:
     build: ./tex-slave
     image: docker-registry.i.mm12.xyz/tex-slave:1.0.0
-    ports: 
-      - 8080:80
   latexbot:
     build: .
     image: docker-registry.i.mm12.xyz/latexbot:0.5.0-dev
