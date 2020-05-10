@@ -2,3 +2,4 @@ __pycache__
 *.json
 .git
 !calendar_credentials.json
+tex-slave/
