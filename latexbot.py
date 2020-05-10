@@ -94,6 +94,43 @@ def generate_help_text(ryver: pyryver.Ryver):
     help_text += "\n\nFor more details about a command, try `@latexbot help <command>`."
 
 
+def preprocess_command(command: str, is_dm: bool):
+    """
+    Preprocess a command.
+
+    Separate the command into the command name and args part if it is a command.
+    Otherwise return None.
+    """
+    is_command = False
+    for prefix in org.command_prefixes:
+        # Check for a valid command prefix
+        if command.startswith(prefix) and len(command) > len(prefix):
+            is_command = True
+            # Remove the prefix
+            command = command[len(prefix):]
+    
+    # DMs don't require command prefixes
+    if not is_command and not is_dm:
+        return None
+    
+    # Separate command from args
+    # Find the first whitespace
+    command = command.strip()
+    space = None
+    for i, c in enumerate(command):
+        if c.isspace():
+            space = i
+            break
+    
+    if space:
+        cmd = command[:space]
+        args = command[space + 1:]
+    else:
+        cmd = command
+        args = ""
+    return (cmd.strip(), args.strip())
+
+
 ################################ COMMAND PROCESSORS ################################
 
 
@@ -1153,43 +1190,26 @@ async def main():
                     is_dm = True
                 else:
                     is_dm = False
-                
-                # Processing for re-enabling after disable
-                global enabled
-                if not enabled:
-                    if text == org.command_prefix + "setEnabled true":
-                        enabled = True
-                        await to.send_message("I have been re-enabled!", creator)
-                        return
-                    else:
-                        return
-                
-                # Check if this is a command
-                if text.startswith(org.command_prefix) and len(text) > len(org.command_prefix):
-                    is_command = True
-                    # Chop off the command prefix
-                    text = text[len(org.command_prefix):]
-                # Command prefix is not required in DMs
-                elif is_dm:
-                    is_command = True
-                else:
-                    is_command = False
-                
-                if is_command:
+
+                preprocessed = preprocess_command(text, is_dm)
+                if preprocessed:
+                    command, args = preprocessed
+                    # Processing for re-enabling after disable
+                    global enabled
+                    if not enabled:
+                        if command == "setEnabled" and args == "true":
+                            enabled = True
+                            print(f"Re-enabled by user {from_user.get_name()}!")
+                            await to.send_message("I have been re-enabled!", creator)
+                            return
+                        else:
+                            return
                     if is_dm:
                         print(f"DM received from {from_user.get_name()}: {text}")
                     else:
                         print(f"Command received from {from_user.get_name()} to {to.get_name()}: {text}")
                 
                     await session.send_typing(to)
-                    # Separate command from args
-                    if " " in text or "\n" in text:
-                        i = min(text.index(" ") if " " in text else float("inf"), text.index("\n") if "\n" in text else float("inf"))
-                        command = text[:i]
-                        args = text[i + 1:]
-                    else:
-                        command = text
-                        args = ""
                     
                     if command in command_processors:
                         # Check the access level
