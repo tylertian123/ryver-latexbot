@@ -67,9 +67,11 @@ def _do_render(source: str, fmt: str, transparent: bool, resolution: int):
             f.write(source)
         # render to eqn.pdf
         try:
-            subprocess.run(["xelatex", "-interaction=nonstopmode", "eqn.tex"], check=True, capture_output=True)
+            subprocess.run(["xelatex", "-interaction=batchmode", "eqn.tex"], check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
-            raise RenderException("encountered error rendering, log follows\n{}".format(e.stdout.decode("utf-8", "ignore")))
+            output_raw = e.stdout.decode("utf-8", "ignore")
+            output_raw = output_raw[output_raw.index("\n!") + 1:]
+            raise RenderException("encountered error rendering:\n{}".format(output_raw))
         # check if we need to do a conversion
         if fmt == "pdf":
             # just return the pdf
@@ -136,7 +138,9 @@ async def render(req: web.Request):
 {extra_includes}
 
 \\begin{{document}}
+\\nonstopmode
 {source}
+\\batchmode
 \\end{{document}}
 """
 
