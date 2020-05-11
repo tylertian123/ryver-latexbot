@@ -63,7 +63,8 @@ def generate_help_text(ryver: pyryver.Ryver):
             # Generate syntax string
             syntax = f"`@latexbot {name} {properties['syntax']}`" if properties["syntax"] else f"`@latexbot {name}`"
             # Generate short description
-            description = f"{syntax} - {properties['short_desc']} {ACCESS_LEVEL_STRS[command[1]]}"
+            access_level = ACCESS_LEVEL_STRS.get(command[1], f"**Unknown Access Level: {command[1]}.**")
+            description = f"{syntax} - {properties['short_desc']} {access_level}"
 
             # Group commands
             group = properties['group']
@@ -200,7 +201,16 @@ async def _help(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(help_text, creator)
     else:
         default = f"Error: {s} is not a valid command, or does not have an extended description."
-        await chat.send_message(extended_help_text.get(s, default), creator)
+        if s in extended_help_text:
+            text = extended_help_text[s]
+            author = await (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5))[0].get_author()
+            if await is_authorized(chat, author, command_processors[s][1]):
+                text += "\n\n:white_check_mark: **You have access to this command.**"
+            else:
+                text += "\n\n:no_entry: **You do not have access to this command.**"
+            await chat.send_message(text, creator)
+        else:
+            await chat.send_message(default, creator)
 
 
 async def _ping(chat: pyryver.Chat, msg_id: str, s: str):
@@ -314,7 +324,7 @@ async def _deletemessages(chat: pyryver.Chat, msg_id: str, s: str):
         msgs = (await get_msgs_before(chat, msg_id, end))[:-(start - 1)]
     for message in msgs:
         await message.delete()
-    await (await chat.get_message_from_id(msg_id))[0].delete()
+    await (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0].delete()
 
 
 async def _movemessages(chat: pyryver.Chat, msg_id: str, s: str):
@@ -602,7 +612,7 @@ async def _importroles(chat: pyryver.Chat, msg_id: str, s: str):
     ---
     > `@latexbot importRoles {}` - Clear all roles.
     """
-    msg = (await chat.get_message_from_id(msg_id))[0]
+    msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
     file = msg.get_attached_file()
     if file:
         # Get the actual contents
@@ -1033,7 +1043,7 @@ async def _importconfig(chat: pyryver.Chat, msg_id: str, s: str):
     group: Developer Commands
     syntax: <data>
     """
-    msg = (await chat.get_message_from_id(msg_id))[0]
+    msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
     file = msg.get_attached_file()
     if file:
         # Get the actual contents
@@ -1236,24 +1246,23 @@ async def main():
                         print(f"DM received from {from_user.get_name()}: {text}")
                     else:
                         print(f"Command received from {from_user.get_name()} to {to.get_name()}: {text}")
-                
-                    await session.send_typing(to)
-                    
-                    if command in command_processors:
-                        # Check the access level
-                        if not await is_authorized(to, from_user, command_processors[command][1]):
-                            await to.send_message(get_access_denied_message(), creator)
-                            print("Access was denied.")
+
+                    async with session.typing(to):
+                        if command in command_processors:
+                            # Check the access level
+                            if not await is_authorized(to, from_user, command_processors[command][1]):
+                                await to.send_message(get_access_denied_message(), creator)
+                                print("Access was denied.")
+                            else:
+                                try:
+                                    result = await command_processors[command][0](to, msg['key'], args)
+                                except Exception as e:
+                                    print(f"Exception raised:\n{format_exc()}")
+                                    await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", creator)
+                                print("Command processed.")
                         else:
-                            try:
-                                result = await command_processors[command][0](to, msg['key'], args)
-                            except Exception as e:
-                                print(f"Exception raised:\n{format_exc()}")
-                                await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", creator)
-                            print("Command processed.")
-                    else:
-                        print("Invalid command.")
-                        await to.send_message(f"Sorry, I didn't understand what you were asking me to do.", creator)
+                            print("Invalid command.")
+                            await to.send_message(f"Sorry, I didn't understand what you were asking me to do.", creator)
                 # Not a command
                 else:
                     # Check for roles
@@ -1270,15 +1279,15 @@ async def main():
                             # Get the message object
                             to = ryver.get_chat(jid=msg["to"])
                             print(f"Role mention received from {from_user.get_name()} to {to.get_name()}: {text}")
-                            await session.send_typing(to)
-                            # Pretend to be the creator
-                            msg_creator = pyryver.Creator(
-                                from_user.get_name(), org.user_avatars.get(from_user.get_id(), ""))
-                            await to.send_message(new_text, msg_creator)
-                            # Can't delete the other person's messages in DMs, so skip
-                            if not is_dm:
-                                msg = (await to.get_message_from_id(msg["key"]))[0]
-                                await msg.delete()
+                            async with session.typing(to):
+                                # Pretend to be the creator
+                                msg_creator = pyryver.Creator(
+                                    from_user.get_name(), org.user_avatars.get(from_user.get_id(), ""))
+                                await to.send_message(new_text, msg_creator)
+                                # Can't delete the other person's messages in DMs, so skip
+                                if not is_dm:
+                                    msg = (await to.get_message_from_id(msg["key"]))[0]
+                                    await msg.delete()
             
             @session.on_chat_updated
             async def _on_chat_updated(msg: typing.Dict[str, str]):

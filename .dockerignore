@@ -3,3 +3,4 @@ __pycache__
 .git
 !calendar_credentials.json
 tex-slave/
+*.tar.gz

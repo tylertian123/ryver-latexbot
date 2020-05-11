@@ -1,3 +1,5 @@
+import aiohttp
+import asyncio
 import org
 import pyryver
 import re
@@ -99,10 +101,10 @@ async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing
     msgs = []
     # Get around the 25 message restriction
     # Cut off the last one (that one is the message with the id specified)
-    msgs = (await chat.get_message_from_id(msg_id, before=min(25, count)))[:-1]
+    msgs = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, before=min(25, count), timeout=5.0))[:-1]
     count -= len(msgs)
     while count > 0:
-        prev_msgs = (await chat.get_message_from_id(msgs[0].get_id(), before=min(25, count)))[:-1]
+        prev_msgs = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, before=min(25, count), timeout=5.0))[:-1]
         msgs = prev_msgs + msgs
         count -= len(prev_msgs)
     return msgs
