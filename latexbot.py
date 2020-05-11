@@ -13,6 +13,7 @@ import typing
 import xkcd
 from datetime import datetime, timedelta
 from latexbot_util import *
+from markdownify import markdownify
 from gcalendar import Calendar
 from traceback import format_exc
 
@@ -680,7 +681,7 @@ async def _events(chat: pyryver.Chat, msg_id: str, s: str):
             upcoming.append((event, start, end, has_time))
 
     if len(ongoing) > 0:
-        resp = "Ongoing Events:"
+        resp = "---------- Ongoing Events ----------"
         for evt in ongoing:
             event, start, end, has_time = evt
             # The day number of the event
@@ -688,15 +689,15 @@ async def _events(chat: pyryver.Chat, msg_id: str, s: str):
             # If the event does not have a time, then don't include the time
             start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
             end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
-            resp += f"\n* Day **{day}** of {event['summary']} (**{start_str}** to **{end_str}**)"
+            resp += f"\n# Day *{day}* of {event['summary']} (*{start_str}* to *{end_str}*)"
             if "description" in event and event["description"] != "":
                 # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
-                resp += f"\u200B:\n  * {strip_html(event['description'])}"
+                resp += f"\u200B:\n{markdownify(event['description'])}"
         resp += "\n\n"
     else:
         resp = ""
     if len(upcoming) > 0:
-        resp += "Upcoming Events:"
+        resp += "---------- Upcoming Events ----------"
         for evt in upcoming:
             event, start, end, has_time = evt
             # days until the event
@@ -704,10 +705,10 @@ async def _events(chat: pyryver.Chat, msg_id: str, s: str):
             # If the event does not have a time, then don't include the time
             start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
             end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if has_time else DATE_DISPLAY_FORMAT)
-            resp += f"\n* **{day}** day(s) until {event['summary']} (**{start_str}** to **{end_str}**)"
+            resp += f"\n# *{day}* day(s) until {event['summary']} (*{start_str}* to *{end_str}*)"
             if "description" in event and event["description"] != "":
                 # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
-                resp += f"\u200B:\n  * {strip_html(event['description'])}"
+                resp += f"\u200B:\n{markdownify(event['description'])}"
     else:
         resp += "***No upcoming events at the moment.***"
 
@@ -842,7 +843,7 @@ async def _addevent(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
     else:
         # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
-        await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**)\u200B:\n{strip_html(event['description'])}\n\nLink: {event['htmlLink']}", creator)
+        await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**)\u200B:\n{markdownify(event['description'])}\n\nLink: {event['htmlLink']}", creator)
 
 
 async def _deleteevent(chat: pyryver.Chat, msg_id: str, s: str):
@@ -1139,17 +1140,17 @@ async def daily_message(init_delay: float = 0):
 
                     # The event has a time, and it starts today (not already started)
                     if start.tzinfo and start > now:
-                        resp += f"\n* {event['summary']} today at **{start.strftime(TIME_DISPLAY_FORMAT)}**"
+                        resp += f"\n# {event['summary']} today at *{start.strftime(TIME_DISPLAY_FORMAT)}*"
                     else:
                         # Otherwise format like normal
                         start_str = start.strftime(DATETIME_DISPLAY_FORMAT if start.tzinfo else DATE_DISPLAY_FORMAT)
                         end_str = end.strftime(DATETIME_DISPLAY_FORMAT if end.tzinfo else DATE_DISPLAY_FORMAT)
-                        resp += f"\n* {event['summary']} (**{start_str}** to **{end_str}**)"
+                        resp += f"\n# {event['summary']} (*{start_str}* to *{end_str}*)"
 
                     # Add description if there is one
                     if "description" in event and event["description"] != "":
                         # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
-                        resp += f"\u200B:\n  * {strip_html(event['description'])}"
+                        resp += f"\u200B:{markdownify(event['description'])}"
                 await org.announcements_chat.send_message(resp, creator)
                 print("Events reminder sent!")
             print("Checking for a new xkcd...")

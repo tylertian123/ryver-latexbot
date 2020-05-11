@@ -8,7 +8,6 @@ from datetime import datetime
 from dateutil import tz
 from random import randrange
 from textwrap import dedent
-from bs4 import BeautifulSoup
 
 
 ACCESS_LEVEL_EVERYONE = 0
@@ -268,11 +267,3 @@ def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
         except ValueError:
             pass
     return None
-
-
-def strip_html(text: str) -> str:
-    """
-    Strip HTML tags from input.
-    """
-    # Replace <br> tags with newlines
-    return BeautifulSoup(text.replace("<br>", "\n"), features="html.parser").get_text()
