@@ -1212,6 +1212,25 @@ async def daily_message(init_delay: float = 0):
                         resp += f"\u200B:{markdownify(event['description'])}"
                 await org.announcements_chat.send_message(resp, creator)
                 print("Events reminder sent!")
+            
+            print("Checking for holidays...")
+            url = f"https://www.checkiday.com/api/3/?d={current_time().strftime('%Y/%m/%d')}"
+            async with aiohttp.request("GET", url) as resp:
+                if resp.status != 200:
+                    print(f"HTTP error while trying to get holidays: {resp}")
+                    data = {
+                        "error": f"HTTP error while trying to get holidays: {resp}",
+                    }
+                else:
+                    data = await resp.json()
+            if data["error"] != "none":
+                await org.messages_chat.send_message(f"Error while trying to check today's holidays: {data['error']}", creator)
+            else:
+                if data.get("holidays", None):
+                    msg = f"Here is a list of all the holidays today:\n"
+                    msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
+                    await org.messages_chat.send_message(msg, creator)
+            print("Done checking for holidays.")
             print("Checking for a new xkcd...")
             comic = await xkcd.get_comic()
             if comic['num'] <= org.last_xkcd:
