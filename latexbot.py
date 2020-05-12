@@ -289,6 +289,38 @@ async def _xkcd(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"An error occurred: {e}", xkcd_creator)
 
 
+async def _checkiday(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Get a list of today's holidays or holidays for any date.
+
+    This command uses the https://www.checkiday.com/ API.
+
+    The date is optional; if specified, it must be in the YYYY/MM/DD format.
+    ---
+    group: General Commands
+    syntax: [date]
+    ---
+    > `@latexbot checkiday` - Get today's holidays.
+    > `@latexbot checkiday 2020/05/12` - Get the holidays on May 12, 2020.
+    """
+    url = f"https://www.checkiday.com/api/3/?d={s or current_time().strftime('%Y/%m/%d')}"
+    async with aiohttp.request("GET", url) as resp:
+        if resp.status != 200:
+            await chat.send_message(f"HTTP error while trying to get holidays: {resp}", creator)
+            return
+        data = await resp.json()
+    if data["error"] != "none":
+        await chat.send_message(f"Error: {data['error']}", creator)
+        return
+    if not data.get("holidays", None):
+        await chat.send_message(f"No holidays on {data['date']}.")
+        return
+    else:
+        msg = f"Here is a list of all the holidays on {data['date']}:\n"
+        msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
+        await chat.send_message(msg, creator)
+
+
 async def _deleteMessages(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Delete messages.
@@ -1115,6 +1147,7 @@ command_processors = {
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
     "whatDoYouThink": [_whatDoYouThink, ACCESS_LEVEL_EVERYONE],
     "xkcd": [_xkcd, ACCESS_LEVEL_EVERYONE],
+    "checkiday": [_checkiday, ACCESS_LEVEL_EVERYONE],
 
     "deleteMessages": [_deleteMessages, ACCESS_LEVEL_FORUM_ADMIN],
     "moveMessages": [_moveMessages, ACCESS_LEVEL_FORUM_ADMIN],
