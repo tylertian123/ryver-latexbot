@@ -985,14 +985,8 @@ async def _setEnabled(chat: pyryver.Chat, msg_id: str, s: str):
     group: Developer Commands
     syntax: true|false
     """
-    if s == "true":
-        await chat.send_message("I'm already enabled.", creator)
-    elif s == "false":
-        global enabled
-        enabled = False
-        await chat.send_message("I'm now disabled!", creator)
-    else:
-        await chat.send_message(f"Invalid option: {s}", creator)
+    # The only way this actually gets called is if the user passed neither "true" nor "false"
+    await chat.send_message(f"Invalid option: {s}", creator)
 
 
 async def _kill(chat: pyryver.Chat, msg_id: str, s: str):
@@ -1313,14 +1307,25 @@ async def main():
                     command, args = preprocessed
                     # Processing for re-enabling after disable
                     global enabled
-                    if not enabled:
-                        if command == "setEnabled" and args == "true":
+                    if command == "setEnabled" and args == "true":
+                        # Send the presence change anyways in case it gets messed up
+                        await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
+                        if not enabled:
                             enabled = True
                             print(f"Re-enabled by user {from_user.get_name()}!")
                             await to.send_message("I have been re-enabled!", creator)
-                            return
                         else:
-                            return
+                            await to.send_message("I'm already enabled.", creator)
+                        return
+                    elif command == "setEnabled" and args == "false" and enabled:
+                        enabled = False
+                        print(f"Disabled by user {from_user.get_name()}.")
+                        await to.send_message("I have been disabled.", creator)
+                        await session.send_presence_change(pyryver.RyverWS.PRESENCE_AWAY)
+                        return
+
+                    if not enabled:
+                        return
                     if is_dm:
                         print(f"DM received from {from_user.get_name()}: {text}")
                     else:
