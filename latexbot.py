@@ -243,7 +243,7 @@ no_msgs = [
 ]
 
 
-async def _whatdoyouthink(chat: pyryver.Chat, msg_id: str, s: str):
+async def _whatDoYouThink(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Ask my opinion of a thing!
 
@@ -289,7 +289,7 @@ async def _xkcd(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"An error occurred: {e}", xkcd_creator)
 
 
-async def _deletemessages(chat: pyryver.Chat, msg_id: str, s: str):
+async def _deleteMessages(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Delete messages.
 
@@ -328,7 +328,7 @@ async def _deletemessages(chat: pyryver.Chat, msg_id: str, s: str):
     await (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0].delete()
 
 
-async def _movemessages(chat: pyryver.Chat, msg_id: str, s: str):
+async def _moveMessages(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Move messages to another forum or team.
 
@@ -409,7 +409,7 @@ async def _movemessages(chat: pyryver.Chat, msg_id: str, s: str):
     await to.send_message("---\n\n# End Moved Message", creator)
 
 
-async def _countmessagessince(chat: pyryver.Chat, msg_id: str, s: str):
+async def _countMessagesSince(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Count the number of messages since the first message that matches a pattern.
 
@@ -499,7 +499,7 @@ async def _roles(chat: pyryver.Chat, msg_id: str, s: str):
             await chat.send_message(f"'{s}' is not a valid username or role name.", creator)
 
 
-async def _addtorole(chat: pyryver.Chat, msg_id: str, s: str):
+async def _addToRole(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Add people to a role.
 
@@ -542,7 +542,7 @@ async def _addtorole(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message("Operation successful.", creator)
 
 
-async def _removefromrole(chat: pyryver.Chat, msg_id: str, s: str):
+async def _removeFromRole(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Remove people from a role.
 
@@ -584,7 +584,32 @@ async def _removefromrole(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message("Operation successful.", creator)
 
 
-async def _exportroles(chat: pyryver.Chat, msg_id, s: str):
+async def _deleteRole(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Completely delete a role, removing all users from that role.
+
+    Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
+    ---
+    group: Roles Commands
+    syntax: <roles>
+    ---
+    > `@latexbot deleteRole Foo` - Remove everyone from the role Foo and delete it.
+    """
+    if s == "":
+        await chat.send_message("Error: Please specify at least one role!", creator)
+        return
+    roles = [r.strip() for r in s.split(",")]
+    for role in roles:
+        try:
+            org.roles.pop(role)
+        except KeyError:
+            await chat.send_message(f"Error: The role {role} does not exist. Skipping...", creator)
+    org.save_roles()
+
+    await chat.send_message("Operation successful.", creator)
+
+
+async def _exportRoles(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Export roles data as a JSON. 
 
@@ -602,7 +627,7 @@ async def _exportroles(chat: pyryver.Chat, msg_id, s: str):
         await chat.send_message(f"Roles: [{file.get_name()}]({file.get_url()})", creator)
 
 
-async def _importroles(chat: pyryver.Chat, msg_id: str, s: str):
+async def _importRoles(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Import JSON roles data from the message, or from a file attachment.
 
@@ -715,7 +740,7 @@ async def _events(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message(resp, creator)
 
 
-async def _quickaddevent(chat: pyryver.Chat, msg_id: str, s: str):
+async def _quickAddEvent(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Add an event to Google Calendar based on a simple text string.
 
@@ -738,7 +763,7 @@ async def _quickaddevent(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
 
 
-async def _addevent(chat: pyryver.Chat, msg_id: str, s: str):
+async def _addEvent(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Add an event to Google Calendar.
 
@@ -846,7 +871,7 @@ async def _addevent(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**)\u200B:\n{markdownify(event['description'])}\n\nLink: {event['htmlLink']}", creator)
 
 
-async def _deleteevent(chat: pyryver.Chat, msg_id: str, s: str):
+async def _deleteEvent(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Delete an event by name from Google Calendar.
 
@@ -884,7 +909,7 @@ async def _deleteevent(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Error: No event matches that name.", creator)
 
 
-async def _setdailymessagetime(chat: pyryver.Chat, msg_id: str, s: str):
+async def _setDailyMessageTime(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Set the time daily messages are sent each day or turn them on/off.
 
@@ -921,7 +946,7 @@ async def _setdailymessagetime(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Messages have been disabled.", creator)
 
 
-async def _setenabled(chat: pyryver.Chat, msg_id: str, s: str):
+async def _setEnabled(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Enable or disable me.
     ---
@@ -1014,7 +1039,7 @@ async def _execute(chat: pyryver.Chat, msg_id: str, s: str):
         print = new_print
 
 
-async def _exportconfig(chat: pyryver.Chat, msg_id: str, s: str):
+async def _exportConfig(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Export config as a JSON.
 
@@ -1032,7 +1057,7 @@ async def _exportconfig(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
 
 
-async def _importconfig(chat: pyryver.Chat, msg_id: str, s: str):
+async def _importConfig(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Import config from JSON.
 
@@ -1068,7 +1093,7 @@ async def _importconfig(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Error decoding JSON: {e}", creator)
 
 
-async def _updatechats(chat: pyryver.Chat, msg_id: str, s: str):
+async def _updateChats(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Update the cached list of forums/teams and users.
 
@@ -1088,32 +1113,33 @@ command_processors = {
     "chem": [_chem, ACCESS_LEVEL_EVERYONE],
     "help": [_help, ACCESS_LEVEL_EVERYONE],
     "ping": [_ping, ACCESS_LEVEL_EVERYONE],
-    "whatDoYouThink": [_whatdoyouthink, ACCESS_LEVEL_EVERYONE],
+    "whatDoYouThink": [_whatDoYouThink, ACCESS_LEVEL_EVERYONE],
     "xkcd": [_xkcd, ACCESS_LEVEL_EVERYONE],
 
-    "deleteMessages": [_deletemessages, ACCESS_LEVEL_FORUM_ADMIN],
-    "moveMessages": [_movemessages, ACCESS_LEVEL_FORUM_ADMIN],
-    "countMessagesSince": [_countmessagessince, ACCESS_LEVEL_FORUM_ADMIN],
+    "deleteMessages": [_deleteMessages, ACCESS_LEVEL_FORUM_ADMIN],
+    "moveMessages": [_moveMessages, ACCESS_LEVEL_FORUM_ADMIN],
+    "countMessagesSince": [_countMessagesSince, ACCESS_LEVEL_FORUM_ADMIN],
 
     "roles": [_roles, ACCESS_LEVEL_EVERYONE],
-    "addToRole": [_addtorole, ACCESS_LEVEL_ORG_ADMIN],
-    "removeFromRole": [_removefromrole, ACCESS_LEVEL_ORG_ADMIN],
-    "exportRoles": [_exportroles, ACCESS_LEVEL_EVERYONE],
-    "importRoles": [_importroles, ACCESS_LEVEL_ORG_ADMIN],
+    "addToRole": [_addToRole, ACCESS_LEVEL_ORG_ADMIN],
+    "removeFromRole": [_removeFromRole, ACCESS_LEVEL_ORG_ADMIN],
+    "deleteRole": [_deleteRole, ACCESS_LEVEL_ORG_ADMIN],
+    "exportRoles": [_exportRoles, ACCESS_LEVEL_EVERYONE],
+    "importRoles": [_importRoles, ACCESS_LEVEL_ORG_ADMIN],
 
     "events": [_events, ACCESS_LEVEL_EVERYONE],
-    "addEvent": [_addevent, ACCESS_LEVEL_ORG_ADMIN],
-    "quickAddEvent": [_quickaddevent, ACCESS_LEVEL_ORG_ADMIN],
-    "deleteEvent": [_deleteevent, ACCESS_LEVEL_ORG_ADMIN],
-    "setDailyMessageTime": [_setdailymessagetime, ACCESS_LEVEL_ORG_ADMIN],
+    "addEvent": [_addEvent, ACCESS_LEVEL_ORG_ADMIN],
+    "quickAddEvent": [_quickAddEvent, ACCESS_LEVEL_ORG_ADMIN],
+    "deleteEvent": [_deleteEvent, ACCESS_LEVEL_ORG_ADMIN],
+    "setDailyMessageTime": [_setDailyMessageTime, ACCESS_LEVEL_ORG_ADMIN],
 
-    "setEnabled": [_setenabled, ACCESS_LEVEL_BOT_ADMIN],
+    "setEnabled": [_setEnabled, ACCESS_LEVEL_BOT_ADMIN],
     "kill": [_kill, ACCESS_LEVEL_BOT_ADMIN],
     "sleep": [_sleep, ACCESS_LEVEL_BOT_ADMIN],
     "execute": [_execute, ACCESS_LEVEL_BOT_ADMIN],
-    "exportConfig": [_exportconfig, ACCESS_LEVEL_EVERYONE],
-    "importConfig": [_importconfig, ACCESS_LEVEL_BOT_ADMIN],
-    "updateChats": [_updatechats, ACCESS_LEVEL_FORUM_ADMIN],
+    "exportConfig": [_exportConfig, ACCESS_LEVEL_EVERYONE],
+    "importConfig": [_importConfig, ACCESS_LEVEL_BOT_ADMIN],
+    "updateChats": [_updateChats, ACCESS_LEVEL_FORUM_ADMIN],
 }
 
 
