@@ -36,7 +36,7 @@ ACCESS_DENIED_MESSAGES = [
 ]
 
 
-MENTION_REGEX = re.compile(r"(\s|^)@(\w+)(?=\s|$)", flags=re.MULTILINE)
+MENTION_REGEX = re.compile(r"((?:^|[^a-zA-Z0-9_!@#$%&*])(?:(?:@)(?!\/)))([a-zA-Z0-9_]*)(?:\b(?!@)|$)", flags=re.MULTILINE)
 
 
 DATE_FORMAT = "%Y-%m-%d %H:%M"
@@ -135,7 +135,7 @@ def sanitize(msg: str) -> str:
 
     Currently, this method makes all mentions ineffective by putting a space between the @ and the username.
     """
-    return MENTION_REGEX.sub(r"\1@ \2", msg)
+    return MENTION_REGEX.sub(r"\1 \2", msg)
 
 
 def get_access_denied_message() -> str:

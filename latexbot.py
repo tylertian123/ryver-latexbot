@@ -1353,11 +1353,11 @@ async def main():
                     if MENTION_REGEX.search(text):
                         # Replace roles and re-send
                         def replace_func(match):
-                            whitespace = match.group(1)
+                            group1 = match.group(1)
                             name = match.group(2)
                             if name in org.roles:
                                 name = " @".join(org.roles[name])
-                            return f"{whitespace}@{name}"
+                            return group1 + name
                         new_text = MENTION_REGEX.sub(replace_func, text)
                         if new_text != text:
                             # Get the message object
