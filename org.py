@@ -6,10 +6,11 @@ import requests
 import time
 import typing
 import gcalendar
+from caseinsensitivedict import CaseInsensitiveDict
 
 user_avatars = {}
 
-roles = {}
+roles = CaseInsensitiveDict()
 admins = set()
 org_tz = None
 home_chat = None
@@ -25,12 +26,13 @@ CONFIG_FILE = "data/config.json"
 SERVICE_ACCOUNT_FILE = "calendar_credentials.json"
 calendar = gcalendar.Calendar(SERVICE_ACCOUNT_FILE)
 
+
 def save_roles():
     """
     Save roles to the JSON file specified by ROLES_FILE.
     """
     with open(ROLES_FILE, "w") as f:
-        json.dump(roles, f)
+        json.dump(roles.to_dict(), f)
 
 
 def make_config():
@@ -140,7 +142,7 @@ async def init(ryver: pyryver.Ryver):
     # Load roles
     try:
         with open(ROLES_FILE, "r") as f:
-            roles = json.load(f)
+            roles = CaseInsensitiveDict(json.load(f))
     except (json.JSONDecodeError, FileNotFoundError) as e:
         print(f"Error while loading roles: {e}. Defaulting to [].")
         roles = []

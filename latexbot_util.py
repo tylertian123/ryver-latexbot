@@ -156,10 +156,10 @@ def caldays_diff(a: datetime, b: datetime) -> int:
     return (a - b).days
 
 
-T = typing.TypeVar("T")
+_T = typing.TypeVar("T")
 
 
-def split_list(l: typing.List[T], v: T) -> typing.List[typing.List[T]]:
+def split_list(l: typing.List[_T], v: _T) -> typing.List[typing.List[_T]]:
     """
     Split a list into smaller lists by value.
     """

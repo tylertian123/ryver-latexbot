@@ -11,6 +11,7 @@ import sys
 import time
 import typing
 import xkcd
+from caseinsensitivedict import CaseInsensitiveDict
 from datetime import datetime, timedelta
 from latexbot_util import *
 from markdownify import markdownify
@@ -496,6 +497,13 @@ async def _roles(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Get information about roles.
 
+    The roles system allow you to mention a group of people at once through 
+    Discord-style role mentions like @RoleName. When a mention like this is
+    detected, LaTeX Bot will automatically replace it with mentions for the 
+    people with that role. Note that role names work like Ryver usernames, ie
+    they can only contain alphanumeric characters and underscores, and are
+    case-insensitive.
+
     If a username is supplied, this command gets all roles of the user.
     If a role name is supplied, this command gets all users with that role.
     If no parameters are supplied, this command gets all roles and users
@@ -535,7 +543,8 @@ async def _addToRole(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Add people to a role.
 
-    Role names cannot contain spaces or commas.
+    Note that role names work like Ryver usernames, ie they can only contain 
+    alphanumeric characters and underscores, and are case-insensitive.
 
     Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
     ---
@@ -651,7 +660,7 @@ async def _exportRoles(chat: pyryver.Chat, msg_id: str, s: str):
     group: Roles Commands
     syntax:
     """
-    data = json.dumps(org.roles, indent=2)
+    data = json.dumps(org.roles.to_dict(), indent=2)
     if len(data) < 1000:
         await chat.send_message(f"```json\n{data}\n```", creator)
     else:
@@ -686,7 +695,7 @@ async def _importRoles(chat: pyryver.Chat, msg_id: str, s: str):
         data = s
     
     try:
-        org.roles = json.loads(data)
+        org.roles = CaseInsensitiveDict(json.loads(data))
         org.save_roles()
         await chat.send_message(
             f"Operation successful. Use `@latexbot roles` to view the updated roles.", creator)
