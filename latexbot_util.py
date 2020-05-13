@@ -103,7 +103,7 @@ async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing
     msgs = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, before=min(25, count), timeout=5.0))[:-1]
     count -= len(msgs)
     while count > 0:
-        prev_msgs = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, before=min(25, count), timeout=5.0))[:-1]
+        prev_msgs = (await pyryver.retry_until_available(chat.get_message_from_id, msgs[0].get_id(), before=min(25, count), timeout=5.0))[:-1]
         msgs = prev_msgs + msgs
         count -= len(prev_msgs)
     return msgs
@@ -126,6 +126,7 @@ def parse_chat_name(ryver: pyryver.Ryver, name: str) -> pyryver.Chat:
     elif name.startswith("+"):
         name = name[1:]
         return ryver.get_groupchat(nickname=name)
+    return ryver.get_groupchat(name=name)
 
 
 def sanitize(msg: str) -> str:
