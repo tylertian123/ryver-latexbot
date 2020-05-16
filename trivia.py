@@ -88,8 +88,6 @@ class TriviaSession:
         async with self._session.get(url) as resp:
             resp.raise_for_status()
             data = await resp.json()
-        if data["response_code"] != OpenTDBError.CODE_SUCCESS:
-            raise OpenTDBError(f"Bad response code: {data['response_code']}", data["response_code"])
         return data["trivia_categories"]
 
     DIFFICULTY_EASY = "easy"
@@ -136,14 +134,19 @@ class TriviaGame:
         self.type = None
 
         self.current_question = None
+        self.host = None
         self.scores = {}
     
-    async def start(self):
+    async def start(self, host: typing.Any = None):
         """
         Start the game.
+
+        If a host is specified, it will be stored as self.host.
+        The host serves no other purpose.
         """
         await self._session.start()
-        await self.next_question()
+        if host is not None:
+            self.host = host
     
     async def end(self):
         """
@@ -187,6 +190,7 @@ class TriviaGame:
         - "question": The question (str)
         - "answers": A list of possible answers ([str])
         - "correct_answer": The index of the correct answer in the list (int)
+        - "answered": If the question has been answered (bool)
         """
         question = (await self._session.get_questions(1, category=self.category, difficulty=self.difficulty, type=self.type))[0]
         
@@ -195,22 +199,23 @@ class TriviaGame:
             "type": question["type"],
             "difficulty": question["difficulty"],
             "question": question["question"],
+            "answered": False,
         }
         if question["type"] == TriviaSession.TYPE_TRUE_OR_FALSE:
             self.current_question["answers"] = [
                 "True",
                 "False"
             ]
-            self.correct_answer = 0 if question["correct_answer"] == "True" else 1
+            self.current_question["correct_answer"] = 0 if question["correct_answer"] == "True" else 1
         else:
             answers = question["incorrect_answers"]
             # Insert the correct answer at a random index
             index = random.randint(0, len(answers))
             answers.insert(index, question["correct_answer"])
             self.current_question["answers"] = answers
-            self.correct_answer = index
+            self.current_question["correct_answer"] = index
     
-    def answer(self, answer: int, user: str = None, points: int = None) -> bool:
+    def answer(self, answer: int, user: typing.Any = None, points: int = None) -> bool:
         """
         Answer the current question.
 
@@ -224,12 +229,29 @@ class TriviaGame:
         if answer >= len(self.current_question["answers"]):
             raise ValueError("Answer out of range")
         
+        self.current_question["answered"] = True
         if answer == self.current_question["correct_answer"]:
             if user is not None and points is not None:
-                if user in self.scoreboard:
-                    self.scoreboard[user] += points
+                if user in self.scores:
+                    self.scores[user] += points
                 else:
-                    self.scoreboard[user] = points
+                    self.scores[user] = points
             return True
         else:
+            if user is not None and points is not None and user not in self.scores:
+                # still record a score of 0 even if it's wrong
+                self.scores[user] = 0
             return False
+
+
+async def get_categories() -> typing.List[typing.Dict[str, typing.Any]]:
+    """
+    Get all the categories and their IDs.
+
+    Used to get categories without a game or session object.
+    """
+    url = "https://opentdb.com/api_category.php"
+    async with aiohttp.request("GET", url) as resp:
+        resp.raise_for_status()
+        data = await resp.json()
+    return data["trivia_categories"]
