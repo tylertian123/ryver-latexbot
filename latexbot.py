@@ -462,7 +462,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             question_type = None
         
         # Try parsing the type
-        if len(s) >= 3:
+        if len(s) >= 4:
             try:
                 question_type = {
                     "true/false": trivia.TriviaSession.TYPE_TRUE_OR_FALSE,
@@ -558,7 +558,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             return
         # Get the message object so we can check if the user is authorized
         msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-        if msg.get_author_id() == trivia_game.host or is_authorized(chat, msg.get_author(), ACCESS_LEVEL_FORUM_ADMIN):
+        if msg.get_author_id() == trivia_game.host or await is_authorized(chat, await msg.get_author(), ACCESS_LEVEL_FORUM_ADMIN):
             # Display the scores
             scores = sorted(trivia_game.scores.items(), key=lambda x: x[1], reverse=True)
             if not scores:
