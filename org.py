@@ -20,6 +20,7 @@ calendar_id = None
 daily_message_time = None
 last_xkcd = None
 command_prefixes = []
+aliases = []
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 
@@ -49,6 +50,9 @@ def make_config():
     - "dailyMessageTime": The time of day when daily messages are sent, in the format "HH:MM". If null, daily messages will be disabled. (string)
     - "lastXKCD": The number of the latest xkcd. Used to check for new comics. (int)
     - "commandPrefixes": A list of all the accepted prefixes for commands. (list of str)
+    - "aliases": A list of command aliases, each with the following format (list of dict):
+        - "from": The alias
+        - "to": The text the alias expands to
     """
     return {
         "admins": list(admins),
@@ -60,6 +64,7 @@ def make_config():
         "dailyMessageTime": daily_message_time,
         "lastXKCD": last_xkcd,
         "commandPrefixes": command_prefixes,
+        "aliases": aliases,
     }
 
 
@@ -67,7 +72,7 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
     """
     Initialize config data from a config dict.
     """
-    global admins, org_tz, home_chat, announcements_chat, calendar_id, daily_message_time, messages_chat, last_xkcd, command_prefixes
+    global admins, org_tz, home_chat, announcements_chat, calendar_id, daily_message_time, messages_chat, last_xkcd, command_prefixes, aliases
     try:
         admins = set(config["admins"])
     except KeyError:
@@ -117,6 +122,11 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
     except KeyError:
         print("Error: 'commandPrefixes' not specified. Defaulting to ['@latexbot '] or leaving unchanged.")
         command_prefixes = command_prefixes or ["@latexbot "]
+    try:
+        aliases = config["aliases"]
+    except KeyError:
+        print("Error: 'aliases' not specified. Defaulting to [] or leaving unchanged.")
+        aliases = aliases or []
 
 
 def save_config():

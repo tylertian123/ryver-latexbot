@@ -103,8 +103,10 @@ def preprocess_command(command: str, is_dm: bool):
     """
     Preprocess a command.
 
-    Separate the command into the command name and args part if it is a command.
-    Otherwise return None.
+    Separate the command into the command name and args and resolve aliases 
+    if it is a command. Otherwise return None.
+
+    If it encouters a recursive alias, it raises ValueError.
     """
     is_command = False
     for prefix in org.command_prefixes:
@@ -118,22 +120,43 @@ def preprocess_command(command: str, is_dm: bool):
     if not is_command and not is_dm:
         return None
     
-    # Separate command from args
-    # Find the first whitespace
-    command = command.strip()
-    space = None
-    for i, c in enumerate(command):
-        if c.isspace():
-            space = i
-            break
-    
-    if space:
-        cmd = command[:space]
-        args = command[space + 1:]
-    else:
-        cmd = command
-        args = ""
-    return (cmd.strip(), args.strip())
+    # Repeat until all aliases are expanded
+    used_aliases = set()
+    while True:
+        # Separate command from args
+        # Find the first whitespace
+        command = command.strip()
+        space = None
+        # Keep track of this for alias expansion
+        space_char = ""
+        for i, c in enumerate(command):
+            if c.isspace():
+                space = i
+                space_char = c
+                break
+        
+        if space:
+            cmd = command[:space]
+            args = command[space + 1:]
+        else:
+            cmd = command
+            args = ""
+
+        # Expand aliases
+        command = None
+        for alias in org.aliases:
+            if alias["from"] == cmd:
+                # Check for recursion
+                if alias["from"] in used_aliases:
+                    raise ValueError(f"Recursive alias: '{alias['from']}'!")
+                used_aliases.add(alias["from"])
+                # Expand the alias
+                command = alias["to"] + space_char + args
+                break
+        # No aliases were expanded - return
+        if not command:
+            return (cmd.strip(), args.strip())
+        # Otherwise go again until no more expansion happens
 
 
 ################################ COMMAND PROCESSORS ################################
@@ -1590,11 +1613,18 @@ async def main():
                 else:
                     is_dm = False
 
-                preprocessed = preprocess_command(text, is_dm)
+                global enabled
+                try:
+                    preprocessed = preprocess_command(text, is_dm)
+                except ValueError as e:
+                    # Skip if not enabled
+                    if enabled:
+                        await to.send_message(f"Cannot process command: {e}", creator)
+                    return
+                
                 if preprocessed:
                     command, args = preprocessed
                     # Processing for re-enabling after disable
-                    global enabled
                     if command == "setEnabled" and args == "true":
                         # Send the presence change anyways in case it gets messed up
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
