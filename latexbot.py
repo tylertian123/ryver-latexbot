@@ -331,7 +331,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     The trivia command has several sub-commands. Here are each one of them:
     - `categories` - Get all the categories and their IDs, which are used later to start a game.
     - `start [category] [difficulty] [type]` - Start a game with an optional category, difficulty and type. The category can be an ID, or a name from the `categories` command. If the name contains a space, it must be surrounded with quotes. The difficulty can be "easy", "medium" or "hard". The type can be either "true/false" or "multiple-choice". You can also specify "all" for any of the categories.
-    - `question` - Get the next question or repeat the current question.
+    - `question`, `next` - Get the next question or repeat the current question.
     - `answer <answer>` - Answer a question. <answer> can always be an option number. It can also be "true" or "false" for true/false questions.
     - `scores` - View the current scores. Easy questions are worth 10 points, medium questions are worth 20, and hard questions are worth 30 each.
     - `end` - End the game (can only be used by the "host" (the one who started the game) or Forum Admins or higher).
@@ -339,7 +339,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     Here's how a game usually goes:
     - The "host" uses `@latexbot trivia categories` to see all categories (optional)
     - The "host" uses `@latexbot trivia start [category] [difficulty] [type]` to start the game
-    - Someone uses `@latexbot trivia question` to get each question
+    - Someone uses `@latexbot trivia question` or `@latexbot trivia next` to get each question
     - The participants use `@latexbot trivia answer <answer>` to answer each question
     - The participants use `@latexbot trivia scores` to check the scores during the game
     - The "host" uses `@latexbot trivia end` to end the game
@@ -352,6 +352,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot trivia categories` - See all categories.
     > `@latexbot trivia start "Science: Computers" all true/false` - Start a game with the category "Science: Computers", all difficulties, and only true/false questions.
     > `@latexbot trivia question` - Get the question, or repeat the question.
+    > `@latexbot trivia next` - Same as `@latexbot trivia question`
     > `@latexbot trivia answer 1` - Answer the question with option 1.
     > `@latexbot trivia scores` - See the current scores.
     > `@latexbot trivia end` - End the game.
@@ -488,7 +489,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
         # Try to get the next question, but don't send it
         if not await trivia_try_get_next():
             return
-    elif s[0] == "question":
+    elif s[0] == "question" or s[0] == "next":
         if not trivia_game:
             await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
             return
@@ -505,6 +506,10 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
         
         if not trivia_game:
             await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
+            return
+        
+        if trivia_game.current_question["answered"]:
+            await chat.send_message("Error: The current question has already been answered. Use `@latexbot trivia question` to get the next question.", creator)
             return
         
         try:
