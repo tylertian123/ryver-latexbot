@@ -97,6 +97,9 @@ def generate_help_text(ryver: pyryver.Ryver):
     else:
         help_text += "\nNo Bot Admins are in the configuration."
     help_text += "\n\nFor more details about a command, try `@latexbot help <command>`."
+    if org.aliases:
+        help_text += "\n\nCurrent Aliases:\n"
+        help_text += "\n".join(f"* `{alias['from']}` \u2192 `{alias['to']}`" for alias in org.aliases)
 
 
 def preprocess_command(command: str, is_dm: bool):
@@ -1444,6 +1447,72 @@ async def _updateChats(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message("Forums/Teams/Users updated.", creator)
 
 
+async def _alias(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Manage aliases.
+
+    Aliases allow you to save typing time on a commonly used command.
+    They're expanded as if they were a command; therefore, they cannot contain whitespace.
+
+    E.g. If there is an alias `answer` \u2192 `trivia answer`, the command
+    `@latexbot answer 1` will expand to `@latexbot trivia answer 1`.
+    However, the `answer` in `@latexbot trivia answer` will not be expanded.
+    Note that alias expansion happens before command evaluation.
+
+    Aliases can refer to other aliases. However, recursive aliases cannot be evaluated.
+    E.g. If `A` \u2192 `B` and `B` \u2192 `C`, both `A` and `B` will expand to `C`.
+    However, if `B` \u2192 `A`, both `A` and `B` will fail to evaluate.
+
+    The alias command has 3 actions (sub-commands). They are as follows:
+    - No argument: View all aliases.
+    - `create [from] [to]` - Create an alias. If the expansion has spaces, it should be surrounded by quotes.
+    - `delete [alias]` - Delete an alias.
+    ---
+    group: Miscellaneous Commands
+    syntax: [create|delete] [args]
+    ---
+    > `@latexbot alias` - View all aliases.
+    > `@latexbot alias create "answer" "trivia answer"` - Create an alias `answer` that expands to `trivia answer`.
+    > `@latexbot alias delete "answer"` - Delete the alias `answer`.
+    """
+    if s == "":
+        if not org.aliases:
+            resp = "No aliases have been created."
+        else:
+            resp = "All aliases:\n"
+            resp += "\n".join(f"* `{alias['from']}` \u2192 `{alias['to']}`" for alias in org.aliases)
+        await chat.send_message(resp, creator)
+        return
+
+    s = shlex.split(s)
+    if s[0] == "create":
+        if len(s) != 3:
+            await chat.send_message("Invalid syntax. Did you forget the quotes?", creator)
+            return
+        org.aliases.append({
+            "from": s[1],
+            "to": s[2],
+        })
+        generate_help_text(chat.get_ryver())
+        org.save_config()
+        await chat.send_message(f"Successfully created alias `{s[1]}` \u2192 `{s[2]}`.", creator)
+    elif s[0] == "delete":
+        if len(s) != 2:
+            await chat.send_message("Invalid syntax.", creator)
+            return
+        
+        for i, alias in enumerate(org.aliases):
+            if alias["from"] == s[1]:
+                del org.aliases[i]
+                generate_help_text(chat.get_ryver())
+                org.save_config()
+                await chat.send_message(f"Successfully deleted alias `{s[1]}`.", creator)
+                return
+        await chat.send_message(f"Alias not found!", creator)
+    else:
+        await chat.send_message("Invalid action. Allowed actions are create, delete and no argument (view).", creator)
+
+
 command_processors = {
     "render": [_render, ACCESS_LEVEL_EVERYONE],
     "chem": [_chem, ACCESS_LEVEL_EVERYONE],
@@ -1478,6 +1547,8 @@ command_processors = {
     "exportConfig": [_exportConfig, ACCESS_LEVEL_EVERYONE],
     "importConfig": [_importConfig, ACCESS_LEVEL_BOT_ADMIN],
     "updateChats": [_updateChats, ACCESS_LEVEL_FORUM_ADMIN],
+
+    "alias": [_alias, ACCESS_LEVEL_ORG_ADMIN],
 }
 
 
