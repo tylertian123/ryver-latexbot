@@ -46,6 +46,7 @@ daily_message_task = None # type: asyncio.Future
 
 trivia_game = None # type: trivia.TriviaGame
 trivia_lock = asyncio.Lock()
+trivia_timeout = None # type: asyncio.Future
 
 ################################ UTILITY FUNCTIONS ################################
 
@@ -371,7 +372,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     - The participants use `@latexbot trivia scores` to check the scores during the game
     - The "host" uses `@latexbot trivia end` to end the game
 
-    Note that there can only be 1 game going on at a time!
+    Note that there can only be 1 game going on at a time! 
+    After 15 minutes of inactivity, the game will end automatically.
     ---
     group: General Commands
     syntax: <sub-command> [args]
@@ -390,7 +392,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     
     global trivia_game
 
-    # Helper functions
+    # Helper functions and coros
     async def trivia_try_get_next() -> bool:
         """
         Try to get the next trivia question while handling errors.
@@ -426,6 +428,31 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
         answers = "\n".join(f"{i + 1}. {answer}" for i, answer in enumerate(question["answers"]))
         result += "\n" + answers
         return result
+    
+    async def trivia_timeout_task(timeout: float):
+        """
+        This task waits for a number of seconds, and then ends the current trivia game if there is one.
+        """
+        try:
+            await asyncio.sleep(timeout)
+
+            async with trivia_lock:
+                global trivia_game
+                if trivia_game is not None:
+                    await chat.send_message(f"The trivia game started by {chat.get_ryver().get_user(id=trivia_game.host).get_name()} has ended due to inactivity.", creator)
+                    await trivia_game.end()
+                    trivia_game = None
+        except asyncio.CancelledError:
+            pass
+    
+    def refresh_timeout():
+        """
+        Refresh the game auto-end timeout.
+        """
+        global trivia_timeout
+        if trivia_timeout:
+            trivia_timeout.cancel()
+        trivia_timeout = asyncio.ensure_future(trivia_timeout_task(15 * 60))
 
     s = shlex.split(s)
     async with trivia_lock:
@@ -513,6 +540,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             await trivia_game.start(msg.get_author_id())
 
             await chat.send_message("Game started! Use `@latexbot trivia question` to get the question.", creator)
+            refresh_timeout()
 
             # Try to get the next question, but don't send it
             if not await trivia_try_get_next():
@@ -521,6 +549,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             if not trivia_game:
                 await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
                 return
+            
+            refresh_timeout()
             # Only update the question if already answered
             if trivia_game.current_question["answered"]:
                 # Try to get the next question
@@ -536,6 +566,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
                 return
             
+            refresh_timeout()
+
             if trivia_game.current_question["answered"]:
                 await chat.send_message("Error: The current question has already been answered. Use `@latexbot trivia question` to get the next question.", creator)
                 return
@@ -579,6 +611,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             if not trivia_game:
                 await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
                 return
+            refresh_timeout()
+
             scores = sorted(trivia_game.scores.items(), key=lambda x: x[1], reverse=True)
             if not scores:
                 await chat.send_message("No scores at the moment. Scores are only recorded after you answer a question.", creator)
@@ -620,6 +654,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 resp += "\n".join(f"{i + 1}. **{chat.get_ryver().get_user(id=user).get_name()}** with a score of **{score}**!" for i, (user, score) in enumerate(scores))
                 await chat.send_message(resp, creator)
                 # Clean up
+                if trivia_timeout:
+                    trivia_timeout.cancel()
                 await trivia_game.end()
                 trivia_game = None
             else:
