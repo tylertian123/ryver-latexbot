@@ -45,6 +45,7 @@ extended_help_text = {}
 daily_message_task = None # type: asyncio.Future
 
 trivia_game = None # type: trivia.TriviaGame
+trivia_lock = asyncio.Lock()
 
 ################################ UTILITY FUNCTIONS ################################
 
@@ -427,203 +428,204 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
         return result
 
     s = shlex.split(s)
-    if s[0] == "categories":
-        # Note: The reason we're not starting from 0 here is because of markdown forcing you to start a list at 1
-        categories = "\n".join(f"{i + 1}. {category['name']}" for i, category in enumerate(await trivia.get_categories()))
-        await chat.send_message(f"Categories:\n{categories}", creator)
-    elif s[0] == "start":
-        if not (1 <= len(s) <= 4):
-            await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
-            return
-        
-        if trivia_game is not None:
-            await chat.send_message(f"Error: A game is already ongoing! It was started by {chat.get_ryver().get_user(id=trivia_game.host).get_name()}.", creator)
-            return
-        
-        # Try parsing the category
-        if len(s) >= 2:
-            try:
-                # Subtract 1 for correct indexing
-                category = int(s[1]) - 1
-            except ValueError:
-                category = s[1]
-            categories = await trivia.get_categories()
-            if isinstance(category, int):
-                if category < 0 or category >= len(categories):
-                    await chat.send_message("Category ID out of bounds! Please see `@latexbot trivia categories` for all valid categories.", creator)
-                    return
-                # Get the actual category ID
-                category = categories[category]["id"]
-            # String-based category
+    async with trivia_lock:
+        if s[0] == "categories":
+            # Note: The reason we're not starting from 0 here is because of markdown forcing you to start a list at 1
+            categories = "\n".join(f"{i + 1}. {category['name']}" for i, category in enumerate(await trivia.get_categories()))
+            await chat.send_message(f"Categories:\n{categories}", creator)
+        elif s[0] == "start":
+            if not (1 <= len(s) <= 4):
+                await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
+                return
+            
+            if trivia_game is not None:
+                await chat.send_message(f"Error: A game is already ongoing! It was started by {chat.get_ryver().get_user(id=trivia_game.host).get_name()}.", creator)
+                return
+            
+            # Try parsing the category
+            if len(s) >= 2:
+                try:
+                    # Subtract 1 for correct indexing
+                    category = int(s[1]) - 1
+                except ValueError:
+                    category = s[1]
+                categories = await trivia.get_categories()
+                if isinstance(category, int):
+                    if category < 0 or category >= len(categories):
+                        await chat.send_message("Category ID out of bounds! Please see `@latexbot trivia categories` for all valid categories.", creator)
+                        return
+                    # Get the actual category ID
+                    category = categories[category]["id"]
+                # String-based category
+                else:
+                    category = category.lower()
+                    found = False
+                    for c in categories:
+                        # Case-insensitive search
+                        if c["name"].lower() == category:
+                            found = True
+                            category = c["id"]
+                            break
+                    if not found:
+                        await chat.send_message("Invalid category. Please see `@latexbot trivia categories` for all valid categories.", creator)
+                        return
             else:
-                category = category.lower()
-                found = False
-                for c in categories:
-                    # Case-insensitive search
-                    if c["name"].lower() == category:
-                        found = True
-                        category = c["id"]
-                        break
-                if not found:
-                    await chat.send_message("Invalid category. Please see `@latexbot trivia categories` for all valid categories.", creator)
+                category = None
+                difficulty = None
+                question_type = None
+            
+            # Try parsing the difficulty
+            if len(s) >= 3:
+                try:
+                    difficulty = {
+                        "easy": trivia.TriviaSession.DIFFICULTY_EASY,
+                        "medium": trivia.TriviaSession.DIFFICULTY_MEDIUM,
+                        "hard": trivia.TriviaSession.DIFFICULTY_HARD,
+                        "all": None,
+                    }[s[2].lower()]
+                except KeyError:
+                    await chat.send_message("Invalid difficulty! Allowed difficulties are 'easy', 'medium', 'hard' or 'all'.", creator)
                     return
-        else:
-            category = None
-            difficulty = None
-            question_type = None
-        
-        # Try parsing the difficulty
-        if len(s) >= 3:
-            try:
-                difficulty = {
-                    "easy": trivia.TriviaSession.DIFFICULTY_EASY,
-                    "medium": trivia.TriviaSession.DIFFICULTY_MEDIUM,
-                    "hard": trivia.TriviaSession.DIFFICULTY_HARD,
-                    "all": None,
-                }[s[2].lower()]
-            except KeyError:
-                await chat.send_message("Invalid difficulty! Allowed difficulties are 'easy', 'medium', 'hard' or 'all'.", creator)
-                return
-        else:
-            difficulty = None
-            question_type = None
-        
-        # Try parsing the type
-        if len(s) >= 4:
-            try:
-                question_type = {
-                    "true/false": trivia.TriviaSession.TYPE_TRUE_OR_FALSE,
-                    "multiple-choice": trivia.TriviaSession.TYPE_MULTIPLE_CHOICE,
-                    "all": None,
-                }[s[3].lower()]
-            except KeyError:
-                await chat.send_message("Invalid question type! Allowed types are 'true/false', 'multiple-choice' or 'all'.", creator)
-                return
-        else:
-            question_type = None
-        
-        # Start the game!
-        trivia_game = trivia.TriviaGame()
-        trivia_game.set_category(category)
-        trivia_game.set_difficulty(difficulty)
-        trivia_game.set_type(question_type)
-        msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-        await trivia_game.start(msg.get_author_id())
+            else:
+                difficulty = None
+                question_type = None
+            
+            # Try parsing the type
+            if len(s) >= 4:
+                try:
+                    question_type = {
+                        "true/false": trivia.TriviaSession.TYPE_TRUE_OR_FALSE,
+                        "multiple-choice": trivia.TriviaSession.TYPE_MULTIPLE_CHOICE,
+                        "all": None,
+                    }[s[3].lower()]
+                except KeyError:
+                    await chat.send_message("Invalid question type! Allowed types are 'true/false', 'multiple-choice' or 'all'.", creator)
+                    return
+            else:
+                question_type = None
+            
+            # Start the game!
+            trivia_game = trivia.TriviaGame()
+            trivia_game.set_category(category)
+            trivia_game.set_difficulty(difficulty)
+            trivia_game.set_type(question_type)
+            msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+            await trivia_game.start(msg.get_author_id())
 
-        await chat.send_message("Game started! Use `@latexbot trivia question` to get the question.", creator)
+            await chat.send_message("Game started! Use `@latexbot trivia question` to get the question.", creator)
 
-        # Try to get the next question, but don't send it
-        if not await trivia_try_get_next():
-            return
-    elif s[0] == "question" or s[0] == "next":
-        if not trivia_game:
-            await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
-            return
-        # Only update the question if already answered
-        if trivia_game.current_question["answered"]:
-            # Try to get the next question
+            # Try to get the next question, but don't send it
             if not await trivia_try_get_next():
                 return
-        await chat.send_message(format_question(trivia_game.current_question), creator)
-    elif s[0] == "answer":
-        if len(s) != 2:
-            await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
-            return
-        
-        if not trivia_game:
-            await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
-            return
-        
-        if trivia_game.current_question["answered"]:
-            await chat.send_message("Error: The current question has already been answered. Use `@latexbot trivia question` to get the next question.", creator)
-            return
-        
-        try:
-            # Subtract 1 for correct indexing
-            answer = int(s[1]) - 1
-        except ValueError:
-            # Is this a true/false question?
-            if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_TRUE_OR_FALSE:
-                answer = s[1].lower()
-                # Special handling for true/false text
-                if answer == "true":
-                    answer = 0
-                elif answer == "false":
-                    answer = 1
-                else:
-                    await chat.send_message("Please answer 'true' or 'false' or an option number!", creator)
-                    return
-            else:
-                await chat.send_message("Answer must be an option number, not text!", creator)
+        elif s[0] == "question" or s[0] == "next":
+            if not trivia_game:
+                await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
                 return
-        
-        if answer < 0 or answer >= len(trivia_game.current_question["answers"]):
-            await chat.send_message("Invalid answer number!", creator)
-            return
-        
-        # Get the message object so we know who sent it
-        msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-        points = {
-            trivia.TriviaSession.DIFFICULTY_EASY: 10,
-            trivia.TriviaSession.DIFFICULTY_MEDIUM: 20,
-            trivia.TriviaSession.DIFFICULTY_HARD: 30,
-        }[trivia_game.current_question['difficulty']]
+            # Only update the question if already answered
+            if trivia_game.current_question["answered"]:
+                # Try to get the next question
+                if not await trivia_try_get_next():
+                    return
+            await chat.send_message(format_question(trivia_game.current_question), creator)
+        elif s[0] == "answer":
+            if len(s) != 2:
+                await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
+                return
+            
+            if not trivia_game:
+                await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
+                return
+            
+            if trivia_game.current_question["answered"]:
+                await chat.send_message("Error: The current question has already been answered. Use `@latexbot trivia question` to get the next question.", creator)
+                return
+            
+            try:
+                # Subtract 1 for correct indexing
+                answer = int(s[1]) - 1
+            except ValueError:
+                # Is this a true/false question?
+                if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_TRUE_OR_FALSE:
+                    answer = s[1].lower()
+                    # Special handling for true/false text
+                    if answer == "true":
+                        answer = 0
+                    elif answer == "false":
+                        answer = 1
+                    else:
+                        await chat.send_message("Please answer 'true' or 'false' or an option number!", creator)
+                        return
+                else:
+                    await chat.send_message("Answer must be an option number, not text!", creator)
+                    return
+            
+            if answer < 0 or answer >= len(trivia_game.current_question["answers"]):
+                await chat.send_message("Invalid answer number!", creator)
+                return
+            
+            # Get the message object so we know who sent it
+            msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+            points = {
+                trivia.TriviaSession.DIFFICULTY_EASY: 10,
+                trivia.TriviaSession.DIFFICULTY_MEDIUM: 20,
+                trivia.TriviaSession.DIFFICULTY_HARD: 30,
+            }[trivia_game.current_question['difficulty']]
 
-        if trivia_game.answer(answer, msg.get_author_id(), points):
-            await chat.send_message(f"Correct answer! You earned {points} points!", creator)
-        else:
-            await chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}.", creator)
-    elif s[0] == "scores":
-        if not trivia_game:
-            await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
-            return
-        scores = sorted(trivia_game.scores.items(), key=lambda x: x[1], reverse=True)
-        if not scores:
-            await chat.send_message("No scores at the moment. Scores are only recorded after you answer a question.", creator)
-            return
-        resp = "\n".join(f"{i + 1}. **{chat.get_ryver().get_user(id=user).get_name()}** with a score of **{score}**!" for i, (user, score) in enumerate(scores))
-        await chat.send_message(resp, creator)
-    elif s[0] == "end":
-        if not trivia_game:
-            await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
-            return
-        # Get the message object so we can check if the user is authorized
-        msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-        if msg.get_author_id() == trivia_game.host or await is_authorized(chat, await msg.get_author(), ACCESS_LEVEL_FORUM_ADMIN):
-            # Display the scores
+            if trivia_game.answer(answer, msg.get_author_id(), points):
+                await chat.send_message(f"Correct answer! You earned {points} points!", creator)
+            else:
+                await chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}.", creator)
+        elif s[0] == "scores":
+            if not trivia_game:
+                await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
+                return
             scores = sorted(trivia_game.scores.items(), key=lambda x: x[1], reverse=True)
             if not scores:
-                await chat.send_message("Game ended. No questions were answered, so there are no scores to display.", creator)
+                await chat.send_message("No scores at the moment. Scores are only recorded after you answer a question.", creator)
+                return
+            resp = "\n".join(f"{i + 1}. **{chat.get_ryver().get_user(id=user).get_name()}** with a score of **{score}**!" for i, (user, score) in enumerate(scores))
+            await chat.send_message(resp, creator)
+        elif s[0] == "end":
+            if not trivia_game:
+                await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
+                return
+            # Get the message object so we can check if the user is authorized
+            msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+            if msg.get_author_id() == trivia_game.host or await is_authorized(chat, await msg.get_author(), ACCESS_LEVEL_FORUM_ADMIN):
+                # Display the scores
+                scores = sorted(trivia_game.scores.items(), key=lambda x: x[1], reverse=True)
+                if not scores:
+                    await chat.send_message("Game ended. No questions were answered, so there are no scores to display.", creator)
+                    # Clean up
+                    await trivia_game.end()
+                    trivia_game = None
+                    return
+
+                # Handle multiple people with the same score
+                winners = []
+                winning_score = scores[0][1]
+                # Find all users with the same score as the winner
+                for user, score in scores:
+                    if score == winning_score:
+                        winners.append(user)
+                    else:
+                        break
+                resp = "The game has ended. "
+                # Single winner
+                if len(winners) == 1:
+                    resp += f"**{chat.get_ryver().get_user(id=winners[0]).get_name()}** is the winner with a score of **{winning_score}**!\n\nFull scoreboard:\n"
+                # Multiple winners
+                else:
+                    resp += f"**{', '.join(chat.get_ryver().get_user(id=winner).get_name() for winner in winners)}** are the winners, tying with a score of **{winning_score}**!\n\nFull scoreboard:\n"
+                resp += "\n".join(f"{i + 1}. **{chat.get_ryver().get_user(id=user).get_name()}** with a score of **{score}**!" for i, (user, score) in enumerate(scores))
+                await chat.send_message(resp, creator)
                 # Clean up
                 await trivia_game.end()
                 trivia_game = None
-                return
-
-            # Handle multiple people with the same score
-            winners = []
-            winning_score = scores[0][1]
-            # Find all users with the same score as the winner
-            for user, score in scores:
-                if score == winning_score:
-                    winners.append(user)
-                else:
-                    break
-            resp = "The game has ended. "
-            # Single winner
-            if len(winners) == 1:
-                resp += f"**{chat.get_ryver().get_user(id=winners[0]).get_name()}** is the winner with a score of **{winning_score}**!\n\nFull scoreboard:\n"
-            # Multiple winners
             else:
-                resp += f"**{', '.join(chat.get_ryver().get_user(id=winner).get_name() for winner in winners)}** are the winners, tying with a score of **{winning_score}**!\n\nFull scoreboard:\n"
-            resp += "\n".join(f"{i + 1}. **{chat.get_ryver().get_user(id=user).get_name()}** with a score of **{score}**!" for i, (user, score) in enumerate(scores))
-            await chat.send_message(resp, creator)
-            # Clean up
-            await trivia_game.end()
-            trivia_game = None
+                await chat.send_message("Error: Only the one who started the game or a Forum Admin or higher may end the game!", creator)
         else:
-            await chat.send_message("Error: Only the one who started the game or a Forum Admin or higher may end the game!", creator)
-    else:
-        await chat.send_message("Invalid sub-command! Please see `@latexbot help trivia` for all valid sub-commands.", creator)
+            await chat.send_message("Invalid sub-command! Please see `@latexbot help trivia` for all valid sub-commands.", creator)
 
 
 async def _deleteMessages(chat: pyryver.Chat, msg_id: str, s: str):
