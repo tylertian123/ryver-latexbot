@@ -369,9 +369,9 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     The trivia command has several sub-commands. Here are each one of them:
     - `categories` - Get all the categories and their IDs, which are used later to start a game.
     - `start [category] [difficulty] [type]` - Start a game with an optional category, difficulty and type. The category can be an ID, a name from the `categories` command, 'all' (all regular questions, no custom), or 'custom' (all custom questions, no regular). If the name contains a space, it must be surrounded with quotes. The difficulty can be "easy", "medium" or "hard". The type can be either "true/false" or "multiple-choice". You can also specify "all" for any of the categories.
-    - `question`, `next` - Get the next question or repeat the current question.
+    - `question`, `next` - Get the next question or repeat the current question. You can also react to a question with :fast_forward: to get the next question after it's been answered.
     - `answer <answer>` - Answer a question. <answer> can always be an option number. It can also be "true" or "false" for true/false questions. You can also use reactions to answer a question.
-    - `scores` - View the current scores. Easy questions are worth 10 points, medium questions are worth 20, and hard questions are worth 30 each.
+    - `scores` - View the current scores. Easy questions are worth 10 points, medium questions are worth 20, and hard questions are worth 30 each. You can also react to a question with :trophy: to see the scores.
     - `end` - End the game (can only be used by the "host" (the one who started the game) or Forum Admins or higher).
     - `importCustomQuestions` - Import custom questions as a JSON. Accessible to Org Admins or higher.
     - `exportCustomQuestions` - Export custom questions as a JSON. Accessible to Org Admins or higher.
@@ -482,8 +482,57 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
         if trivia_timeout:
             trivia_timeout.cancel()
         trivia_timeout = asyncio.ensure_future(trivia_timeout_task(15 * 60))
+
+    async def next_question():
+        """
+        Get the next question or repeat the current question.
+        """
+        global trivia_question_mid, trivia_chat
+        if not trivia_game:
+            await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
+            return
+        refresh_timeout()
+        # Only update the question if already answered
+        if trivia_game.current_question["answered"]:
+            # Try to get the next question
+            if not await trivia_try_get_next():
+                return
+        formatted_question = format_question(trivia_game.current_question)
+        mid = await chat.send_message("Loading...", creator)
+        msg = (await pyryver.retry_until_available(chat.get_message_from_id, mid, timeout=5.0))[0] # type: pyryver.ChatMessage
+        if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_MULTIPLE_CHOICE:
+            # Iterate the reactions array until all the options are accounted for
+            for i, reaction in zip(range(len(trivia_game.current_question["answers"])), TRIVIA_NUMBER_EMOJIS):
+                await msg.react(reaction)
+        else:
+            await msg.react("white_check_mark")
+            await msg.react("x")
+        await msg.react("trophy")
+        await msg.react("fast_forward")
+        await msg.edit(formatted_question)
+        trivia_question_mid = mid
+        trivia_chat = chat
+    
+    async def send_scores():
+        """
+        Send the scoreboard to the chat.
+        """
+        if not trivia_game:
+            await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
+            return
+        refresh_timeout()
+
+        scores = sorted(trivia_game.scores.items(), key=lambda x: x[1], reverse=True)
+        if not scores:
+            await chat.send_message("No scores at the moment. Scores are only recorded after you answer a question.", creator)
+            return
+        resp = "\n".join(f"{i + 1}. **{chat.get_ryver().get_user(id=user).get_name()}** with a score of **{score}**!" for i, (user, score) in enumerate(scores))
+        await chat.send_message(resp, creator)
+
     # Accessed later in the reactions handler
     _trivia.refresh_timeout = refresh_timeout
+    _trivia.next_question = next_question
+    _trivia.send_scores = send_scores
 
     # Find the first whitespace
     space = None
@@ -647,29 +696,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             if not await trivia_try_get_next():
                 return
         elif cmd == "question" or cmd == "next":
-            if not trivia_game:
-                await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
-                return
-            
-            refresh_timeout()
-            # Only update the question if already answered
-            if trivia_game.current_question["answered"]:
-                # Try to get the next question
-                if not await trivia_try_get_next():
-                    return
-            
-            # Skip sending the request to get the message object
-            mid = await chat.send_message(format_question(trivia_game.current_question), creator)
-            msg = (await pyryver.retry_until_available(chat.get_message_from_id, mid, timeout=5.0))[0] # type: pyryver.ChatMessage
-            if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_MULTIPLE_CHOICE:
-                # Iterate the reactions array until all the options are accounted for
-                for i, reaction in zip(range(len(trivia_game.current_question["answers"])), TRIVIA_NUMBER_EMOJIS):
-                    await msg.react(reaction)
-            else:
-                await msg.react("white_check_mark")
-                await msg.react("x")
-            trivia_question_mid = mid
-            trivia_chat = chat
+            await next_question()
         elif cmd == "answer":
             if len(args) != 1:
                 await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
@@ -718,17 +745,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             else:
                 await chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}. **{author_name}** did not get any points for that.", creator)
         elif cmd == "scores":
-            if not trivia_game:
-                await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
-                return
-            refresh_timeout()
-
-            scores = sorted(trivia_game.scores.items(), key=lambda x: x[1], reverse=True)
-            if not scores:
-                await chat.send_message("No scores at the moment. Scores are only recorded after you answer a question.", creator)
-                return
-            resp = "\n".join(f"{i + 1}. **{chat.get_ryver().get_user(id=user).get_name()}** with a score of **{score}**!" for i, (user, score) in enumerate(scores))
-            await chat.send_message(resp, creator)
+            await send_scores()
         elif cmd == "end":
             if not trivia_game:
                 await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
@@ -1951,9 +1968,23 @@ async def main():
                     if user.get_username() == os.environ["LATEXBOT_USER"]:
                         return
                     async with trivia_lock:
-                        if trivia_game is not None and not trivia_game.current_question["answered"]:
+                        if trivia_game is not None:
+                            # Scoreboard
+                            if data["reaction"] == "trophy":
+                                await _trivia.send_scores()
+                                return
+
+                            # Next question
+                            if data["reaction"] == "fast_forward":
+                                if trivia_game.current_question["answered"]:
+                                    await _trivia.next_question()
+                                return
+
+                            # Answer
+                            if trivia_game.current_question["answered"]:
+                                return
+                            # Try to decode the reaction into an answer
                             if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_MULTIPLE_CHOICE:
-                                # Try to decode the reaction
                                 try:
                                     answer = TRIVIA_NUMBER_EMOJIS.index(data["reaction"])
                                     # Give up if it's invalid
