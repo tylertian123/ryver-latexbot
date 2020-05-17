@@ -1551,6 +1551,33 @@ async def _alias(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message("Invalid action. Allowed actions are create, delete and no argument (view).", creator)
 
 
+async def _message(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Send a message to a chat by ID.
+    ---
+    group: Hidden Commands
+    syntax: <id> <message>
+    hidden: true
+    """
+    try:
+        i = s.index(" ")
+    except ValueError:
+        await chat.send_message("Invalid syntax.", creator)
+        return
+    chat_id = s[:i]
+    msg = s[i + 1:]
+    try:
+        chat_id = int(chat_id)
+    except ValueError:
+        await chat.send_message("Invalid chat ID.", creator)
+        return
+    to = chat.get_ryver().get_chat(id=chat_id)
+    if to is None:
+        await chat.send_message("Chat not found.", creator)
+        return
+    await to.send_message(msg, creator)
+
+
 command_processors = {
     "render": [_render, ACCESS_LEVEL_EVERYONE],
     "chem": [_chem, ACCESS_LEVEL_EVERYONE],
@@ -1587,6 +1614,8 @@ command_processors = {
     "updateChats": [_updateChats, ACCESS_LEVEL_FORUM_ADMIN],
 
     "alias": [_alias, ACCESS_LEVEL_ORG_ADMIN],
+
+    "message": [_message, ACCESS_LEVEL_BOT_ADMIN],
 }
 
 
