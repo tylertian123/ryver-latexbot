@@ -711,11 +711,12 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             # Get the message object so we know who sent it
             msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
             points = TRIVIA_POINTS[trivia_game.current_question['difficulty']]
+            author_name = chat.get_ryver().get_user(id=msg.get_author_id()).get_name()
 
             if trivia_game.answer(answer, msg.get_author_id(), points):
-                await chat.send_message(f"Correct answer! You earned {points} points!", creator)
+                await chat.send_message(f"Correct answer! **{author_name}** earned {points} points!", creator)
             else:
-                await chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}.", creator)
+                await chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}. **{author_name}** did not get any points for that.", creator)
         elif cmd == "scores":
             if not trivia_game:
                 await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
@@ -1973,11 +1974,12 @@ async def main():
 
                             # Answer the question
                             points = TRIVIA_POINTS[trivia_game.current_question['difficulty']]
+                            author_name = ryver.get_user(id=data["userId"]).get_name()
                             async with session.typing(trivia_chat):
                                 if trivia_game.answer(answer, data["userId"], points):
-                                    await trivia_chat.send_message(f"Correct answer! You earned {points} points!", creator)
+                                    await trivia_chat.send_message(f"Correct answer! **{author_name}** earned {points} points!", creator)
                                 else:
-                                    await trivia_chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}.", creator)
+                                    await trivia_chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}. **{author_name}** did not get any points for that.", creator)
                             
 
             print("LaTeX Bot is running!")
