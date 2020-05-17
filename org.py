@@ -4,6 +4,7 @@ import latexbot
 import os
 import requests
 import time
+import trivia
 import typing
 import gcalendar
 from caseinsensitivedict import CaseInsensitiveDict
@@ -23,6 +24,7 @@ command_prefixes = []
 aliases = []
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
+TRIVIA_FILE = "data/trivia.json"
 
 SERVICE_ACCOUNT_FILE = "calendar_credentials.json"
 calendar = gcalendar.Calendar(SERVICE_ACCOUNT_FILE)
@@ -165,4 +167,10 @@ async def init(ryver: pyryver.Ryver):
         print(f"Error while loading config: {e}. Using the following defaults:")
         # Call init_config with an empty dict so variables are initialized to their defaults
         init_config(ryver, {})
-        
+    # Load trivia questions
+    try:
+        with open(TRIVIA_FILE, "r") as f:
+            trivia_questions = json.load(f)
+        trivia.set_custom_trivia_questions(trivia_questions)
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Error while loading custom trivia questions: {e}")

@@ -9,6 +9,9 @@ import random
 import typing
 
 
+CUSTOM_TRIVIA_QUESTIONS = {}
+
+
 class OpenTDBError(Exception):
     """
     An exception raised when an error occurs when interfacing OpenTDB.
@@ -121,13 +124,57 @@ class TriviaSession:
         return data["results"]
 
 
+class CustomTriviaSession:
+    """
+    A trivia session using only custom questions.
+    """
+    
+    def __init__(self):
+        self._questions = []
+        self._index = 0
+        self._category = None
+    
+    def start(self, category: str = None):
+        """
+        Start the session.
+
+        If the category is not specified, all the custom questions will be used.
+        """
+        try:
+            if category is not None:
+                self._questions = CUSTOM_TRIVIA_QUESTIONS[category]["questions"]
+            else:
+                self._questions = []
+                for v in CUSTOM_TRIVIA_QUESTIONS.values():
+                    self._questions.extend(v["questions"])
+        except KeyError:
+            raise ValueError("Error trying to load questions")
+        self._index = 0
+        random.shuffle(self._questions)
+    
+    def get_question(self, difficulty: str = None, type: str = None):
+        """
+        Get a question.
+        """
+        while self._index < len(self._questions):
+            question = self._questions[self._index]
+            self._index += 1
+            if difficulty is not None and question["difficulty"] != difficulty:
+                continue
+            if type is not None and question["type"] != type:
+                continue
+            return question
+        raise OpenTDBError("Ran out of questions!", OpenTDBError.CODE_TOKEN_EMPTY)
+
+
 class TriviaGame:
     """
     A game of trivia.
     """
 
     def __init__(self):
-        self._session = TriviaSession()
+        self._session = None
+        self._custom_session = None
 
         self.category = None
         self.difficulty = None
@@ -144,7 +191,16 @@ class TriviaGame:
         If a host is specified, it will be stored as self.host.
         The host serves no other purpose.
         """
-        await self._session.start()
+        # Custom category
+        if isinstance(self.category, str):
+            self._custom_session = CustomTriviaSession()
+            if self.category == "custom":
+                self._custom_session.start()
+            else:
+                self._custom_session.start(self.category)
+        else:
+            self._session = TriviaSession()
+            await self._session.start()
         if host is not None:
             self.host = host
     
@@ -152,11 +208,17 @@ class TriviaGame:
         """
         End the game.
         """
-        await self._session.close()
+        if self._session:
+            await self._session.close()
+            self._session = None
+        self._custom_session = None
     
-    def set_category(self, category: int):
+    def set_category(self, category: typing.Union[int, str]):
         """
         Set the category.
+
+        If the category is a string, then it is assumed to be a custom category.
+        If the category is "custom", then all custom categories will be included.
         """
         self.category = category
     
@@ -192,7 +254,10 @@ class TriviaGame:
         - "correct_answer": The index of the correct answer in the list (int)
         - "answered": If the question has been answered (bool)
         """
-        question = (await self._session.get_questions(1, category=self.category, difficulty=self.difficulty, type=self.type))[0]
+        if isinstance(self.category, str):
+            question = self._custom_session.get_question(difficulty=self.difficulty, type=self.type)
+        else:
+            question = (await self._session.get_questions(1, category=self.category, difficulty=self.difficulty, type=self.type))[0]
         
         self.current_question = {
             "category": question["category"],
@@ -255,3 +320,18 @@ async def get_categories() -> typing.List[typing.Dict[str, typing.Any]]:
         resp.raise_for_status()
         data = await resp.json()
     return data["trivia_categories"]
+
+
+def get_custom_categories() -> typing.List[str]:
+    """
+    Get all the custom trivia question categories.
+    """
+    return list(CUSTOM_TRIVIA_QUESTIONS.keys())
+
+
+def set_custom_trivia_questions(questions):
+    """
+    Set the custom trivia questions.
+    """
+    global CUSTOM_TRIVIA_QUESTIONS
+    CUSTOM_TRIVIA_QUESTIONS = questions

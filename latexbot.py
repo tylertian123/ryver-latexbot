@@ -362,11 +362,13 @@ async def _checkiday(chat: pyryver.Chat, msg_id: str, s: str):
 
 async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     """
-    Play a game of trivia. See extended description for details. Powered by [Open Trivia Database](https://opentdb.com/).
+    Play a game of trivia. See extended description for details. 
+    
+    Powered by [Open Trivia Database](https://opentdb.com/).
     
     The trivia command has several sub-commands. Here are each one of them:
     - `categories` - Get all the categories and their IDs, which are used later to start a game.
-    - `start [category] [difficulty] [type]` - Start a game with an optional category, difficulty and type. The category can be an ID, or a name from the `categories` command. If the name contains a space, it must be surrounded with quotes. The difficulty can be "easy", "medium" or "hard". The type can be either "true/false" or "multiple-choice". You can also specify "all" for any of the categories.
+    - `start [category] [difficulty] [type]` - Start a game with an optional category, difficulty and type. The category can be an ID, a name from the `categories` command, 'all' (all regular questions, no custom), or 'custom' (all custom questions, no regular). If the name contains a space, it must be surrounded with quotes. The difficulty can be "easy", "medium" or "hard". The type can be either "true/false" or "multiple-choice". You can also specify "all" for any of the categories.
     - `question`, `next` - Get the next question or repeat the current question.
     - `answer <answer>` - Answer a question. <answer> can always be an option number. It can also be "true" or "false" for true/false questions. You can also use reactions to answer a question.
     - `scores` - View the current scores. Easy questions are worth 10 points, medium questions are worth 20, and hard questions are worth 30 each.
@@ -484,7 +486,12 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
         if s[0] == "categories":
             # Note: The reason we're not starting from 0 here is because of markdown forcing you to start a list at 1
             categories = "\n".join(f"{i + 1}. {category['name']}" for i, category in enumerate(await trivia.get_categories()))
-            await chat.send_message(f"Categories:\n{categories}", creator)
+            custom_categories = trivia.get_custom_categories()
+            if custom_categories:
+                categories += "\n\n# Custom categories:\n"
+                categories += "\n".join(f"* {category}" for category in custom_categories)
+                categories += "\n\nCustom categories can only be specified by name. Use 'all' for all regular categories (no custom), or 'custom' for all custom categories (no regular)."
+            await chat.send_message(f"# Categories:\n{categories}", creator)
         elif s[0] == "start":
             if not (1 <= len(s) <= 4):
                 await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
@@ -513,6 +520,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                     category = category.lower()
                     if category == "all":
                         category = None
+                    elif category == "custom":
+                        category = "custom"
                     else:
                         found = False
                         for c in categories:
@@ -521,6 +530,12 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                                 found = True
                                 category = c["id"]
                                 break
+                        if not found:
+                            for c in trivia.get_custom_categories():
+                                if c.lower() == category:
+                                    found = True
+                                    category = c
+                                    break
                         if not found:
                             await chat.send_message("Invalid category. Please see `@latexbot trivia categories` for all valid categories.", creator)
                             return
