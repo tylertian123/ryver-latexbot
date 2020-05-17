@@ -373,6 +373,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     - `answer <answer>` - Answer a question. <answer> can always be an option number. It can also be "true" or "false" for true/false questions. You can also use reactions to answer a question.
     - `scores` - View the current scores. Easy questions are worth 10 points, medium questions are worth 20, and hard questions are worth 30 each.
     - `end` - End the game (can only be used by the "host" (the one who started the game) or Forum Admins or higher).
+    - `importCustomQuestions` - Import custom questions as a JSON. Accessible to Org Admins or higher.
+    - `exportCustomQuestions` - Export custom questions as a JSON. Accessible to Org Admins or higher.
 
     Here's how a game usually goes:
     - The "host" uses `@latexbot trivia categories` to see all categories (optional)
@@ -395,6 +397,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot trivia answer 1` - Answer the question with option 1.
     > `@latexbot trivia scores` - See the current scores.
     > `@latexbot trivia end` - End the game.
+    > `@latexbot trivia importCustomQuestions {}` - Import some custom questions as a JSON.
+    > `@latexbot trivia exportCustomQuestions` - Export some custom questions as a JSON.
     """
     if s == "":
         await chat.send_message("Error: Please specify a sub-command! See `@latexbot help trivia` for details.", creator)
@@ -481,9 +485,63 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     # Accessed later in the reactions handler
     _trivia.refresh_timeout = refresh_timeout
 
-    s = shlex.split(s)
+    # Find the first whitespace
+    space = None
+    for i, c in enumerate(s):
+        if c.isspace():
+            space = i
+            break
+    if space:
+        cmd = s[:space]
+        args = s[space + 1:]
+    else:
+        cmd = s
+        args = ""
+    
+    if cmd == "exportCustomQuestions":
+        # Get the message object so we can check if the user is authorized
+        msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+        if await is_authorized(chat, await msg.get_author(), ACCESS_LEVEL_ORG_ADMIN):
+            data = json.dumps(trivia.CUSTOM_TRIVIA_QUESTIONS, indent=2)
+            if len(data) < 1000:
+                await chat.send_message(f"```json\n{data}\n```", creator)
+            else:
+                file = (await org.ryver.upload_file("trivia.json", data, "application/json")).get_file()
+                await chat.send_message(f"Custom Questions: [{file.get_name()}]({file.get_url()})", creator)
+        else:
+            await chat.send_message("You are not authorized to do that.", creator)
+        return
+    elif cmd == "importCustomQuestions":
+        msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+        if await is_authorized(chat, await msg.get_author(), ACCESS_LEVEL_ORG_ADMIN):
+            file = msg.get_attached_file()
+            if file:
+                # Get the actual contents
+                try:
+                    data = (await file.download_data()).decode("utf-8")
+                except aiohttp.ClientResponseError as e:
+                    await chat.send_message(f"Error while trying to GET file attachment: {e}", creator)
+                    return
+                except UnicodeDecodeError as e:
+                    await chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
+                    return
+            else:
+                data = args
+            
+            try:
+                trivia.set_custom_trivia_questions(json.loads(data))
+                with open(org.TRIVIA_FILE, "w") as f:
+                    f.write(data)
+                await chat.send_message(f"Operation successful.", creator)
+            except json.JSONDecodeError as e:
+                await chat.send_message(f"Error decoding JSON: {e}", creator)
+        else:
+            await chat.send_message("You are not authorized to do that.", creator)
+        return
+
+    args = shlex.split(args)
     async with trivia_lock:
-        if s[0] == "categories":
+        if cmd == "categories":
             # Note: The reason we're not starting from 0 here is because of markdown forcing you to start a list at 1
             categories = "\n".join(f"{i + 1}. {category['name']}" for i, category in enumerate(await trivia.get_categories()))
             custom_categories = trivia.get_custom_categories()
@@ -492,8 +550,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 categories += "\n".join(f"* {category}" for category in custom_categories)
                 categories += "\n\nCustom categories can only be specified by name. Use 'all' for all regular categories (no custom), or 'custom' for all custom categories (no regular)."
             await chat.send_message(f"# Categories:\n{categories}", creator)
-        elif s[0] == "start":
-            if not (1 <= len(s) <= 4):
+        elif cmd == "start":
+            if not (0 <= len(args) <= 3):
                 await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
                 return
             
@@ -502,12 +560,12 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 return
             
             # Try parsing the category
-            if len(s) >= 2:
+            if len(args) >= 1:
                 try:
                     # Subtract 1 for correct indexing
-                    category = int(s[1]) - 1
+                    category = int(args[0]) - 1
                 except ValueError:
-                    category = s[1]
+                    category = args[0]
                 categories = await trivia.get_categories()
                 if isinstance(category, int):
                     if category < 0 or category >= len(categories):
@@ -545,14 +603,14 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 question_type = None
             
             # Try parsing the difficulty
-            if len(s) >= 3:
+            if len(args) >= 2:
                 try:
                     difficulty = {
                         "easy": trivia.TriviaSession.DIFFICULTY_EASY,
                         "medium": trivia.TriviaSession.DIFFICULTY_MEDIUM,
                         "hard": trivia.TriviaSession.DIFFICULTY_HARD,
                         "all": None,
-                    }[s[2].lower()]
+                    }[args[1].lower()]
                 except KeyError:
                     await chat.send_message("Invalid difficulty! Allowed difficulties are 'easy', 'medium', 'hard' or 'all'.", creator)
                     return
@@ -561,13 +619,13 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 question_type = None
             
             # Try parsing the type
-            if len(s) >= 4:
+            if len(args) >= 3:
                 try:
                     question_type = {
                         "true/false": trivia.TriviaSession.TYPE_TRUE_OR_FALSE,
                         "multiple-choice": trivia.TriviaSession.TYPE_MULTIPLE_CHOICE,
                         "all": None,
-                    }[s[3].lower()]
+                    }[args[2].lower()]
                 except KeyError:
                     await chat.send_message("Invalid question type! Allowed types are 'true/false', 'multiple-choice' or 'all'.", creator)
                     return
@@ -588,7 +646,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             # Try to get the next question, but don't send it
             if not await trivia_try_get_next():
                 return
-        elif s[0] == "question" or s[0] == "next":
+        elif cmd == "question" or cmd == "next":
             if not trivia_game:
                 await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
                 return
@@ -612,8 +670,8 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 await msg.react("x")
             trivia_question_mid = mid
             trivia_chat = chat
-        elif s[0] == "answer":
-            if len(s) != 2:
+        elif cmd == "answer":
+            if len(args) != 1:
                 await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
                 return
             
@@ -629,11 +687,11 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             
             try:
                 # Subtract 1 for correct indexing
-                answer = int(s[1]) - 1
+                answer = int(args[0]) - 1
             except ValueError:
                 # Is this a true/false question?
                 if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_TRUE_OR_FALSE:
-                    answer = s[1].lower()
+                    answer = args[0].lower()
                     # Special handling for true/false text
                     if answer == "true":
                         answer = 0
@@ -658,7 +716,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 await chat.send_message(f"Correct answer! You earned {points} points!", creator)
             else:
                 await chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}.", creator)
-        elif s[0] == "scores":
+        elif cmd == "scores":
             if not trivia_game:
                 await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
                 return
@@ -670,7 +728,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 return
             resp = "\n".join(f"{i + 1}. **{chat.get_ryver().get_user(id=user).get_name()}** with a score of **{score}**!" for i, (user, score) in enumerate(scores))
             await chat.send_message(resp, creator)
-        elif s[0] == "end":
+        elif cmd == "end":
             if not trivia_game:
                 await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
                 return
@@ -1477,7 +1535,7 @@ async def _exportConfig(chat: pyryver.Chat, msg_id: str, s: str):
     if len(data) < 1000:
         await chat.send_message(f"```json\n{data}\n```", creator)
     else:
-        file = (await org.ryver.upload_file("config.json", data, pyryver.File.MIME_TYPE_JSON)).get_file()
+        file = (await org.ryver.upload_file("config.json", data, "application/json")).get_file()
         await chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
 
 
@@ -1888,6 +1946,9 @@ async def main():
                 data = msg["data"]
                 # Verify that this is an answer to a trivia question
                 if data["type"] == "Entity.ChatMessage" and data["id"] == trivia_question_mid:
+                    user = ryver.get_user(id=data["userId"])
+                    if user.get_username() == os.environ["LATEXBOT_USER"]:
+                        return
                     async with trivia_lock:
                         if trivia_game is not None and not trivia_game.current_question["answered"]:
                             if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_MULTIPLE_CHOICE:
