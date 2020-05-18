@@ -555,7 +555,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             if len(data) < 1000:
                 await chat.send_message(f"```json\n{data}\n```", creator)
             else:
-                file = (await org.ryver.upload_file("trivia.json", data, "application/json")).get_file()
+                file = (await chat.get_ryver().upload_file("trivia.json", data, "application/json")).get_file()
                 await chat.send_message(f"Custom Questions: [{file.get_name()}]({file.get_url()})", creator)
         else:
             await chat.send_message("You are not authorized to do that.", creator)
@@ -1553,7 +1553,7 @@ async def _exportConfig(chat: pyryver.Chat, msg_id: str, s: str):
     if len(data) < 1000:
         await chat.send_message(f"```json\n{data}\n```", creator)
     else:
-        file = (await org.ryver.upload_file("config.json", data, "application/json")).get_file()
+        file = (await chat.get_ryver().upload_file("config.json", data, "application/json")).get_file()
         await chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
 
 

@@ -274,6 +274,7 @@ class TriviaGame:
             self.current_question["correct_answer"] = 0 if question["correct_answer"] == "True" else 1
         else:
             answers = question["incorrect_answers"]
+            random.shuffle(answers)
             # Insert the correct answer at a random index
             index = random.randint(0, len(answers))
             answers.insert(index, question["correct_answer"])
