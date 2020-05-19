@@ -1775,7 +1775,7 @@ async def daily_message(init_delay: float = 0):
                     # Add description if there is one
                     if "description" in event and event["description"] != "":
                         # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
-                        resp += f"\u200B:{markdownify(event['description'])}"
+                        resp += f"\u200B:\n{markdownify(event['description'])}"
                 await org.announcements_chat.send_message(resp, creator)
                 print("Events reminder sent!")
             
