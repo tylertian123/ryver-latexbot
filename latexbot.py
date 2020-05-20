@@ -107,6 +107,7 @@ def generate_help_text(ryver: pyryver.Ryver):
     else:
         help_text += "\nNo Bot Admins are in the configuration."
     help_text += "\n\nFor more details about a command, try `@latexbot help <command>`."
+    help_text += "\nClick [here](https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md) for a usage guide."
     if org.aliases:
         help_text += "\n\nCurrent Aliases:\n"
         help_text += "\n".join(f"* `{alias['from']}` \u2192 `{alias['to']}`" for alias in org.aliases)
@@ -1415,43 +1416,6 @@ async def _deleteEvent(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Error: No event matches that name.", creator)
 
 
-async def _setDailyMessageTime(chat: pyryver.Chat, msg_id: str, s: str):
-    """
-    Set the time daily messages are sent each day or turn them on/off.
-
-    The time must be in the "HH:MM" format (24-hour clock).
-    Use the argument "off" to turn daily messages off.
-    ---
-    group: Events/Google Calendar Commands
-    syntax: <time|off>
-    ---
-    > `@latexbot setDailyMessageTime 00:00` - Set daily messages to be sent at 12am each day.
-    > `@latexbot setDailyMessageTime off` - Turn off daily messages.
-    """
-    if s.lower() == "off":
-        org.daily_message_time = None
-    else:
-        # Try parse to ensure validity
-        try:
-            datetime.strptime(s, "%H:%M")
-        except ValueError:
-            await chat.send_message("Invalid time format.", creator)
-            return
-        org.daily_message_time = s
-    
-    # Schedule or unschedule the daily message task
-    if org.daily_message_time:
-        schedule_daily_message()
-    else:
-        if daily_message_task:
-            daily_message_task.cancel()
-    org.save_config()
-    if org.daily_message_time:
-        await chat.send_message(f"Messages will now be sent at {s} daily.", creator)
-    else:
-        await chat.send_message(f"Messages have been disabled.", creator)
-
-
 async def _setEnabled(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Enable or disable me.
@@ -1539,60 +1503,6 @@ async def _execute(chat: pyryver.Chat, msg_id: str, s: str):
         print = new_print
 
 
-async def _exportConfig(chat: pyryver.Chat, msg_id: str, s: str):
-    """
-    Export config as a JSON.
-
-    If the data is less than 1k characters long, it will be sent as a chat message.
-    Otherwise it will be sent as a file attachment.
-    ---
-    group: Developer Commands
-    syntax:
-    """
-    data = json.dumps(org.make_config(), indent=2)
-    if len(data) < 1000:
-        await chat.send_message(f"```json\n{data}\n```", creator)
-    else:
-        file = (await chat.get_ryver().upload_file("config.json", data, "application/json")).get_file()
-        await chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
-
-
-async def _importConfig(chat: pyryver.Chat, msg_id: str, s: str):
-    """
-    Import config from JSON.
-
-    Note that although it is encouraged, the config JSON does not have to contain all fields.
-    If a field is not specified, it will just be left unchanged.
-
-    If a file is attached to this message, the config will always be imported from the file.
-    ---
-    group: Developer Commands
-    syntax: <data>
-    """
-    msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-    file = msg.get_attached_file()
-    if file:
-        # Get the actual contents
-        try:
-            data = (await file.download_data()).decode("utf-8")
-        except aiohttp.ClientResponseError as e:
-            await chat.send_message(f"Error while trying to GET file attachment: {e}", creator)
-            return
-        except UnicodeDecodeError as e:
-            await chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
-            return
-    else:
-        data = s
-    
-    try:
-        org.init_config(chat.get_ryver(), json.loads(data))
-        generate_help_text(chat.get_ryver())
-        org.save_config()
-        await chat.send_message(f"Operation successful.", creator)
-    except json.JSONDecodeError as e:
-        await chat.send_message(f"Error decoding JSON: {e}", creator)
-
-
 async def _updateChats(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Update the cached list of forums/teams and users.
@@ -1674,6 +1584,97 @@ async def _alias(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message("Invalid action. Allowed actions are create, delete and no argument (view).", creator)
 
 
+async def _exportConfig(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Export config as a JSON.
+
+    If the data is less than 1k characters long, it will be sent as a chat message.
+    Otherwise it will be sent as a file attachment.
+    ---
+    group: Developer Commands
+    syntax:
+    """
+    data = json.dumps(org.make_config(), indent=2)
+    if len(data) < 1000:
+        await chat.send_message(f"```json\n{data}\n```", creator)
+    else:
+        file = (await chat.get_ryver().upload_file("config.json", data, "application/json")).get_file()
+        await chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
+
+
+async def _importConfig(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Import config from JSON.
+
+    Note that although it is encouraged, the config JSON does not have to contain all fields.
+    If a field is not specified, it will just be left unchanged.
+
+    If a file is attached to this message, the config will always be imported from the file.
+    ---
+    group: Developer Commands
+    syntax: <data>
+    """
+    msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+    file = msg.get_attached_file()
+    if file:
+        # Get the actual contents
+        try:
+            data = (await file.download_data()).decode("utf-8")
+        except aiohttp.ClientResponseError as e:
+            await chat.send_message(f"Error while trying to GET file attachment: {e}", creator)
+            return
+        except UnicodeDecodeError as e:
+            await chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
+            return
+    else:
+        data = s
+    
+    try:
+        org.init_config(chat.get_ryver(), json.loads(data))
+        generate_help_text(chat.get_ryver())
+        org.save_config()
+        await chat.send_message(f"Operation successful.", creator)
+    except json.JSONDecodeError as e:
+        await chat.send_message(f"Error decoding JSON: {e}", creator)
+
+
+async def _setDailyMessageTime(chat: pyryver.Chat, msg_id: str, s: str):
+    """
+    Set the time daily messages are sent each day or turn them on/off.
+
+    The time must be in the "HH:MM" format (24-hour clock).
+    Use the argument "off" to turn daily messages off.
+    ---
+    group: Events/Google Calendar Commands
+    syntax: <time|off>
+    ---
+    > `@latexbot setDailyMessageTime 00:00` - Set daily messages to be sent at 12am each day.
+    > `@latexbot setDailyMessageTime off` - Turn off daily messages.
+    """
+    if s.lower() == "off":
+        org.daily_message_time = None
+    else:
+        # Try parse to ensure validity
+        try:
+            datetime.strptime(s, "%H:%M")
+        except ValueError:
+            await chat.send_message("Invalid time format.", creator)
+            return
+        org.daily_message_time = s
+    
+    # Schedule or unschedule the daily message task
+    if org.daily_message_time:
+        schedule_daily_message()
+    else:
+        if daily_message_task:
+            daily_message_task.cancel()
+    org.save_config()
+    if org.daily_message_time:
+        await chat.send_message(f"Messages will now be sent at {s} daily.", creator)
+    else:
+        await chat.send_message(f"Messages have been disabled.", creator)
+
+
 async def _message(chat: pyryver.Chat, msg_id: str, s: str):
     """
     Send a message to a chat by ID.
@@ -1726,19 +1727,19 @@ command_processors = {
     "addEvent": [_addEvent, ACCESS_LEVEL_ORG_ADMIN],
     "quickAddEvent": [_quickAddEvent, ACCESS_LEVEL_ORG_ADMIN],
     "deleteEvent": [_deleteEvent, ACCESS_LEVEL_ORG_ADMIN],
-    "setDailyMessageTime": [_setDailyMessageTime, ACCESS_LEVEL_ORG_ADMIN],
 
     "setEnabled": [_setEnabled, ACCESS_LEVEL_BOT_ADMIN],
     "kill": [_kill, ACCESS_LEVEL_BOT_ADMIN],
     "sleep": [_sleep, ACCESS_LEVEL_BOT_ADMIN],
     "execute": [_execute, ACCESS_LEVEL_BOT_ADMIN],
-    "exportConfig": [_exportConfig, ACCESS_LEVEL_EVERYONE],
-    "importConfig": [_importConfig, ACCESS_LEVEL_BOT_ADMIN],
     "updateChats": [_updateChats, ACCESS_LEVEL_FORUM_ADMIN],
 
     "alias": [_alias, ACCESS_LEVEL_ORG_ADMIN],
+    "exportConfig": [_exportConfig, ACCESS_LEVEL_EVERYONE],
+    "importConfig": [_importConfig, ACCESS_LEVEL_ORG_ADMIN],
+    "setDailyMessageTime": [_setDailyMessageTime, ACCESS_LEVEL_ORG_ADMIN],
 
-    "message": [_message, ACCESS_LEVEL_BOT_ADMIN],
+    "message": [_message, ACCESS_LEVEL_ORG_ADMIN],
 }
 
 
