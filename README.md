@@ -23,6 +23,8 @@ To use Google Calendar integration, LaTeX Bot also needs a `calendar_credentials
 Use `docker-compose build` to build LaTeX Bot's container, and then use `docker-compose up` to start LaTeX Bot. 
 Alternatively, you can also run LaTeX Bot directly using `python3 latexbot.py`.
 
+For more information on setting up LaTeX bot for your own organization, see `deployment_guide.md`.
+
 # Commands
 Here is a list of commands supported by LaTeX Bot (auto generated, as of 6689cee):
 General Commands:
