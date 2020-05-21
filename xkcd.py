@@ -17,7 +17,7 @@ async def get_comic(number: int = None) -> Union[Dict[str, Any], None]:
     - "title": The title of the comic (str)
     - "safe_title": The title of the comic without Unicode (I think?) (str)
     - "transcript": The comic transcript (str)
-    - "link": Unknown (always seems to be an empty string) (str)
+    - "link": The URL the comic image links to, or an empty string (str)
     - "news": Additional info (str)
     - "extra_parts": Used for special comics, usually interactive ones (may not exist) (obj)
     """
@@ -34,8 +34,12 @@ def comic_to_str(comic: Dict[str, Any]) -> str:
     """
     Convert a comic info dict to a markdown-formatted message string.
     """
-    msg = f"Comic #{comic['num']} (Posted {comic['year']}-{comic['month'].zfill(2)}-{comic['day'].zfill(2)}):\n\n"
-    msg += f"# {comic['title']}\n![{comic['alt']}]({comic['img']})\n*Alt: {comic['alt']}*"
+    msg = f"Comic #{comic['num']} (Posted {comic['year']}-{comic['month'].zfill(2)}-{comic['day'].zfill(2)}):\n\n# {comic['title']}\n"
+    if comic["link"]:
+        msg += f"[![{comic['alt']}]({comic['img']})]({comic['link']})"
+    else:
+        msg += f"![{comic['alt']}]({comic['img']})"
+    msg += f"\n*Alt: {comic['alt']}*"
     if "extra_parts" in comic:
         msg += "\n\n***Note: This comic contains extra parts that cannot be displayed here. "
         msg += f"Check out the full comic at https://xkcd.com/{comic['num']}.***"
