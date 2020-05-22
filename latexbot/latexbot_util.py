@@ -7,10 +7,18 @@ import typing
 from datetime import datetime
 from dateutil import tz
 from random import randrange
+
 from textwrap import dedent
 
+# Make print() flush immediately
+# Otherwise the logs won't show up in real time in Docker
+old_print = print
 
-MENTION_REGEX = re.compile(r"((?:^|[^a-zA-Z0-9_!@#$%&*])(?:(?:@)(?!\/)))([a-zA-Z0-9_]*)(?:\b(?!@)|$)", flags=re.MULTILINE)
+
+def print(*args, **kwargs):
+    kwargs["flush"] = True
+    # Add timestamp
+    old_print(current_time().strftime("%Y-%m-%d %H:%M:%S"), *args, **kwargs)
 
 
 DATE_FORMAT = "%Y-%m-%d %H:%M"
@@ -31,6 +39,8 @@ ALL_TIME_FORMATS = [
 ]
 
 XKCD_PROFILE = "https://www.explainxkcd.com/wiki/images/6/6d/BlackHat_head.png"
+
+MENTION_REGEX = re.compile(r"((?:^|[^a-zA-Z0-9_!@#$%&*])(?:(?:@)(?!\/)))([a-zA-Z0-9_]*)(?:\b(?!@)|$)", flags=re.MULTILINE)
 
 
 async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
