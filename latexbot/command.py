@@ -122,12 +122,27 @@ class Command:
         """
         Test if a user is authorized to use this command.
         """
-        user_level = await Command.get_access_level(chat, user)
         # Get access rules
         rules = org.access_rules.get(self._name, {})
-        # Overriding required level
+        # disallowUser has the highest precedence
+        user_disallowed = user.get_username() in rules["disallowUser"] if "disallowUser" in rules else False
+        if user_disallowed:
+            return False
+        # allowUser is second
+        user_allowed = user.get_username() in rules["allowUser"] if "allowUser" in rules else False
+        if user_allowed:
+            return True
+        # And then disallowRole
+        role_disallowed = any(user.get_username() in org.roles.get(role, []) for role in rules["disallowRole"]) if "disallowRole" in rules else False
+        if role_disallowed:
+            return False
+        # Finally allowRole
+        role_allowed = any(user.get_username() in org.roles.get(role, []) for role in rules["allowRole"]) if "allowRole" in rules else False
+        if role_allowed:
+            return True
+        # If none of those are true, check the access level normally
+        user_level = await Command.get_access_level(chat, user)
         required_level = rules["level"] if "level" in rules else self._level
-        # TODO: Add support for allowUser, disallowUser, allowRole and disallowRole
         return user_level >= required_level
     
     async def execute(self, args: str, chat: pyryver.Chat, user: pyryver.User, msg_id: str):

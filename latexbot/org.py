@@ -169,8 +169,8 @@ async def init(ryver: pyryver.Ryver):
         with open(ROLES_FILE, "r") as f:
             roles = CaseInsensitiveDict(json.load(f))
     except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error while loading roles: {e}. Defaulting to [].")
-        roles = []
+        print(f"Error while loading roles: {e}. Defaulting to {{}}.")
+        roles = CaseInsensitiveDict()
     # Load config
     try:
         with open(CONFIG_FILE, "r") as f:
