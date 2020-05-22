@@ -139,14 +139,6 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
         aliases = aliases or []
     try:
         access_rules = config["accessRules"]
-
-        # Update command access levels
-        for command, rule in access_rules.items():
-            if command in latexbot.command_processors:
-                if "level" in rule:
-                    latexbot.command_processors[command][1] = rule["level"]
-            else:
-                print(f"Error: Command not found when applying access rules: {command}")
     except Exception as e:
         print("Error: Invalid field 'accessRules'. Defaulting to [] or leaving unchanged.")
         access_rules = access_rules or []

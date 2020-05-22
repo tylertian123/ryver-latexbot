@@ -13,6 +13,7 @@ import trivia
 import typing
 import xkcd
 from caseinsensitivedict import CaseInsensitiveDict
+from command import Command
 from datetime import datetime, timedelta
 from latexbot_util import *
 from markdownify import markdownify
@@ -63,13 +64,17 @@ def generate_help_text(ryver: pyryver.Ryver):
     global help_text
     help_text = ""
     commands = {}
-    for name, command in command_processors.items():
-        if command[0].__doc__ == "":
+    for name, command in Command.all_commands.items():
+        if command.get_processor() is None:
+            # Don't generate a warning for commands with no processors
+            continue
+
+        if command.get_processor().__doc__ == "":
             print(f"Warning: Command {name} has no documentation, skipped")
             continue
 
         try:
-            properties = parse_doc(command[0].__doc__)
+            properties = parse_doc(command.get_processor().__doc__)
             if properties.get("hidden", False) == "true":
                 # skip hidden commands
                 continue
@@ -77,7 +82,7 @@ def generate_help_text(ryver: pyryver.Ryver):
             # Generate syntax string
             syntax = f"`@latexbot {name} {properties['syntax']}`" if properties["syntax"] else f"`@latexbot {name}`"
             # Generate short description
-            access_level = ACCESS_LEVEL_STRS.get(command[1], f"**Unknown Access Level: {command[1]}.**")
+            access_level = Command.ACCESS_LEVEL_STRS.get(command.get_level(), f"**Unknown Access Level: {command.get_level()}.**")
             description = f"{syntax} - {properties['short_desc']} {access_level}"
 
             # Group commands
@@ -252,7 +257,7 @@ async def _help(chat: pyryver.Chat, msg_id: str, s: str):
         if s in extended_help_text:
             text = extended_help_text[s]
             author = await (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5))[0].get_author()
-            if await is_authorized(chat, author, command_processors[s][1]):
+            if await Command.all_commands[s].is_authorized(chat, author):
                 text += "\n\n:white_check_mark: **You have access to this command.**"
             else:
                 text += "\n\n:no_entry: **You do not have access to this command.**"
@@ -558,7 +563,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     if cmd == "exportCustomQuestions":
         # Get the message object so we can check if the user is authorized
         msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-        if await is_authorized(chat, await msg.get_author(), ACCESS_LEVEL_ORG_ADMIN):
+        if await Command.all_commands["trivia exportCustomQuestions"].is_authorized(chat, await msg.get_author()):
             data = json.dumps(trivia.CUSTOM_TRIVIA_QUESTIONS, indent=2)
             if len(data) < 1000:
                 await chat.send_message(f"```json\n{data}\n```", creator)
@@ -570,7 +575,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
         return
     elif cmd == "importCustomQuestions":
         msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-        if await is_authorized(chat, await msg.get_author(), ACCESS_LEVEL_ORG_ADMIN):
+        if await Command.all_commands["trivia importCustomQuestions"].is_authorized(chat, await msg.get_author()):
             file = msg.get_attached_file()
             if file:
                 # Get the actual contents
@@ -760,7 +765,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 return
             # Get the message object so we can check if the user is authorized
             msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-            if msg.get_author_id() == trivia_game.host or await is_authorized(chat, await msg.get_author(), ACCESS_LEVEL_FORUM_ADMIN):
+            if msg.get_author_id() == trivia_game.host or await Command.all_commands["trivia end"].is_authorized(chat, await msg.get_author()):
                 # Display the scores
                 scores = sorted(trivia_game.scores.items(), key=lambda x: x[1], reverse=True)
                 if not scores:
@@ -1709,45 +1714,49 @@ async def _message(chat: pyryver.Chat, msg_id: str, s: str):
     await to.send_message(msg, creator)
 
 
-command_processors = {
-    "render": [_render, ACCESS_LEVEL_EVERYONE],
-    "chem": [_chem, ACCESS_LEVEL_EVERYONE],
-    "help": [_help, ACCESS_LEVEL_EVERYONE],
-    "ping": [_ping, ACCESS_LEVEL_EVERYONE],
-    "whatDoYouThink": [_whatDoYouThink, ACCESS_LEVEL_EVERYONE],
-    "xkcd": [_xkcd, ACCESS_LEVEL_EVERYONE],
-    "checkiday": [_checkiday, ACCESS_LEVEL_EVERYONE],
-    "trivia": [_trivia, ACCESS_LEVEL_EVERYONE],
+# Define commands
+Command("render", _render, Command.ACCESS_LEVEL_EVERYONE)
+Command("chem", _chem, Command.ACCESS_LEVEL_EVERYONE)
+Command("help", _help, Command.ACCESS_LEVEL_EVERYONE)
+Command("ping", _ping, Command.ACCESS_LEVEL_EVERYONE)
+Command("whatDoYouThink", _whatDoYouThink, Command.ACCESS_LEVEL_EVERYONE)
+Command("xkcd", _xkcd, Command.ACCESS_LEVEL_EVERYONE)
+Command("checkiday", _checkiday, Command.ACCESS_LEVEL_EVERYONE)
+Command("trivia", _trivia, Command.ACCESS_LEVEL_EVERYONE)
+# Note: These sub-commands will never get processed normally
+# They're here for checking access
+Command("trivia importCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("trivia exportCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("trivia end", None, Command.ACCESS_LEVEL_FORUM_ADMIN)
 
-    "deleteMessages": [_deleteMessages, ACCESS_LEVEL_FORUM_ADMIN],
-    "moveMessages": [_moveMessages, ACCESS_LEVEL_FORUM_ADMIN],
-    "countMessagesSince": [_countMessagesSince, ACCESS_LEVEL_FORUM_ADMIN],
+Command("deleteMessages", _deleteMessages, Command.ACCESS_LEVEL_FORUM_ADMIN)
+Command("moveMessages", _moveMessages, Command.ACCESS_LEVEL_FORUM_ADMIN)
+Command("countMessagesSince", _countMessagesSince, Command.ACCESS_LEVEL_FORUM_ADMIN)
 
-    "roles": [_roles, ACCESS_LEVEL_EVERYONE],
-    "addToRole": [_addToRole, ACCESS_LEVEL_ORG_ADMIN],
-    "removeFromRole": [_removeFromRole, ACCESS_LEVEL_ORG_ADMIN],
-    "deleteRole": [_deleteRole, ACCESS_LEVEL_ORG_ADMIN],
-    "exportRoles": [_exportRoles, ACCESS_LEVEL_EVERYONE],
-    "importRoles": [_importRoles, ACCESS_LEVEL_ORG_ADMIN],
+Command("roles", _roles, Command.ACCESS_LEVEL_EVERYONE)
+Command("addToRole", _addToRole, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("removeFromRole", _removeFromRole, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("deleteRole", _deleteRole, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("exportRoles", _exportRoles, Command.ACCESS_LEVEL_EVERYONE)
+Command("importRoles", _importRoles, Command.ACCESS_LEVEL_ORG_ADMIN)
 
-    "events": [_events, ACCESS_LEVEL_EVERYONE],
-    "addEvent": [_addEvent, ACCESS_LEVEL_ORG_ADMIN],
-    "quickAddEvent": [_quickAddEvent, ACCESS_LEVEL_ORG_ADMIN],
-    "deleteEvent": [_deleteEvent, ACCESS_LEVEL_ORG_ADMIN],
+Command("events", _events, Command.ACCESS_LEVEL_EVERYONE)
+Command("addEvent", _addEvent, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("quickAddEvent", _quickAddEvent, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("deleteEvent", _deleteEvent, Command.ACCESS_LEVEL_ORG_ADMIN)
 
-    "setEnabled": [_setEnabled, ACCESS_LEVEL_BOT_ADMIN],
-    "kill": [_kill, ACCESS_LEVEL_BOT_ADMIN],
-    "sleep": [_sleep, ACCESS_LEVEL_BOT_ADMIN],
-    "execute": [_execute, ACCESS_LEVEL_BOT_ADMIN],
-    "updateChats": [_updateChats, ACCESS_LEVEL_FORUM_ADMIN],
+Command("setEnabled", _setEnabled, Command.ACCESS_LEVEL_BOT_ADMIN)
+Command("kill", _kill, Command.ACCESS_LEVEL_BOT_ADMIN)
+Command("sleep", _sleep, Command.ACCESS_LEVEL_BOT_ADMIN)
+Command("execute", _execute, Command.ACCESS_LEVEL_BOT_ADMIN)
+Command("updateChats", _updateChats, Command.ACCESS_LEVEL_FORUM_ADMIN)
 
-    "alias": [_alias, ACCESS_LEVEL_ORG_ADMIN],
-    "exportConfig": [_exportConfig, ACCESS_LEVEL_EVERYONE],
-    "importConfig": [_importConfig, ACCESS_LEVEL_ORG_ADMIN],
-    "setDailyMessageTime": [_setDailyMessageTime, ACCESS_LEVEL_ORG_ADMIN],
+Command("alias", _alias, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("exportConfig", _exportConfig, Command.ACCESS_LEVEL_EVERYONE)
+Command("importConfig", _importConfig, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("setDailyMessageTime", _setDailyMessageTime, Command.ACCESS_LEVEL_ORG_ADMIN)
 
-    "message": [_message, ACCESS_LEVEL_ORG_ADMIN],
-}
+Command("message", _message, Command.ACCESS_LEVEL_ORG_ADMIN)
 
 
 ################################ OTHER FUNCTIONS ################################
@@ -1919,18 +1928,16 @@ async def main():
                         print(f"Command received from {from_user.get_name()} to {to.get_name()}: {text}")
 
                     async with session.typing(to):
-                        if command in command_processors:
-                            # Check the access level
-                            if not await is_authorized(to, from_user, command_processors[command][1]):
-                                await to.send_message(get_access_denied_message(), creator)
-                                print("Access was denied.")
-                            else:
-                                try:
-                                    result = await command_processors[command][0](to, msg['key'], args)
-                                except Exception as e:
-                                    print(f"Exception raised:\n{format_exc()}")
-                                    await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", creator)
-                                print("Command processed.")
+                        if command in Command.all_commands:
+                            try:
+                                if not await Command.process(command, args, to, from_user, msg['key']):
+                                    await to.send_message(Command.get_access_denied_message(), creator)
+                                    print("Access Denied")
+                                else:
+                                    print("Command processed.")
+                            except Exception as e:
+                                print(f"Exception raised:\n{format_exc()}")
+                                await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", creator)
                         else:
                             print("Invalid command.")
                             await to.send_message(f"Sorry, I didn't understand what you were asking me to do.", creator)

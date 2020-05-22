@@ -10,32 +10,6 @@ from random import randrange
 from textwrap import dedent
 
 
-ACCESS_LEVEL_EVERYONE = 0
-ACCESS_LEVEL_FORUM_ADMIN = 1
-ACCESS_LEVEL_ORG_ADMIN = 2
-ACCESS_LEVEL_BOT_ADMIN = 3
-ACCESS_LEVEL_TYLER = 9001
-
-ACCESS_LEVEL_STRS = {
-    ACCESS_LEVEL_EVERYONE: "",
-    ACCESS_LEVEL_FORUM_ADMIN: "**Accessible to Forum, Org and Bot Admins only.**",
-    ACCESS_LEVEL_ORG_ADMIN: "**Accessible to Org and Bot Admins only.**",
-    ACCESS_LEVEL_BOT_ADMIN: "**Accessible to Bot Admins only.**",
-    ACCESS_LEVEL_TYLER: "**Accessible to Tyler only.**"
-}
-
-ACCESS_DENIED_MESSAGES = [
-    "I'm sorry Dave, I'm afraid I can't do that.",
-    "ACCESS DENIED",
-    "![NO](https://i.kym-cdn.com/photos/images/original/001/483/348/bdd.jpg)",
-    "This operation requires a higher access level. Please ask an admin.",
-    "Nice try.",
-    "![Access Denied](https://cdn.windowsreport.com/wp-content/uploads/2018/08/fix-access-denied-error-windows-10.jpg)",
-    "![No.](https://i.imgur.com/DKUR9Tk.png)",
-    "![No](https://pics.me.me/thumb_no-no-meme-face-hot-102-7-49094780.png)",
-]
-
-
 MENTION_REGEX = re.compile(r"((?:^|[^a-zA-Z0-9_!@#$%&*])(?:(?:@)(?!\/)))([a-zA-Z0-9_]*)(?:\b(?!@)|$)", flags=re.MULTILINE)
 
 
@@ -57,36 +31,6 @@ ALL_TIME_FORMATS = [
 ]
 
 XKCD_PROFILE = "https://www.explainxkcd.com/wiki/images/6/6d/BlackHat_head.png"
-
-
-async def is_authorized(chat: pyryver.Chat, user: pyryver.User, required_level: int) -> bool:
-    """
-    Check if a user has a particular access level or higher.
-    """
-    if required_level <= ACCESS_LEVEL_EVERYONE:
-        return True
-
-    if required_level <= ACCESS_LEVEL_TYLER and user.get_id() == 1311906:
-        return True
-
-    if required_level <= ACCESS_LEVEL_BOT_ADMIN and user.get_id() in org.admins:
-        return True
-
-    if required_level <= ACCESS_LEVEL_ORG_ADMIN and user.is_admin():
-        return True
-
-    # Check if the user is a forum admin
-    is_forum_admin = False
-    # First make sure that the chat isn't a DM
-    if isinstance(chat, pyryver.GroupChat):
-        member = await chat.get_member(user.get_id())
-        if member:
-            is_forum_admin = member.is_admin()
-
-    if required_level <= ACCESS_LEVEL_FORUM_ADMIN and is_forum_admin:
-        return True
-
-    return False
 
 
 async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
@@ -136,13 +80,6 @@ def sanitize(msg: str) -> str:
     Currently, this method makes all mentions ineffective by putting a space between the @ and the username.
     """
     return MENTION_REGEX.sub(r"\1 \2", msg)
-
-
-def get_access_denied_message() -> str:
-    """
-    Get an "access denied" message randomly chosen from ACCESS_DENIED_MESSAGES.
-    """
-    return ACCESS_DENIED_MESSAGES[randrange(len(ACCESS_DENIED_MESSAGES))]
 
 
 def caldays_diff(a: datetime, b: datetime) -> int:
