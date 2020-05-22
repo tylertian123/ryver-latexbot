@@ -9,4 +9,4 @@ RUN apk del gcc musl-dev
 
 COPY . .
 
-CMD [ "python", "./latexbot.py" ]
+CMD [ "python", "./main.py" ]

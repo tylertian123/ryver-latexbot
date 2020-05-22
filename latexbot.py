@@ -173,6 +173,13 @@ def preprocess_command(command: str, is_dm: bool):
         # Otherwise go again until no more expansion happens
 
 
+def set_access_level(command: str, level: int):
+    """
+    Set the access level of a command.
+    """
+    command_processors[command][1] = level
+
+
 ################################ COMMAND PROCESSORS ################################
 
 
@@ -1847,7 +1854,7 @@ async def main():
     async with pyryver.Ryver(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"], cache) as ryver:
         # Init other stuff
         await ryver.load_missing_chats()
-        await org.init(ryver)        
+        await org.init(ryver)
         generate_help_text(ryver)
         # Start live session
         async with ryver.get_live_session() as session:
@@ -2018,7 +2025,3 @@ async def main():
             await org.home_chat.send_message(f"LaTeX Bot {VERSION} is online! **I now respond to messages in real time!**\n\n{help_text}", creator)
 
             await session.run_forever()
-
-
-if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())

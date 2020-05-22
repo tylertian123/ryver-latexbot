@@ -22,13 +22,13 @@ daily_message_time = None
 last_xkcd = None
 command_prefixes = []
 aliases = []
+access_rules = []
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 TRIVIA_FILE = "data/trivia.json"
 
 SERVICE_ACCOUNT_FILE = "calendar_credentials.json"
 calendar = gcalendar.Calendar(SERVICE_ACCOUNT_FILE)
-
 
 def save_roles():
     """
@@ -53,8 +53,15 @@ def make_config():
     - "lastXKCD": The number of the latest xkcd. Used to check for new comics. (int)
     - "commandPrefixes": A list of all the accepted prefixes for commands. (list of str)
     - "aliases": A list of command aliases, each with the following format (list of dict):
-        - "from": The alias
-        - "to": The text the alias expands to
+        - "from": The alias (str)
+        - "to": The text the alias expands to (str)
+    - "accessRules": Command access rules (dict):
+        - "<command name>": The access rules for a specific command, with the following format (dict):
+            - "level": If present, overrides the access level of this command (int, optional)
+            - "allowUser": A list of usernames. If present, users in this list can access this command regardless of level (list of str, optional)
+            - "disallowUser": A list of usernames. If present, users in this list cannot access this command regardless of level (list of str, optional)
+            - "allowRole": A list of role names. If present, users with any of the roles in this list can access this command regardless of level (list of str, optional)
+            - "disallowRole": A list of role names. If present, users with any of the roles in this list cannot access this command regardless of level (list of str, optional)
     """
     return {
         "admins": list(admins),
@@ -67,6 +74,7 @@ def make_config():
         "lastXKCD": last_xkcd,
         "commandPrefixes": command_prefixes,
         "aliases": aliases,
+        "accessRules": access_rules,
     }
 
 
@@ -74,40 +82,40 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
     """
     Initialize config data from a config dict.
     """
-    global admins, org_tz, home_chat, announcements_chat, calendar_id, daily_message_time, messages_chat, last_xkcd, command_prefixes, aliases
+    global admins, org_tz, home_chat, announcements_chat, calendar_id, daily_message_time, messages_chat, last_xkcd, command_prefixes, aliases, access_rules
     try:
         admins = set(config["admins"])
-    except KeyError:
-        print("Error: 'admins' not specified. Defaulting to [] or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'admins'. Defaulting to [] or leaving unchanged.")
         admins = admins or []
     try:
         org_tz = config["organizationTimeZone"]
-    except KeyError:
-        print("Error: 'organizationTimeZone' not specified. Defaulting to UTC or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'organizationTimeZone'. Defaulting to UTC or leaving unchanged.")
         org_tz = org_tz or "UTC"
     try:
         home_chat = ryver.get_groupchat(nickname=config["homeChat"])
-    except KeyError:
-        print("Error: 'homeChat' not specified. Defaulting to +Test or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'homeChat'. Defaulting to +Test or leaving unchanged.")
         home_chat = home_chat or ryver.get_groupchat(nickname="Test")
     try:
         announcements_chat = ryver.get_groupchat(nickname=config["announcementsChat"])
-    except KeyError:
-        print("Error: 'announcementsChat' not specified. Defaulting to +Gen or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'announcementsChat'. Defaulting to +Gen or leaving unchanged.")
         announcements_chat = announcements_chat or ryver.get_groupchat(nickname="Gen")
     try:
         messages_chat = ryver.get_groupchat(nickname=config["messagesChat"])
-    except KeyError:
-        print("Error: 'messagesChat' not specified. Defaulting to +Test or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'messagesChat'. Defaulting to +Test or leaving unchanged.")
         messages_chat = messages_chat or ryver.get_groupchat(nickname="Test")
     try:
         calendar_id = config["googleCalendarId"]
-    except KeyError:
-        print("Error: 'googleCalendarId' not specified. Defaulting to null or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'googleCalendarId'. Defaulting to null or leaving unchanged.")
     try:
         daily_message_time = config["dailyMessageTime"]
-    except KeyError:
-        print("Error: 'dailyMessageTime' not specified. Defaulting to null or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'dailyMessageTime'. Defaulting to null or leaving unchanged.")
     # Schedule or unschedule the daily message task
     if daily_message_time:
         latexbot.schedule_daily_message()
@@ -116,19 +124,32 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
             latexbot.daily_message_task.cancel()
     try:
         last_xkcd = config["lastXKCD"]
-    except KeyError:
-        print("Error: 'lastXKCD' not specified. Defaulting to 0 or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'lastXKCD'. Defaulting to 0 or leaving unchanged.")
         last_xkcd = last_xkcd or 0
     try:
         command_prefixes = config["commandPrefixes"]
-    except KeyError:
-        print("Error: 'commandPrefixes' not specified. Defaulting to ['@latexbot '] or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'commandPrefixes'. Defaulting to ['@latexbot '] or leaving unchanged.")
         command_prefixes = command_prefixes or ["@latexbot "]
     try:
         aliases = config["aliases"]
-    except KeyError:
-        print("Error: 'aliases' not specified. Defaulting to [] or leaving unchanged.")
+    except Exception as e:
+        print("Error: Invalid field 'aliases'. Defaulting to [] or leaving unchanged.")
         aliases = aliases or []
+    try:
+        access_rules = config["accessRules"]
+
+        # Update command access levels
+        for command, rule in access_rules.items():
+            if command in latexbot.command_processors:
+                if "level" in rule:
+                    latexbot.command_processors[command][1] = rule["level"]
+            else:
+                print(f"Error: Command not found when applying access rules: {command}")
+    except Exception as e:
+        print("Error: Invalid field 'accessRules'. Defaulting to [] or leaving unchanged.")
+        access_rules = access_rules or []
 
 
 def save_config():
