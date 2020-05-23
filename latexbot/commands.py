@@ -5,7 +5,6 @@ This module contains command definitions for LaTeX Bot.
 import asyncio
 import io
 import json
-import latexbot
 import org
 import aiohttp # This has to be after import org because of a circular dependencies issue
 import os
@@ -26,7 +25,7 @@ from markdownify import markdownify
 from org import creator
 from traceback import format_exc
 
-async def _render(chat: pyryver.Chat, msg_id: str, formula: str):
+async def _render(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Render a LaTeX formula.
 
@@ -39,19 +38,19 @@ async def _render(chat: pyryver.Chat, msg_id: str, formula: str):
     ---
     > `@latexbot render f(x) = \\sum_{i=0}^{n} \\frac{a_i}{1+x}`
     """
-    if len(formula) > 0:
+    if len(args) > 0:
         try:
-            img_data = await render.render(formula, color="gray", transparent=True)
+            img_data = await render.render(args, color="gray", transparent=True)
         except ValueError as e:
             await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```")
             return
         file = (await chat.get_ryver().upload_file("equation.png", img_data, "image/png")).get_file()
-        await chat.send_message(f"Formula: `{formula}`\n![{formula}]({file.get_url()})", creator)
+        await chat.send_message(f"Formula: `{args}`\n![{args}]({file.get_url()})", creator)
     else:
         await chat.send_message("Formula can't be empty.", creator)
 
 
-async def _chem(chat: pyryver.Chat, msg_id: str, s: str):
+async def _chem(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Render a chemical formula.
 
@@ -62,19 +61,19 @@ async def _chem(chat: pyryver.Chat, msg_id: str, s: str):
     ---
     > `@latexbot chem HCl_{(aq)} + NaOH_{(aq)} -> H2O_{(l)} + NaCl_{(aq)}`
     """
-    if len(s) > 0:
+    if len(args) > 0:
         try:
-            img_data = await render.render(f"\\ce{{{s}}}", color="gray", transparent=True, extra_packages=["mhchem"])
+            img_data = await render.render(f"\\ce{{{args}}}", color="gray", transparent=True, extra_packages=["mhchem"])
         except ValueError as e:
             await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```\n\nDid you forget to put spaces on both sides of the reaction arrow?")
             return
         file = (await chat.get_ryver().upload_file("formula.png", img_data, "image/png")).get_file()
-        await chat.send_message(f"Formula: `{s}`\n![{s}]({file.get_url()})", creator)
+        await chat.send_message(f"Formula: `{args}`\n![{args}]({file.get_url()})", creator)
     else:
         await chat.send_message("Formula can't be empty.", creator)
 
 
-async def _help(chat: pyryver.Chat, msg_id: str, s: str):
+async def _help(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Get a list of all the commands, or details about a command.
 
@@ -87,15 +86,14 @@ async def _help(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot help` - Get general help
     > `@latexbot help render` - Get help about the "render" command.
     """
-    s = s.strip()
-    if s == "":
+    args = args.strip()
+    if args == "":
         await chat.send_message(help_text, creator)
     else:
-        default = f"Error: {s} is not a valid command, or does not have an extended description."
-        if s in extended_help_text:
-            text = extended_help_text[s]
-            author = await (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5))[0].get_author()
-            if await Command.all_commands[s].is_authorized(chat, author):
+        default = f"Error: {args} is not a valid command, or does not have an extended description."
+        if args in extended_help_text:
+            text = extended_help_text[args]
+            if await Command.all_commands[args].is_authorized(chat, user):
                 text += "\n\n:white_check_mark: **You have access to this command.**"
             else:
                 text += "\n\n:no_entry: **You do not have access to this command.**"
@@ -104,7 +102,7 @@ async def _help(chat: pyryver.Chat, msg_id: str, s: str):
             await chat.send_message(default, creator)
 
 
-async def _ping(chat: pyryver.Chat, msg_id: str, s: str):
+async def _ping(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     I will respond with 'Pong' if I'm here.
     ---
@@ -133,7 +131,7 @@ no_msgs = [
 ]
 
 
-async def _whatDoYouThink(chat: pyryver.Chat, msg_id: str, s: str):
+async def _whatDoYouThink(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Ask my opinion of a thing!
 
@@ -144,11 +142,11 @@ async def _whatDoYouThink(chat: pyryver.Chat, msg_id: str, s: str):
     ---
     > `@latexbot whatDoYouThink <insert controversial topic here>`
     """
-    msgs = no_msgs if hash(s.strip().lower()) % 2 == 0 else yes_msgs
+    msgs = no_msgs if hash(args.strip().lower()) % 2 == 0 else yes_msgs
     await chat.send_message(msgs[random.randrange(len(msgs))], creator)
 
 
-async def _xkcd(chat: pyryver.Chat, msg_id: str, s: str):
+async def _xkcd(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Get the latest xkcd or a specific xkcd by number.
     ---
@@ -159,9 +157,9 @@ async def _xkcd(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot xkcd 149` - Get xkcd #149.
     """
     xkcd_creator = pyryver.Creator(creator.name, XKCD_PROFILE)
-    if s:
+    if args:
         try:
-            number = int(s)
+            number = int(args)
         except ValueError:
             await chat.send_message(f"Invalid number.", xkcd_creator)
             return
@@ -179,7 +177,7 @@ async def _xkcd(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"An error occurred: {e}", xkcd_creator)
 
 
-async def _checkiday(chat: pyryver.Chat, msg_id: str, s: str):
+async def _checkiday(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Get a list of today's holidays or holidays for any date.
 
@@ -193,7 +191,7 @@ async def _checkiday(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot checkiday` - Get today's holidays.
     > `@latexbot checkiday 2020/05/12` - Get the holidays on May 12, 2020.
     """
-    url = f"https://www.checkiday.com/api/3/?d={s or current_time().strftime('%Y/%m/%d')}"
+    url = f"https://www.checkiday.com/api/3/?d={args or current_time().strftime('%Y/%m/%d')}"
     async with aiohttp.request("GET", url) as resp:
         if resp.status != 200:
             await chat.send_message(f"HTTP error while trying to get holidays: {resp}", creator)
@@ -224,7 +222,7 @@ TRIVIA_POINTS = {
 }
 
 
-async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
+async def _trivia(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Play a game of trivia. See extended description for details. 
     
@@ -264,7 +262,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot trivia importCustomQuestions {}` - Import some custom questions as a JSON.
     > `@latexbot trivia exportCustomQuestions` - Export some custom questions as a JSON.
     """
-    if s == "":
+    if args == "":
         await chat.send_message("Error: Please specify a sub-command! See `@latexbot help trivia` for details.", creator)
         return
     
@@ -400,21 +398,19 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
 
     # Find the first whitespace
     space = None
-    for i, c in enumerate(s):
+    for i, c in enumerate(args):
         if c.isspace():
             space = i
             break
     if space:
-        cmd = s[:space]
-        args = s[space + 1:]
+        cmd = args[:space]
+        sub_args = args[space + 1:]
     else:
-        cmd = s
-        args = ""
+        cmd = args
+        sub_args = ""
     
     if cmd == "exportCustomQuestions":
-        # Get the message object so we can check if the user is authorized
-        msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-        if await Command.all_commands["trivia exportCustomQuestions"].is_authorized(chat, await msg.get_author()):
+        if await Command.all_commands["trivia exportCustomQuestions"].is_authorized(chat, user):
             data = json.dumps(trivia.CUSTOM_TRIVIA_QUESTIONS, indent=2)
             if len(data) < 1000:
                 await chat.send_message(f"```json\n{data}\n```", creator)
@@ -439,7 +435,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                     await chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
                     return
             else:
-                data = args
+                data = sub_args
             
             try:
                 trivia.set_custom_trivia_questions(json.loads(data))
@@ -452,7 +448,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             await chat.send_message("You are not authorized to do that.", creator)
         return
 
-    args = shlex.split(args)
+    sub_args = shlex.split(sub_args)
     async with trivia_lock:
         if cmd == "categories":
             # Note: The reason we're not starting from 0 here is because of markdown forcing you to start a list at 1
@@ -464,7 +460,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 categories += "\n\nCustom categories can only be specified by name. Use 'all' for all regular categories (no custom), or 'custom' for all custom categories (no regular)."
             await chat.send_message(f"# Categories:\n{categories}", creator)
         elif cmd == "start":
-            if not (0 <= len(args) <= 3):
+            if not (0 <= len(sub_args) <= 3):
                 await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
                 return
             
@@ -473,12 +469,12 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 return
             
             # Try parsing the category
-            if len(args) >= 1:
+            if len(sub_args) >= 1:
                 try:
                     # Subtract 1 for correct indexing
-                    category = int(args[0]) - 1
+                    category = int(sub_args[0]) - 1
                 except ValueError:
-                    category = args[0]
+                    category = sub_args[0]
                 categories = await trivia.get_categories()
                 if isinstance(category, int):
                     if category < 0 or category >= len(categories):
@@ -516,14 +512,14 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 question_type = None
             
             # Try parsing the difficulty
-            if len(args) >= 2:
+            if len(sub_args) >= 2:
                 try:
                     difficulty = {
                         "easy": trivia.TriviaSession.DIFFICULTY_EASY,
                         "medium": trivia.TriviaSession.DIFFICULTY_MEDIUM,
                         "hard": trivia.TriviaSession.DIFFICULTY_HARD,
                         "all": None,
-                    }[args[1].lower()]
+                    }[sub_args[1].lower()]
                 except KeyError:
                     await chat.send_message("Invalid difficulty! Allowed difficulties are 'easy', 'medium', 'hard' or 'all'.", creator)
                     return
@@ -532,13 +528,13 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 question_type = None
             
             # Try parsing the type
-            if len(args) >= 3:
+            if len(sub_args) >= 3:
                 try:
                     question_type = {
                         "true/false": trivia.TriviaSession.TYPE_TRUE_OR_FALSE,
                         "multiple-choice": trivia.TriviaSession.TYPE_MULTIPLE_CHOICE,
                         "all": None,
-                    }[args[2].lower()]
+                    }[sub_args[2].lower()]
                 except KeyError:
                     await chat.send_message("Invalid question type! Allowed types are 'true/false', 'multiple-choice' or 'all'.", creator)
                     return
@@ -550,8 +546,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             trivia_game.set_category(category)
             trivia_game.set_difficulty(difficulty)
             trivia_game.set_type(question_type)
-            msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-            await trivia_game.start(msg.get_author_id())
+            await trivia_game.start(user.get_id())
 
             await chat.send_message("Game started! Use `@latexbot trivia question` to get the question.", creator)
             refresh_timeout()
@@ -562,7 +557,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
         elif cmd == "question" or cmd == "next":
             await next_question()
         elif cmd == "answer":
-            if len(args) != 1:
+            if len(sub_args) != 1:
                 await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", creator)
                 return
             
@@ -578,11 +573,11 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
             
             try:
                 # Subtract 1 for correct indexing
-                answer = int(args[0]) - 1
+                answer = int(sub_args[0]) - 1
             except ValueError:
                 # Is this a true/false question?
                 if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_TRUE_OR_FALSE:
-                    answer = args[0].lower()
+                    answer = sub_args[0].lower()
                     # Special handling for true/false text
                     if answer == "true":
                         answer = 0
@@ -599,12 +594,10 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 await chat.send_message("Invalid answer number!", creator)
                 return
             
-            # Get the message object so we know who sent it
-            msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
             points = TRIVIA_POINTS[trivia_game.current_question['difficulty']]
-            author_name = chat.get_ryver().get_user(id=msg.get_author_id()).get_name()
+            author_name = chat.get_ryver().get_user(id=user.get_id()).get_name()
 
-            if trivia_game.answer(answer, msg.get_author_id(), points):
+            if trivia_game.answer(answer, user.get_id(), points):
                 await chat.send_message(f"Correct answer! **{author_name}** earned {points} points!", creator)
             else:
                 await chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}. **{author_name}** did not get any points for that.", creator)
@@ -615,8 +608,7 @@ async def _trivia(chat: pyryver.Chat, msg_id: str, s: str):
                 await chat.send_message("Error: Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.", creator)
                 return
             # Get the message object so we can check if the user is authorized
-            msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
-            if msg.get_author_id() == trivia_game.host or await Command.all_commands["trivia end"].is_authorized(chat, await msg.get_author()):
+            if user.get_id() == trivia_game.host or await Command.all_commands["trivia end"].is_authorized(chat, user):
                 # Display the scores
                 scores = sorted(trivia_game.scores.items(), key=lambda x: x[1], reverse=True)
                 if not scores:
@@ -706,7 +698,7 @@ async def _trivia_on_reaction(ryver: pyryver.Ryver, session: pyryver.RyverWS, da
                         await trivia_chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}. **{author_name}** did not get any points for that.", creator)
 
 
-async def _deleteMessages(chat: pyryver.Chat, msg_id: str, s: str):
+async def _deleteMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Delete messages.
 
@@ -723,12 +715,12 @@ async def _deleteMessages(chat: pyryver.Chat, msg_id: str, s: str):
     """
     try:
         # Try and parse the range
-        if "-" in s:
-            start = int(s[:s.index("-")].strip())
-            s = s[s.index("-") + 1:].strip()
+        if "-" in args:
+            start = int(args[:args.index("-")].strip())
+            args = args[args.index("-") + 1:].strip()
         else:
             start = 1
-        end = int(s)
+        end = int(args)
     except (ValueError, IndexError):
         await chat.send_message("Invalid syntax.", creator)
         return
@@ -745,7 +737,7 @@ async def _deleteMessages(chat: pyryver.Chat, msg_id: str, s: str):
     await (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0].delete()
 
 
-async def _moveMessages(chat: pyryver.Chat, msg_id: str, s: str):
+async def _moveMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Move messages to another forum or team.
 
@@ -763,12 +755,12 @@ async def _moveMessages(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot moveMessages 10 Off-Topic` - Move the last 10 messages to Off-Topic.
     > `@latexbot moveMessages 10-20 nickname=OffTopic` - Move the 10th last to 20th last messages (inclusive) to a forum/team with the nickname +OffTopic.
     """
-    s = s.split()
-    if len(s) < 2:
+    args = args.split()
+    if len(args) < 2:
         chat.send_message("Invalid syntax.", creator)
         return
 
-    msg_range = s[0]
+    msg_range = args[0]
     try:
         # Try and parse the range
         if "-" in msg_range:
@@ -781,7 +773,7 @@ async def _moveMessages(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message("Invalid syntax.", creator)
         return
 
-    to = parse_chat_name(chat.get_ryver(), " ".join(s[1:]))
+    to = parse_chat_name(chat.get_ryver(), " ".join(args[1:]))
     if not to:
         await chat.send_message("Forum/team not found", creator)
         return
@@ -826,7 +818,7 @@ async def _moveMessages(chat: pyryver.Chat, msg_id: str, s: str):
     await to.send_message("---\n\n# End Moved Message", creator)
 
 
-async def _countMessagesSince(chat: pyryver.Chat, msg_id: str, s: str):
+async def _countMessagesSince(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Count the number of messages since the first message that matches a pattern.
 
@@ -844,18 +836,18 @@ async def _countMessagesSince(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot countMessagesSince foo bar` - Count the number of messages since someone said "foo bar".
     > `@latexbot countMessagesSince /(\\s|^)@(\\w+)(?=\\s|$)/` - Count the number of messages since someone last used an @ mention.
     """
-    if s.startswith("/") and s.endswith("/"):
+    if args.startswith("/") and args.endswith("/"):
         try:
-            expr = re.compile(s[1:-1], re.MULTILINE | re.IGNORECASE)
+            expr = re.compile(args[1:-1], re.MULTILINE | re.IGNORECASE)
             # Use the regex search function as the match function
             match = expr.search
         except re.error as e:
             await chat.send_message("Invalid regex: " + str(e), creator)
             return
     else:
-        s = s.lower()
+        args = args.lower()
         # Case insensitive match
-        def match(x): return x.lower().find(s) >= 0
+        def match(x): return x.lower().find(args) >= 0
 
     count = 1
     # Max search depth: 250
@@ -877,7 +869,7 @@ async def _countMessagesSince(chat: pyryver.Chat, msg_id: str, s: str):
         "Error: Max search depth of 250 messages exceeded without finding a match.", creator)
 
 
-async def _roles(chat: pyryver.Chat, msg_id: str, s: str):
+async def _roles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Get information about roles.
 
@@ -898,32 +890,32 @@ async def _roles(chat: pyryver.Chat, msg_id: str, s: str):
     """
     if not org.roles:
         await chat.send_message(f"There are currently no roles.", creator)
-    if s == "":
+    if args == "":
         if org.roles:
             roles_str = "\n".join(
                 f"**{role}**: {', '.join(usernames)}" for role, usernames in org.roles.items())
             await chat.send_message(f"All roles:\n{roles_str}", creator)
     else:
         # A mention
-        if s.startswith("@"):
-            s = s[1:]
+        if args.startswith("@"):
+            args = args[1:]
         # A role
-        if s in org.roles:
-            users = "\n".join(org.roles[s])
-            await chat.send_message(f"These users have the role '{s}':\n{users}", creator)
+        if args in org.roles:
+            users = "\n".join(org.roles[args])
+            await chat.send_message(f"These users have the role '{args}':\n{users}", creator)
         # Check if it's a username
-        elif chat.get_ryver().get_user(username=s):
-            roles = "\n".join(role for role, usernames in org.roles.items() if s in usernames)
+        elif chat.get_ryver().get_user(username=args):
+            roles = "\n".join(role for role, usernames in org.roles.items() if args in usernames)
             if roles:
                 await chat.send_message(
-                    f"User '{s}' has the following roles:\n{roles}", creator)
+                    f"User '{args}' has the following roles:\n{roles}", creator)
             else:
-                await chat.send_message(f"User '{s}' has no roles.", creator)
+                await chat.send_message(f"User '{args}' has no roles.", creator)
         else:
-            await chat.send_message(f"'{s}' is not a valid username or role name.", creator)
+            await chat.send_message(f"'{args}' is not a valid username or role name.", creator)
 
 
-async def _addToRole(chat: pyryver.Chat, msg_id: str, s: str):
+async def _addToRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Add people to a role.
 
@@ -938,7 +930,7 @@ async def _addToRole(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot addToRole Foo tylertian` - Give Tyler the "Foo" role.
     > `@latexbot addToRole Foo,Bar tylertian latexbot` Give Tyler and LaTeX Bot the "Foo" and "Bar" roles.
     """
-    args = s.split()
+    args = args.split()
     if len(args) < 2:
         await chat.send_message("Invalid syntax.", creator)
         return
@@ -967,7 +959,7 @@ async def _addToRole(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message("Operation successful.", creator)
 
 
-async def _removeFromRole(chat: pyryver.Chat, msg_id: str, s: str):
+async def _removeFromRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Remove people from a role.
 
@@ -979,7 +971,7 @@ async def _removeFromRole(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot removeFromRole Foo tylertian` - Remove Tyler from the "Foo" role.
     > `@latexbot removeFromRole Foo,Bar tylertian latexbot` Remove Tyler and LaTeX Bot from the "Foo" and "Bar" roles.
     """
-    args = s.split()
+    args = args.split()
     if len(args) < 2:
         await chat.send_message("Invalid syntax.", creator)
         return
@@ -1009,7 +1001,7 @@ async def _removeFromRole(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message("Operation successful.", creator)
 
 
-async def _deleteRole(chat: pyryver.Chat, msg_id: str, s: str):
+async def _deleteRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Completely delete a role, removing all users from that role.
 
@@ -1020,10 +1012,10 @@ async def _deleteRole(chat: pyryver.Chat, msg_id: str, s: str):
     ---
     > `@latexbot deleteRole Foo` - Remove everyone from the role Foo and delete it.
     """
-    if s == "":
+    if args == "":
         await chat.send_message("Error: Please specify at least one role!", creator)
         return
-    roles = [r.strip() for r in s.split(",")]
+    roles = [r.strip() for r in args.split(",")]
     for role in roles:
         try:
             org.roles.pop(role)
@@ -1034,7 +1026,7 @@ async def _deleteRole(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message("Operation successful.", creator)
 
 
-async def _exportRoles(chat: pyryver.Chat, msg_id: str, s: str):
+async def _exportRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Export roles data as a JSON. 
 
@@ -1052,7 +1044,7 @@ async def _exportRoles(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Roles: [{file.get_name()}]({file.get_url()})", creator)
 
 
-async def _importRoles(chat: pyryver.Chat, msg_id: str, s: str):
+async def _importRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Import JSON roles data from the message, or from a file attachment.
 
@@ -1076,7 +1068,7 @@ async def _importRoles(chat: pyryver.Chat, msg_id: str, s: str):
             await chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
             return
     else:
-        data = s
+        data = args
     
     try:
         org.roles = CaseInsensitiveDict(json.loads(data))
@@ -1087,7 +1079,7 @@ async def _importRoles(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Error decoding JSON: {e}", creator)
 
 
-async def _events(chat: pyryver.Chat, msg_id: str, s: str):
+async def _events(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Display information about ongoing and upcoming events from Google Calendar.
 
@@ -1100,7 +1092,7 @@ async def _events(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot events 5` - Get the next 5 events, including ongoing events.
     """
     try:
-        count = int(s) if s else 3
+        count = int(args) if args else 3
         if count < 1:
             raise ValueError
     except ValueError:
@@ -1165,7 +1157,7 @@ async def _events(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message(resp, creator)
 
 
-async def _quickAddEvent(chat: pyryver.Chat, msg_id: str, s: str):
+async def _quickAddEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Add an event to Google Calendar based on a simple text string.
 
@@ -1178,7 +1170,7 @@ async def _quickAddEvent(chat: pyryver.Chat, msg_id: str, s: str):
     ---
     > `@latexbot quickAddEvent Appointment at Somewhere on June 3rd 10am-10:25am`
     """
-    event = org.calendar.quick_add(org.calendar_id, s)
+    event = org.calendar.quick_add(org.calendar_id, args)
     start = Calendar.parse_time(event["start"])
     end = Calendar.parse_time(event["end"])
     # Correctly format based on whether the event is an all-day event
@@ -1188,7 +1180,7 @@ async def _quickAddEvent(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
 
 
-async def _addEvent(chat: pyryver.Chat, msg_id: str, s: str):
+async def _addEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Add an event to Google Calendar.
 
@@ -1218,30 +1210,30 @@ async def _addEvent(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot addEvent Foo 2020-01-01 00:00 2020-01-01 12:00` - Add an event named "Foo", starting midnight on 2020-01-01 and ending 12 PM on the same day.
     """
     # If a description is included
-    if "\n" in s:
-        i = s.index("\n")
-        desc = s[i + 1:]
-        s = s[:i]
+    if "\n" in args:
+        i = args.index("\n")
+        desc = args[i + 1:]
+        args = args[:i]
     else:
         desc = None
     try:
-        s = shlex.split(s)
+        args = shlex.split(args)
     except ValueError as e:
         await chat.send_message(f"Invalid syntax: {e}", creator)
         return  
-    if len(s) != 3 and len(s) != 5:
+    if len(args) != 3 and len(args) != 5:
         await chat.send_message("Error: Invalid syntax. Check `@latexbot help addEvent` for help. You may have to use quotes if any of the parameters contain spaces.", creator)
         return
     
     # No times specified
-    if len(s) == 3:
-        start = tryparse_datetime(s[1], ALL_DATE_FORMATS)
+    if len(args) == 3:
+        start = tryparse_datetime(args[1], ALL_DATE_FORMATS)
         if not start:
-            await chat.send_message(f"Error: The date {s[1]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            await chat.send_message(f"Error: The date {args[1]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
             return
-        end = tryparse_datetime(s[2], ALL_DATE_FORMATS)
+        end = tryparse_datetime(args[2], ALL_DATE_FORMATS)
         if not end:
-            await chat.send_message(f"Error: The date {s[2]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            await chat.send_message(f"Error: The date {args[2]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
             return
         event_body = {
             "start": {
@@ -1252,22 +1244,22 @@ async def _addEvent(chat: pyryver.Chat, msg_id: str, s: str):
             }
         }
     else:
-        start_date = tryparse_datetime(s[1], ALL_DATE_FORMATS)
+        start_date = tryparse_datetime(args[1], ALL_DATE_FORMATS)
         if not start_date:
-            await chat.send_message(f"Error: The date {s[1]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            await chat.send_message(f"Error: The date {args[1]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
             return
-        start_time = tryparse_datetime(s[2], ALL_TIME_FORMATS)
+        start_time = tryparse_datetime(args[2], ALL_TIME_FORMATS)
         if not start_time:
-            await chat.send_message(f"Error: The time {s[2]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            await chat.send_message(f"Error: The time {args[2]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
             return
 
-        end_date = tryparse_datetime(s[3], ALL_DATE_FORMATS)
+        end_date = tryparse_datetime(args[3], ALL_DATE_FORMATS)
         if not end_date:
-            await chat.send_message(f"Error: The date {s[3]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            await chat.send_message(f"Error: The date {args[3]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
             return
-        end_time = tryparse_datetime(s[4], ALL_TIME_FORMATS)
+        end_time = tryparse_datetime(args[4], ALL_TIME_FORMATS)
         if not end_time:
-            await chat.send_message(f"Error: The time {s[4]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
+            await chat.send_message(f"Error: The time {args[4]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", creator)
             return
         
         # Merge to get datetimes
@@ -1283,12 +1275,12 @@ async def _addEvent(chat: pyryver.Chat, msg_id: str, s: str):
                 "timeZone": org.org_tz,
             }
         }
-    event_body["summary"] = s[0]
+    event_body["summary"] = args[0]
     if desc:
         event_body["description"] = desc
     event = org.calendar.add_event(org.calendar_id, event_body)
-    start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if len(s) == 5 else DATE_DISPLAY_FORMAT)
-    end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if len(s) == 5 else DATE_DISPLAY_FORMAT)
+    start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if len(args) == 5 else DATE_DISPLAY_FORMAT)
+    end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if len(args) == 5 else DATE_DISPLAY_FORMAT)
     if not desc:
         await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
     else:
@@ -1296,7 +1288,7 @@ async def _addEvent(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**)\u200B:\n{markdownify(event['description'])}\n\nLink: {event['htmlLink']}", creator)
 
 
-async def _deleteEvent(chat: pyryver.Chat, msg_id: str, s: str):
+async def _deleteEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Delete an event by name from Google Calendar.
 
@@ -1312,13 +1304,13 @@ async def _deleteEvent(chat: pyryver.Chat, msg_id: str, s: str):
     ---
     > `@latexbot deleteEvent Foo Bar` - Remove the event "Foo Bar".
     """
-    s = s.lower()
+    args = args.lower()
     events = org.calendar.get_upcoming_events(org.calendar_id)
     matched_event = None
     
     for event in events:
         # Found a match
-        if s in event["summary"].lower():
+        if args in event["summary"].lower():
             matched_event = event
             break
     
@@ -1334,7 +1326,7 @@ async def _deleteEvent(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Error: No event matches that name.", creator)
 
 
-async def _setEnabled(chat: pyryver.Chat, msg_id: str, s: str):
+async def _setEnabled(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Enable or disable me.
     ---
@@ -1342,10 +1334,10 @@ async def _setEnabled(chat: pyryver.Chat, msg_id: str, s: str):
     syntax: true|false
     """
     # The only way this actually gets called is if the user passed neither "true" nor "false"
-    await chat.send_message(f"Invalid option: {s}", creator)
+    await chat.send_message(f"Invalid option: {args}", creator)
 
 
-async def _kill(chat: pyryver.Chat, msg_id: str, s: str):
+async def _kill(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Kill me (:fearful:).
 
@@ -1359,7 +1351,7 @@ async def _kill(chat: pyryver.Chat, msg_id: str, s: str):
     exit()
 
 
-async def _sleep(chat: pyryver.Chat, msg_id: str, s: str):
+async def _sleep(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Put me to sleep.
 
@@ -1371,7 +1363,7 @@ async def _sleep(chat: pyryver.Chat, msg_id: str, s: str):
     """
     secs = 0
     try:
-        secs = float(s)
+        secs = float(args)
     except ValueError:
         await chat.send_message("Invalid number.", creator)
         return
@@ -1380,7 +1372,7 @@ async def _sleep(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message("Good morning!", creator)
 
 
-async def _execute(chat: pyryver.Chat, msg_id: str, s: str):
+async def _execute(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Execute arbitrary Python code.
 
@@ -1408,7 +1400,7 @@ async def _execute(chat: pyryver.Chat, msg_id: str, s: str):
     try:
         sys.stdout = io.StringIO()
         sys.stderr = sys.stdout
-        exec(s, globals(), locals())
+        exec(args, globals(), locals())
         output = sys.stdout.getvalue()
 
         await chat.send_message(output, creator)
@@ -1421,7 +1413,7 @@ async def _execute(chat: pyryver.Chat, msg_id: str, s: str):
         print = new_print
 
 
-async def _updateChats(chat: pyryver.Chat, msg_id: str, s: str):
+async def _updateChats(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Update the cached list of forums/teams and users.
 
@@ -1436,7 +1428,7 @@ async def _updateChats(chat: pyryver.Chat, msg_id: str, s: str):
     await chat.send_message("Forums/Teams/Users updated.", creator)
 
 
-async def _alias(chat: pyryver.Chat, msg_id: str, s: str):
+async def _alias(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Manage aliases.
 
@@ -1464,7 +1456,7 @@ async def _alias(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot alias create "answer" "trivia answer"` - Create an alias `answer` that expands to `trivia answer`.
     > `@latexbot alias delete "answer"` - Delete the alias `answer`.
     """
-    if s == "":
+    if args == "":
         if not org.aliases:
             resp = "No aliases have been created."
         else:
@@ -1473,36 +1465,36 @@ async def _alias(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(resp, creator)
         return
 
-    s = shlex.split(s)
-    if s[0] == "create":
-        if len(s) != 3:
+    args = shlex.split(args)
+    if args[0] == "create":
+        if len(args) != 3:
             await chat.send_message("Invalid syntax. Did you forget the quotes?", creator)
             return
         org.aliases.append({
-            "from": s[1],
-            "to": s[2],
+            "from": args[1],
+            "to": args[2],
         })
         generate_help_text(chat.get_ryver())
         org.save_config()
-        await chat.send_message(f"Successfully created alias `{s[1]}` \u2192 `{s[2]}`.", creator)
-    elif s[0] == "delete":
-        if len(s) != 2:
+        await chat.send_message(f"Successfully created alias `{args[1]}` \u2192 `{args[2]}`.", creator)
+    elif args[0] == "delete":
+        if len(args) != 2:
             await chat.send_message("Invalid syntax.", creator)
             return
         
         for i, alias in enumerate(org.aliases):
-            if alias["from"] == s[1]:
+            if alias["from"] == args[1]:
                 del org.aliases[i]
                 generate_help_text(chat.get_ryver())
                 org.save_config()
-                await chat.send_message(f"Successfully deleted alias `{s[1]}`.", creator)
+                await chat.send_message(f"Successfully deleted alias `{args[1]}`.", creator)
                 return
         await chat.send_message(f"Alias not found!", creator)
     else:
         await chat.send_message("Invalid action. Allowed actions are create, delete and no argument (view).", creator)
 
 
-async def _exportConfig(chat: pyryver.Chat, msg_id: str, s: str):
+async def _exportConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Export config as a JSON.
 
@@ -1520,7 +1512,7 @@ async def _exportConfig(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
 
 
-async def _importConfig(chat: pyryver.Chat, msg_id: str, s: str):
+async def _importConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Import config from JSON.
 
@@ -1545,7 +1537,7 @@ async def _importConfig(chat: pyryver.Chat, msg_id: str, s: str):
             await chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
             return
     else:
-        data = s
+        data = args
     
     try:
         org.init_config(chat.get_ryver(), json.loads(data))
@@ -1556,7 +1548,7 @@ async def _importConfig(chat: pyryver.Chat, msg_id: str, s: str):
         await chat.send_message(f"Error decoding JSON: {e}", creator)
 
 
-async def _setDailyMessageTime(chat: pyryver.Chat, msg_id: str, s: str):
+async def _setDailyMessageTime(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Set the time daily messages are sent each day or turn them on/off.
 
@@ -1569,16 +1561,16 @@ async def _setDailyMessageTime(chat: pyryver.Chat, msg_id: str, s: str):
     > `@latexbot setDailyMessageTime 00:00` - Set daily messages to be sent at 12am each day.
     > `@latexbot setDailyMessageTime off` - Turn off daily messages.
     """
-    if s.lower() == "off":
+    if args.lower() == "off":
         org.daily_message_time = None
     else:
         # Try parse to ensure validity
         try:
-            datetime.strptime(s, "%H:%M")
+            datetime.strptime(args, "%H:%M")
         except ValueError:
             await chat.send_message("Invalid time format.", creator)
             return
-        org.daily_message_time = s
+        org.daily_message_time = args
     
     # Schedule or unschedule the daily message task
     if org.daily_message_time:
@@ -1588,12 +1580,12 @@ async def _setDailyMessageTime(chat: pyryver.Chat, msg_id: str, s: str):
             org.daily_message_task.cancel()
     org.save_config()
     if org.daily_message_time:
-        await chat.send_message(f"Messages will now be sent at {s} daily.", creator)
+        await chat.send_message(f"Messages will now be sent at {args} daily.", creator)
     else:
         await chat.send_message(f"Messages have been disabled.", creator)
 
 
-async def _message(chat: pyryver.Chat, msg_id: str, s: str):
+async def _message(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     """
     Send a message to a chat by ID.
     ---
@@ -1602,12 +1594,12 @@ async def _message(chat: pyryver.Chat, msg_id: str, s: str):
     hidden: true
     """
     try:
-        i = s.index(" ")
+        i = args.index(" ")
     except ValueError:
         await chat.send_message("Invalid syntax.", creator)
         return
-    chat_id = s[:i]
-    msg = s[i + 1:]
+    chat_id = args[:i]
+    msg = args[i + 1:]
     try:
         chat_id = int(chat_id)
     except ValueError:

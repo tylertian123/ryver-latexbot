@@ -151,4 +151,4 @@ class Command:
 
         Warning: This does NOT check for access levels.
         """
-        await self._processor(chat, msg_id, args)
+        await self._processor(chat, user, msg_id, args)

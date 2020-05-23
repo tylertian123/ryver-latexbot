@@ -7,7 +7,6 @@ import typing
 from datetime import datetime
 from dateutil import tz
 from random import randrange
-
 from textwrap import dedent
 
 # Make print() flush immediately

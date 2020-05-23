@@ -14,6 +14,7 @@ from latexbot_util import *
 from org import creator
 from traceback import format_exc
 
+
 ################################ GLOBAL VARIABLES AND CONSTANTS ################################
 
 enabled = True
