@@ -113,7 +113,7 @@ Note: Choosing `all` for the category does not include any custom questions.
 To add or remove custom questions, see [Adding Custom Trivia Questions](#adding-custom-trivia-questions).
 
 For the difficulty, accepted options are `easy`, `medium`, `hard` or `all`.
-For the question type, accepted otpoins are `true/false` or `multiple-choice`.
+For the question type, accepted options are `true/false` or `multiple-choice`.
 
 ### Playing the Game
 Once a game is started, you can do `@latexbot trivia question` or `@latexbot trivia next` to get the next question.
@@ -393,7 +393,15 @@ Below is an illustration of the JSON config file format:
       "disallowRole": ["NoPing"] // A list of roles to disallow regardless of level
     }
     // ...
-  }
+  },
+  "opinions": [ // A list of defined responses for whatDoYouThink
+    {
+      "thing": ["foo", "about foo"], // A list of things this opinion is for. Has to be lowercase!
+      "user": ["foo", "bar"], // A list of possible users that also has to be matched; optional
+      "opinion": ["An opinion", "Another opinion"] // A list of possible responses from which the response is randomly chosen
+    }
+    // ...
+  ]
 }
 ```
 
@@ -406,6 +414,7 @@ Out of these configuration options, these can *only* be changed through updating
   - Google Calendar ID
   - Last XKCD (although this one is set automatically)
   - Command Prefixes
+  - Opinions
 
 Congratulations! You've read until the end!
 

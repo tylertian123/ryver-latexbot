@@ -142,7 +142,19 @@ async def _whatDoYouThink(chat: pyryver.Chat, user: pyryver.User, msg_id: str, a
     ---
     > `@latexbot whatDoYouThink <insert controversial topic here>`
     """
-    msgs = no_msgs if hash(args.strip().lower()) % 2 == 0 else yes_msgs
+    args = args.lower()
+    # Match configured opinions
+    for opinion in org.opinions:
+        if args in opinion["thing"]:
+            # Match user if required
+            if "user" in opinion:
+                if user.get_username() in opinion["user"]:
+                    await chat.send_message(opinion["opinion"][random.randrange(len(opinion["opinion"]))], creator)
+                    return
+            else:
+                await chat.send_message(opinion["opinion"][random.randrange(len(opinion["opinion"]))], creator)
+                return
+    msgs = no_msgs if hash(args) % 2 == 0 else yes_msgs
     await chat.send_message(msgs[random.randrange(len(msgs))], creator)
 
 
@@ -1543,7 +1555,10 @@ async def _importConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, arg
         data = args
     
     try:
-        org.init_config(chat.get_ryver(), json.loads(data))
+        errs = org.init_config(chat.get_ryver(), json.loads(data))
+        if errs:
+            print("Error loading config:", *errs, sep="\n")
+            await chat.send_message("Error loading config:\n" + "\n".join(errs), creator)
         generate_help_text(chat.get_ryver())
         org.save_config()
         await chat.send_message(f"Operation successful.", creator)

@@ -20,7 +20,7 @@ from gcalendar import Calendar
 from markdownify import markdownify
 
 
-VERSION = "v0.5.0-dev"
+VERSION = "v0.5.0"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 
@@ -28,16 +28,17 @@ user_avatars = {}
 
 roles = CaseInsensitiveDict()
 admins = set()
-org_tz = None
-home_chat = None
-announcements_chat = None
-messages_chat = None
-calendar_id = None
-daily_message_time = None
-last_xkcd = None
-command_prefixes = []
-aliases = []
+org_tz = None # type: str
+home_chat = None # type: pyryver.GroupChat
+announcements_chat = None # type: pyryver.GroupChat
+messages_chat = None # type: pyryver.GroupChat
+calendar_id = None # type: str
+daily_message_time = None # type: str
+last_xkcd = None # type: int
+command_prefixes = [] # type: typing.List[str]
+aliases = [] # type: typing.List[typing.Dict[str, str]]
 access_rules = {} # type: typing.Dict[str, typing.Dict[str, typing.Any]]
+opinions = [] # type: typing.List[typing.Dict[str, typing.List[str]]]
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 TRIVIA_FILE = "data/trivia.json"
@@ -70,8 +71,10 @@ def make_config():
     - "lastXKCD": The number of the latest xkcd. Used to check for new comics. (int)
     - "commandPrefixes": A list of all the accepted prefixes for commands. (list of str)
     - "aliases": A list of command aliases, each with the following format (list of dict):
-        - "from": The alias (str)
-        - "to": The text the alias expands to (str)
+        [
+            - "from": The alias (str)
+            - "to": The text the alias expands to (str)
+        ]
     - "accessRules": Command access rules (dict):
         - "<command name>": The access rules for a specific command, with the following format (dict):
             - "level": If present, overrides the access level of this command (int, optional)
@@ -79,6 +82,12 @@ def make_config():
             - "disallowUser": A list of usernames. If present, users in this list cannot access this command regardless of level (list of str, optional)
             - "allowRole": A list of role names. If present, users with any of the roles in this list can access this command regardless of level (list of str, optional)
             - "disallowRole": A list of role names. If present, users with any of the roles in this list cannot access this command regardless of level (list of str, optional)
+    - "opinions": A list of opinions for whatDoYouThink, each with the following format (list of dict):
+        [
+            - "thing": A list of things this opinion is for. Has to be lowercase! (list of str)
+            - "user": A list of users that has to be matched for this opinion (optional, list of str)
+            - "opinion": A list of possible responses from which the response is randomly chosen (list of str)
+        ]
     """
     return {
         "admins": list(admins),
@@ -99,40 +108,41 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
     """
     Initialize config data from a config dict.
     """
-    global admins, org_tz, home_chat, announcements_chat, calendar_id, daily_message_time, messages_chat, last_xkcd, command_prefixes, aliases, access_rules
+    global admins, org_tz, home_chat, announcements_chat, calendar_id, daily_message_time, messages_chat, last_xkcd, command_prefixes, aliases, access_rules, opinions
+    err = []
     try:
         admins = set(config["admins"])
     except Exception as e:
-        print("Error: Invalid field 'admins'. Defaulting to [] or leaving unchanged.")
+        err.append("Error: Invalid field 'admins'. Defaulting to [] or leaving unchanged.")
         admins = admins or []
     try:
         org_tz = config["organizationTimeZone"]
     except Exception as e:
-        print("Error: Invalid field 'organizationTimeZone'. Defaulting to UTC or leaving unchanged.")
+        err.append("Error: Invalid field 'organizationTimeZone'. Defaulting to UTC or leaving unchanged.")
         org_tz = org_tz or "UTC"
     try:
         home_chat = ryver.get_groupchat(nickname=config["homeChat"])
     except Exception as e:
-        print("Error: Invalid field 'homeChat'. Defaulting to +Test or leaving unchanged.")
+        err.append("Error: Invalid field 'homeChat'. Defaulting to +Test or leaving unchanged.")
         home_chat = home_chat or ryver.get_groupchat(nickname="Test")
     try:
         announcements_chat = ryver.get_groupchat(nickname=config["announcementsChat"])
     except Exception as e:
-        print("Error: Invalid field 'announcementsChat'. Defaulting to +Gen or leaving unchanged.")
+        err.append("Error: Invalid field 'announcementsChat'. Defaulting to +Gen or leaving unchanged.")
         announcements_chat = announcements_chat or ryver.get_groupchat(nickname="Gen")
     try:
         messages_chat = ryver.get_groupchat(nickname=config["messagesChat"])
     except Exception as e:
-        print("Error: Invalid field 'messagesChat'. Defaulting to +Test or leaving unchanged.")
+        err.append("Error: Invalid field 'messagesChat'. Defaulting to +Test or leaving unchanged.")
         messages_chat = messages_chat or ryver.get_groupchat(nickname="Test")
     try:
         calendar_id = config["googleCalendarId"]
     except Exception as e:
-        print("Error: Invalid field 'googleCalendarId'. Defaulting to null or leaving unchanged.")
+        err.append("Error: Invalid field 'googleCalendarId'. Defaulting to null or leaving unchanged.")
     try:
         daily_message_time = config["dailyMessageTime"]
     except Exception as e:
-        print("Error: Invalid field 'dailyMessageTime'. Defaulting to null or leaving unchanged.")
+        err.append("Error: Invalid field 'dailyMessageTime'. Defaulting to null or leaving unchanged.")
     # Schedule or unschedule the daily message task
     if daily_message_time:
         schedule_daily_message()
@@ -142,23 +152,29 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
     try:
         last_xkcd = config["lastXKCD"]
     except Exception as e:
-        print("Error: Invalid field 'lastXKCD'. Defaulting to 0 or leaving unchanged.")
+        err.append("Error: Invalid field 'lastXKCD'. Defaulting to 0 or leaving unchanged.")
         last_xkcd = last_xkcd or 0
     try:
         command_prefixes = config["commandPrefixes"]
     except Exception as e:
-        print("Error: Invalid field 'commandPrefixes'. Defaulting to ['@latexbot '] or leaving unchanged.")
+        err.append("Error: Invalid field 'commandPrefixes'. Defaulting to ['@latexbot '] or leaving unchanged.")
         command_prefixes = command_prefixes or ["@latexbot "]
     try:
         aliases = config["aliases"]
     except Exception as e:
-        print("Error: Invalid field 'aliases'. Defaulting to [] or leaving unchanged.")
+        err.append("Error: Invalid field 'aliases'. Defaulting to [] or leaving unchanged.")
         aliases = aliases or []
     try:
         access_rules = config["accessRules"] # type: typing.Dict[str, typing.Dict[str, typing.Any]]
     except Exception as e:
-        print("Error: Invalid field 'accessRules'. Defaulting to {} or leaving unchanged.")
+        err.append("Error: Invalid field 'accessRules'. Defaulting to {} or leaving unchanged.")
         access_rules = access_rules or {}
+    try:
+        opinions = config["opinions"] # type: typing.List[typing.Dict[str, typing.List[str]]]
+    except Exception as e:
+        err.append("Error: Invalid field 'opinions'. Defaulting to [] or leaving unchanged.")
+        opinions = opinions or []
+    return err
 
 
 def save_config():
@@ -287,10 +303,14 @@ async def init(ryver: pyryver.Ryver):
     try:
         with open(CONFIG_FILE, "r") as f:
             config = json.load(f)
-        init_config(ryver, config)
+        errs = init_config(ryver, config)
+        if errs:
+            print("Error loading config:", *errs, sep="\n")
+            await home_chat.send_message("Error loading config:\n" + "\n".join(errs), creator)
     except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
         print(f"Error while loading config: {e}. Using the following defaults:")
         # Call init_config with an empty dict so variables are initialized to their defaults
+        # Ignore errors
         init_config(ryver, {})
     # Load trivia questions
     try:
