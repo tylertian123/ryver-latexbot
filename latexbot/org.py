@@ -101,6 +101,7 @@ def make_config():
         "commandPrefixes": command_prefixes,
         "aliases": aliases,
         "accessRules": access_rules,
+        "opinions": opinions,
     }
 
 
