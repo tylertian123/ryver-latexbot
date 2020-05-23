@@ -34,6 +34,7 @@ This guide does not cover all commands, nor does it offer in-depth syntax info f
     - [Command Aliases](#command-aliases)
       - [Managing Aliases](#managing-aliases)
     - [Command Prefixes](#command-prefixes)
+    - [Access Rules](#access-rules)
     - [Updating Cached Chat Data](#updating-cached-chat-data)
   - [Configuring LaTeX Bot](#configuring-latex-bot)
 
@@ -41,16 +42,19 @@ This guide does not cover all commands, nor does it offer in-depth syntax info f
 Each command in LaTeX Bot has a specific Access Level.
 This restricts access to sensitive commands such as admin tools. 
 
-The Access Levels are strictly hierarchical.
-A user with a certain access level can also access all commands users with lower level can access.
-Additionally, each access level is represented by a number internally.
+The Access Levels are strictly hierarchical;
+i.e. normally, users with higher access levels can also access commands available to lower access levels.
+However, using [Access Rules](#access-rules), Org Admins can set exceptions for specific users and roles,
+allowing things such as giving a user/role access to a command they normally can't use, or disallowing them from using a command they normally would have access to.
+Access Rules can also be used to override the access level of a command.
 
+Additionally, each access level is represented by a number internally; this is only used when configuring Access Rules.
 The access levels go like this:
-  1. Everyone - 0
-  2. Forum Admins (specific to each forum; a forum admin of one forum has a different Access Level in another forum) - 1
-  3. Org Admins - 2
-  4. Bot Admins (configurable in the config JSON; see [Configuring LaTeX Bot](#configuring-latex-bot)) - 3
-  5. Tyler - 9001
+  1. Everyone - **0**
+  2. Forum Admins (specific to each forum; a forum admin of one forum has a different Access Level in another forum) - **1**
+  3. Org Admins - **2**
+  4. Bot Admins (configurable in the config JSON; see [Configuring LaTeX Bot](#configuring-latex-bot)) - **3**
+  5. Tyler - **9001**
 
 Where the level increases as you go down the list.
 
@@ -235,6 +239,7 @@ If it is surrounded with slashes, it is treated as a multiline regex.
 Roles are a powerful feature of LaTeX Bot that allows you to conveniently mention a group of people at the same time.
 They work like Discord roles; you can mention all the people with a role just by doing `@RoleName` somewhere in the message,
 and LaTeX Bot will automatically replace it with mentions to the correct people.
+Using Roles and [Access Rules](#access-rules), you can also grant and restrict access to certain commands for particular roles.
 
 Role names work exactly like regular Ryver usernames.
 They are case-insensitive, and can only contain alphanumeric characters and underscores. 
@@ -315,6 +320,29 @@ A command prefix of `/` will make it respond to `/command`, etc.
 Command prefixes can only be set through the config file at the moment.
 See [Configuring LaTeX Bot](#configuring-latex-bot) for details.
 
+## Access Rules
+Access Rules are a powerful and flexible way of controlling access to commands.
+They work together with access levels to grant and restrict access.
+
+With Access Rules, Org Admins can control access to commands based on users or roles.
+E.g. Allowing users with a certain role to access a command even though their access level might not be high enough.
+
+Each command may have a number of access rules associated with it. 
+Here are all the types of access rules:
+  - `level`: Override the access level of the command.
+  - `allowUser`: Allow a user to access the command regardless of their access level.
+  - `disallowUser`: Disallow a user to access the command regardless of their access level.
+  - `allowRole`: Allow users with a role to access the command regardless of their access level.
+  - `disallowRole`: Disallow users with a role to access the command regardless of their access level.
+
+If there is a conflict between two rules, the more specific rule will come on top;
+i.e. rules about specific users are the most powerful, followed by rules about specific roles, and then followed by general access level rules.
+Rules that disallow access are also more powerful than rules that allow access.
+E.g. "disallowRole" overrides "allowRole", but "allowUser" still overrides them both as it's more specific.
+
+To view and manage Access Rules, use the `accessRule` command or the [Configuration JSON](#configuring-latex-bot).
+The syntax of the `accessRule` command is thoroughly explained in `@latexbot help accessRule`.
+
 ## Updating Cached Chat Data
 In order to make LaTeX Bot boot up faster, the internal data for users/teams/forums are all cached.
 This means that they're not automatically updated when a new user/team/forum is created, and as a result, LaTeX Bot may not recognize them.
@@ -335,6 +363,7 @@ Below is an illustration of the JSON config file format:
 {
   "admins": [ // A list of org admins
     1234567 // Admins are listed by their user ID
+    // ...
   ],
   "organizationTimeZone": "EST5EDT", // The timezone of the organization
   "homeChat": "Test", // The nickname of the forum/team where startup messages and other misc messages are sent
@@ -346,13 +375,25 @@ Below is an illustration of the JSON config file format:
   "commandPrefixes": [ // A list of command prefixes; see the Command Prefixes section for details
     "@latexbot ", // Note the space is required, otherwise @latexbotping would be parsed as a valid command
     "!l "
+    // ...
   ],
   "aliases": [ // A list of command aliases; see the Command Aliases section for details
     {
       "from": "something", // The alias
       "to": "something else", // The thing the alias expands to
     }
-  ]
+    // ...
+  ],
+  "accessRules": { // All command Access Rules. See the Access Rules section for details
+    "ping": { // The Access Rules for a particular command, in this case ping
+      "level": 1, // Override the Access Level of this command - see Access Levels and Access Rules
+      "allowUser": ["foo", "bar"], // A list of users to give access to regardless of level
+      "disallowUser": ["baz"], // A list of users to disallow regardless of level
+      "allowRole": ["Pingers"], // A list of roles to give access to regardless of level
+      "disallowRole": ["NoPing"] // A list of roles to disallow regardless of level
+    }
+    // ...
+  }
 }
 ```
 
