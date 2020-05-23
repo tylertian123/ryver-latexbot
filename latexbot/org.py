@@ -37,7 +37,7 @@ daily_message_time = None
 last_xkcd = None
 command_prefixes = []
 aliases = []
-access_rules = []
+access_rules = {} # type: typing.Dict[str, typing.Dict[str, typing.Any]]
 ROLES_FILE = "data/roles.json"
 CONFIG_FILE = "data/config.json"
 TRIVIA_FILE = "data/trivia.json"
@@ -155,10 +155,10 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
         print("Error: Invalid field 'aliases'. Defaulting to [] or leaving unchanged.")
         aliases = aliases or []
     try:
-        access_rules = config["accessRules"]
+        access_rules = config["accessRules"] # type: typing.Dict[str, typing.Dict[str, typing.Any]]
     except Exception as e:
-        print("Error: Invalid field 'accessRules'. Defaulting to [] or leaving unchanged.")
-        access_rules = access_rules or []
+        print("Error: Invalid field 'accessRules'. Defaulting to {} or leaving unchanged.")
+        access_rules = access_rules or {}
 
 
 def save_config():

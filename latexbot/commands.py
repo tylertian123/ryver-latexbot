@@ -248,6 +248,9 @@ async def _trivia(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str
 
     Note that there can only be 1 game going on at a time! 
     After 15 minutes of inactivity, the game will end automatically.
+
+    Note: The `importCustomQuestions`, `exportCustomQuestions`, and `end` sub-commands can have access rules.
+    Use the names `trivia importCustomQuestions`, `trivia exportCustomQuestions` and `trivia end` respectively to refer to them in the accessRule command.
     ---
     group: General Commands
     syntax: <sub-command> [args]
@@ -1501,7 +1504,7 @@ async def _exportConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, arg
     If the data is less than 1k characters long, it will be sent as a chat message.
     Otherwise it will be sent as a file attachment.
     ---
-    group: Developer Commands
+    group: Miscellaneous Commands
     syntax:
     """
     data = json.dumps(org.make_config(), indent=2)
@@ -1521,7 +1524,7 @@ async def _importConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, arg
 
     If a file is attached to this message, the config will always be imported from the file.
     ---
-    group: Developer Commands
+    group: Miscellaneous Commands
     syntax: <data>
     """
     msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
@@ -1555,7 +1558,7 @@ async def _setDailyMessageTime(chat: pyryver.Chat, user: pyryver.User, msg_id: s
     The time must be in the "HH:MM" format (24-hour clock).
     Use the argument "off" to turn daily messages off.
     ---
-    group: Events/Google Calendar Commands
+    group: Miscellaneous Commands
     syntax: <time|off>
     ---
     > `@latexbot setDailyMessageTime 00:00` - Set daily messages to be sent at 12am each day.
@@ -1612,6 +1615,158 @@ async def _message(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: st
     await to.send_message(msg, creator)
 
 
+async def _accessRule(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+    """
+    View or modify access rules.
+
+    Access rules are a powerful and flexible way of controlling access to commands.
+    They work together with access levels to grant and restrict access.
+
+    Each command may have a number of access rules associated with it. 
+    Here are all the types of access rules:
+    - `level`: Override the access level of the command. Each access level is represented by a number. See [the usage guide](https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md#access-levels) for more details.
+    - `allowUser`: Allow a user to access the command regardless of their access level.
+    - `disallowUser`: Disallow a user to access the command regardless of their access level.
+    - `allowRole`: Allow users with a role to access the command regardless of their access level.
+    - `disallowRole`: Disallow users with a role to access the command regardless of their access level.
+
+    If there is a conflict between two rules, the more specific rule will come on top;
+    i.e. rules about specific users are the most powerful, followed by rules about specific roles, and then followed by general access level rules.
+    Rules that disallow access are also more powerful than rules that allow access.
+    E.g. "disallowRole" overrides "allowRole", but "allowUser" still overrides them both as it's more specific.
+
+    To use this command, you need to specify a command, an action, a rule type and argument(s).
+    If none of these arguments are given, this command will print out all access rules for every command.
+    If only a command name is given, this command will print out the access rules for that command.
+
+    The command is simply the command for which you want to modify or view the access rules.
+    The action can be one of these:
+    - `set` - Set the value; **only supported by the `level` rule type and only takes 1 argument**.
+    - `add` - Add a value to the list; **not supported by the `level` rule type**.
+    - `remove` - Remove a value from the list; **not supported by the `level` rule type**.
+    - `delete` - Remove a rule entirely; **does not take any arguments**.
+
+    The rule type is one of the 5 access rule types mentioned above (`level`, `allowUser`, etc).
+    The argument(s) are one or more values for the operation, e.g. users to add to the allow list.
+    Note that the `set` action can only take one argument.
+    
+    See the examples below.
+    ---
+    group: Miscellaneous Commands
+    syntax: [command] [action] [ruletype] [args]
+    ---
+    > `@latexbot accessRule` - View all access rules for every command.
+    > `@latexbot accessRule ping` - View access rules for the "ping" command.
+    > `@latexbot accessRule ping set level 1` - Set the access level for "ping" to 1 (Forum Admins).
+    > `@latexbot accessRule ping delete level` - Undo the command above.
+    > `@latexbot accessRule ping add allowUser tylertian foo` - Allow users tylertian and foo to access the ping command regardless of his access level.
+    > `@latexbot accessRule ping remove allowUser tylertian foo` - Undo the command above.
+    > `@latexbot accessRule ping add allowRole Pingers` - Allow the "pingers" role to access the ping command regardless of their access level.
+    > `@latexbot accessRule ping add disallowUser tylertian` - Disallow tylertian from accessing the ping command regardless of his access level.
+    """
+    if args == "":
+        if not org.access_rules:
+            await chat.send_message("No access rules were created.", creator)
+            return
+        resp = "\n\n".join(format_access_rules(command, rule) for command, rule in org.access_rules.items())
+        await chat.send_message(resp, creator)
+        return
+    args = shlex.split(args)
+    # Only command name is given - show access rules
+    if len(args) == 1:
+        if args[0] not in Command.all_commands:
+            await chat.send_message(f"Error: Invalid command.", creator)
+            return
+        if args[0] in org.access_rules:
+            await chat.send_message(format_access_rules(args[0], org.access_rules[args[0]]), creator)
+        else:
+            await chat.send_message(f"No access rules for command {args[0]}.", creator)
+    # If both command name and action are given, then rule type and args must be given
+    elif len(args) < 3:
+        await chat.send_message("Invalid syntax! See `@latexbot help accessRule` for details.", creator)
+    else:
+        # Verify arguments are correct
+        if args[0] not in Command.all_commands:
+            await chat.send_message(f"Error: Invalid command.", creator)
+            return
+        if args[1] == "set":
+            if args[2] != "level":
+                await chat.send_message(f"Error: Invalid rule type for action `set`: {args[2]}. See `@latexbot help accessRule` for details.", creator)
+                return
+            if len(args) != 4:
+                await chat.send_message(f"Error: The `set` action takes exactly 1 argument.", creator)
+                return
+            try:
+                level = int(args[3])
+            except ValueError:
+                await chat.send_message(f"Error: Invalid access level: {level}. Access levels must be integers. See `@latexbot help accessRule` for details.", creator)
+            # Set the rules
+            rules = org.access_rules.get(args[0], {})
+            rules["level"] = level
+            org.access_rules[args[0]] = rules
+        # Combine the two because they're similar
+        elif args[1] == "add" or args[1] == "remove":
+            # Verify rule type
+            if args[2] not in ["allowUser", "disallowUser", "allowRole", "disallowRole"]:
+                await chat.send_message(f"Error: Invalid rule type for action `{args[1]}`: {args[2]}. See `@latexbot help accessRule` for details.", creator)
+                return
+            if len(args) < 4:
+                await chat.send_message(f"Error: At least one argument must be supplied for action `{args[1]}`. See `@latexbot help accessRule` for details.", creator)
+                return
+            # Set the rules
+            rules = org.access_rules.get(args[0], {})
+            if args[1] == "add":
+                # If there are already items, merge the lists
+                if args[2] in rules:
+                    for arg in args[3:]:
+                        # Don't allow duplicates
+                        if arg in rules[args[2]]:
+                            await chat.send_message(f"Warning: {arg} is already in the list for rule {args[2]}.", creator)
+                        else:
+                            rules[args[2]].append(arg)
+                # Otherwise directly assign
+                else:
+                    rules[args[2]] = args[3:]
+            else:
+                if args[2] not in rules:
+                    await chat.send_message(f"Error: Rule {args[2]} is not set for command {args[0]}.", creator)
+                    return
+                # Remove each one
+                for arg in args[3:]:
+                    if arg not in rules[args[2]]:
+                        await chat.send_message(f"Warning: {arg} is not in the list for rule {args[2]}.", creator)
+                    else:
+                        rules[args[2]].remove(arg)
+                # Don't leave empty arrays
+                if not rules[args[2]]:
+                    rules.pop(args[2])
+            # Set the field
+            # This is needed in case get() returned the empty dict
+            org.access_rules[args[0]] = rules
+            # Don't leave empty dicts
+            if not org.access_rules[args[0]]:
+                org.access_rules.pop(args[0])
+        elif args[1] == "delete":
+            if len(args) != 3:
+                await chat.send_message(f"Error: The `delete` action does not take any arguments.", creator)
+                return
+            try:
+                org.access_rules[args[0]].pop(args[2])
+                # Don't leave empty dicts
+                if not org.access_rules[args[0]]:
+                    org.access_rules.pop(args[0])
+            except KeyError:
+                await chat.send_message(f"Error: Command {args[0]} does not have rule {args[2]} set.", creator)
+                return
+        else:
+            await chat.send_message(f"Error: Invalid action: {args[1]}. See `@latexbot help accessRule` for details.", creator)
+            return
+        
+        generate_help_text(chat.get_ryver())
+        org.save_config()
+        await chat.send_message("Operation successful.", creator)
+
+
 # Define commands
 Command("render", _render, Command.ACCESS_LEVEL_EVERYONE)
 Command("chem", _chem, Command.ACCESS_LEVEL_EVERYONE)
@@ -1653,6 +1808,7 @@ Command("alias", _alias, Command.ACCESS_LEVEL_ORG_ADMIN)
 Command("exportConfig", _exportConfig, Command.ACCESS_LEVEL_EVERYONE)
 Command("importConfig", _importConfig, Command.ACCESS_LEVEL_ORG_ADMIN)
 Command("setDailyMessageTime", _setDailyMessageTime, Command.ACCESS_LEVEL_ORG_ADMIN)
+Command("accessRule", _accessRule, Command.ACCESS_LEVEL_ORG_ADMIN)
 
 Command("message", _message, Command.ACCESS_LEVEL_ORG_ADMIN)
 

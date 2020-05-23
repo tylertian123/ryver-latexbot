@@ -214,3 +214,21 @@ def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
         except ValueError:
             pass
     return None
+
+
+def format_access_rules(command: str, rule: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a command's access rules into a markdown string.
+    """
+    result = f"Rules for command `{command}`:"
+    if "level" in rule:
+        result += f"\n- `level`: {rule['level']}"
+    if "allowUser" in rule:
+        result += f"\n- `allowUser`: {', '.join(rule['allowUser'])}"
+    if "disallowUser" in rule:
+        result += f"\n- `disallowUser`: {', '.join(rule['disallowUser'])}"
+    if "allowRole" in rule:
+        result += f"\n- `allowRole`: {', '.join(rule['allowRole'])}"
+    if "disallowRole" in rule:
+        result += f"\n- `disallowRole`: {', '.join(rule['disallowRole'])}"
+    return result

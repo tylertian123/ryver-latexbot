@@ -43,13 +43,14 @@ This restricts access to sensitive commands such as admin tools.
 
 The Access Levels are strictly hierarchical.
 A user with a certain access level can also access all commands users with lower level can access.
+Additionally, each access level is represented by a number internally.
 
 The access levels go like this:
-  1. Everyone
-  2. Forum Admins (specific to each forum; a forum admin of one forum has a different Access Level in another forum)
-  3. Org Admins
-  4. Bot Admins (configurable in the config JSON; see [Configuring LaTeX Bot](#configuring-latex-bot))
-  5. Tyler
+  1. Everyone - 0
+  2. Forum Admins (specific to each forum; a forum admin of one forum has a different Access Level in another forum) - 1
+  3. Org Admins - 2
+  4. Bot Admins (configurable in the config JSON; see [Configuring LaTeX Bot](#configuring-latex-bot)) - 3
+  5. Tyler - 9001
 
 Where the level increases as you go down the list.
 
