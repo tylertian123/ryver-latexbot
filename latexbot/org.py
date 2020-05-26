@@ -20,7 +20,7 @@ from gcalendar import Calendar
 from markdownify import markdownify
 
 
-VERSION = "v0.5.0"
+VERSION = "v0.5.1-dev"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 

@@ -3,6 +3,7 @@ This module contains command definitions for LaTeX Bot.
 """
 
 import asyncio
+import adventure as adv
 import io
 import json
 import org
@@ -711,6 +712,85 @@ async def _trivia_on_reaction(ryver: pyryver.Ryver, session: pyryver.RyverWS, da
                         await trivia_chat.send_message(f"Correct answer! **{author_name}** earned {points} points!", creator)
                     else:
                         await trivia_chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}. **{author_name}** did not get any points for that.", creator)
+
+
+adventure_game = None # type: adventure.Adventure
+
+
+async def _adventure(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+    """
+    Play text-based adventure games.
+
+    Like the trivia command, this command also has several sub-commands:
+    - `list` - List all available adventures.
+    - `start <adventure>` - Start a new adventure. The adventure can be specified by name or number. When specifying by name, the name should be quoted.
+    ---
+    group: General Commands
+    syntax: <sub-command> [args]
+    ---
+    > `@latexbot adventure list` - List all available adventures.
+    
+    """
+    if args == "":
+        await chat.send_message("Error: Please specify a sub-command! See `@latexbot help adventure` for details.", creator)
+        return
+    
+    global adventure_game
+    
+    async def load_adventures():
+        try:
+            return adv.list_adventures()
+        except FileNotFoundError:
+            await chat.send_message("Error: Adventures not set up! Please contact an admin.", creator)
+        except json.JSONDecodeError:
+            await chat.send_message("Error: Invalid adventures index file. Please contact an admin.", creator)
+        return None
+    
+    async def send_current_room():
+        text, reactions = adventure_game.current_room_message()
+        mid = await chat.send_message(text, creator)
+        msg = (await pyryver.retry_until_available(chat.get_message_from_id, mid, timeout=5.0))[0]
+        for reaction in reactions:
+            await msg.react(reaction)
+
+    args = shlex.split(args)
+
+    if args[0] == "list":
+        adventures = await load_adventures()
+        if adventures is None:
+            return
+        if len(adventures) == 0:
+            await chat.send_message("No adventures available at the moment.", creator)
+        else:
+            resp = "Available Adventures:\n"
+            resp += "\n".join(f"{i + 1}. *{adventure['name']}* by {adventure['author']}" for i, adventure in enumerate(adventures))
+            await chat.send_message(resp, creator)
+    elif args[0] == "start":
+        if len(args) != 2:
+            await chat.send_message("Error: Invalid number of arguments. Did you forget to add quotes?", creator)
+            return
+        if adventure_game is not None:
+            await chat.send_message("Error: Only one game can be played at once.", creator)
+            return
+        adventures = await load_adventures()
+        try:
+            adv_num = int(args[1]) - 1
+        except ValueError:
+            for i, adventure in enumerate(adventures):
+                if args[1] == adventure["name"]:
+                    adv_num = i
+                    break
+            else:
+                await chat.send_message("Error: Invalid adventure. Check `@latexbot adventure list` for a list of adventures.", creator)
+                return
+        if not (0 <= adv_num < len(adventures)):
+            await chat.send_message("Error: Invalid adventure. Check `@latexbot adventure list` for a list of adventures.", creator)
+            return
+        adventure_game = adv.Adventure(adv_num)
+        await chat.send_message("Game created.", creator)
+        await send_current_room()
+    else:
+        await chat.send_message("Error: Invalid sub-command. Check `@latexbot help adventure` for details.", creator)
 
 
 async def _deleteMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
@@ -1796,6 +1876,7 @@ Command("trivia", _trivia, Command.ACCESS_LEVEL_EVERYONE)
 Command("trivia importCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN)
 Command("trivia exportCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN)
 Command("trivia end", None, Command.ACCESS_LEVEL_FORUM_ADMIN)
+Command("adventure", _adventure, Command.ACCESS_LEVEL_EVERYONE)
 
 Command("deleteMessages", _deleteMessages, Command.ACCESS_LEVEL_FORUM_ADMIN)
 Command("moveMessages", _moveMessages, Command.ACCESS_LEVEL_FORUM_ADMIN)

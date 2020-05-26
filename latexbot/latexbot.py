@@ -209,6 +209,7 @@ async def main():
                 await commands._trivia_on_reaction(ryver, session, msg["data"])
 
             print("LaTeX Bot is running!")
-            await org.home_chat.send_message(f"LaTeX Bot {org.VERSION} is online! **I now respond to messages in real time!**\n\n{commands.help_text}", creator)
+            if os.environ.get("LATEXBOT_SILENT", "0") != "1":
+                await org.home_chat.send_message(f"LaTeX Bot {org.VERSION} is online! **I now respond to messages in real time!**\n\n{commands.help_text}", creator)
 
             await session.run_forever()
