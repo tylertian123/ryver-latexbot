@@ -9,6 +9,7 @@ from org import creator
 
 
 ADVENTURES_FILE = "data/adventures/adventures.json"
+ADVENTURES_DIR = "data/adventures/"
 ADVENTURES_LIST = None
 
 
@@ -30,6 +31,18 @@ class Player:
             self.inventory[item] += count
         else:
             self.inventory[item] = count
+    
+    def format_inv(self, items: typing.List[typing.Dict[str, typing.Any]]) -> str:
+        """
+        Get the inventory contents as a formatted string for display.
+        """
+        if not self.inventory:
+            return "You have no items."
+        text = "Inventory:"
+        for item_id, count in self.inventory.items():
+            item = items[item_id]
+            text += f"\n- {count}x :{item['icon']}:{item['name']}"
+        return text
 
 
 class Adventure:
@@ -64,7 +77,8 @@ class Adventure:
             if "requirements" in path:
                 for req in path["requirements"]:
                     if self.player.inventory.get(req["item"], 0) < req["count"]:
-                        return (f"You need **{req['count']}x {self.data['items'][req['item']]['name']}**!", None)
+                        item_obj = self.data["items"][req["item"]]
+                        return (f"You need **{req['count']}x :{item_obj['icon']}:{item_obj['name']}**!", None)
             room_id = path["room"]
         else:
             room_id = 0
@@ -83,7 +97,7 @@ class Adventure:
             text += "\n\nYou found these items:\n"
             for item in room["items"]:
                 item_obj = self.data["items"][item["item"]]
-                text += f"\n- **{item_obj['name']}**: *{item_obj['description']}*"
+                text += f"\n- **{item['count']}x :{item_obj['icon']}:{item_obj['name']}**: *{item_obj['description']}*"
                 self.player.inv_add(item["item"], item["count"])
         if "end" in room and room["end"]:
             text += "\n\n# The End"
@@ -95,8 +109,10 @@ class Adventure:
                 reactions.append(reaction)
                 text += f"\n:{reaction}:: {path['description']}"
                 if "requirements" in path:
-                    required = ", ".join(f"{req['count']}x {self.data['items'][req['item']]['name']}" for req in path["requirements"])
+                    required = ", ".join(f"{req['count']}x :{self.data['items'][req['item']]['icon']}:{self.data['items'][req['item']]['name']}" for req in path["requirements"])
                     text += f" **(You need: {required})**"
+        text += "\n:briefcase:: View your inventory."
+        reactions.append("briefcase")
         
         return (text, reactions)
     
@@ -107,6 +123,9 @@ class Adventure:
         The reaction is assumed to be on the current active message.
         Use a reaction of "" to enter the first room to get a message.
         """
+        if reaction == "briefcase":
+            await self.chat.send_message(self.player.format_inv(self.data["items"]), creator)
+            return
         try:
             text, reactions = self.enter_room(reaction)
         except ValueError as e:
@@ -128,3 +147,11 @@ def list_adventures() -> typing.List[typing.Dict[str, str]]:
         with open(ADVENTURES_FILE, "r") as f:
             ADVENTURES_LIST = json.load(f)
     return ADVENTURES_LIST
+
+
+def save_adventures(adventures: typing.List[typing.Dict[str, str]] = ADVENTURES_LIST):
+    """
+    Save the adventures file.
+    """
+    with open(ADVENTURES_FILE, "w") as f:
+        json.dump(adventures, f)

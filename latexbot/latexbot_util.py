@@ -1,5 +1,6 @@
 import aiohttp
 import asyncio
+import json
 import org
 import pyryver
 import re
@@ -232,3 +233,18 @@ def format_access_rules(command: str, rule: typing.Dict[str, typing.Any]) -> str
     if "disallowRole" in rule:
         result += f"\n- `disallowRole`: {', '.join(rule['disallowRole'])}"
     return result
+
+
+async def send_json(chat: pyryver.Chat, data: typing.Any, name: str, filename: str):
+    """
+    Send a JSON to the chat. 
+
+    If the JSON is less than 1000 characters, it will be sent as text.
+    Otherwise it will be attached as a file.
+    """
+    json_data = json.dumps(data, indent=2)
+    if len(json_data) < 1000:
+        await chat.send_message(f"```json\n{json_data}\n```", org.creator)
+    else:
+        file = (await chat.get_ryver().upload_file(filename, json_data, "application/json")).get_file()
+        await chat.send_message(f"{name}: [{file.get_name()}]({file.get_url()})", org.creator)

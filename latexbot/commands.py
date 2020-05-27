@@ -427,12 +427,7 @@ async def _trivia(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str
     
     if cmd == "exportCustomQuestions":
         if await Command.all_commands["trivia exportCustomQuestions"].is_authorized(chat, user):
-            data = json.dumps(trivia.CUSTOM_TRIVIA_QUESTIONS, indent=2)
-            if len(data) < 1000:
-                await chat.send_message(f"```json\n{data}\n```", creator)
-            else:
-                file = (await chat.get_ryver().upload_file("trivia.json", data, "application/json")).get_file()
-                await chat.send_message(f"Custom Questions: [{file.get_name()}]({file.get_url()})", creator)
+            await send_json(chat, trivia.CUSTOM_TRIVIA_QUESTIONS, "Custom Questions", "trivia.json")
         else:
             await chat.send_message("You are not authorized to do that.", creator)
         return
@@ -724,6 +719,16 @@ async def _adventure(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: 
     Like the trivia command, this command also has several sub-commands:
     - `list` - List all available adventures.
     - `start <adventure>` - Start a new adventure. The adventure can be specified by name or number. When specifying by name, the name should be quoted.
+    - `end <adventure>` - End the adventure.
+    - `data <sub-sub-command> [args]` - Manipulate adventure data. See below for commands.
+
+    The `data` sub-command has these sub-sub-commands:
+    - `view` - View the JSON that lists all adventures.
+    - `delete <filename>` - Delete an adventure by filename.
+    - `upload <name> <author>` - Upload an adventure JSON (must be attached as a file). Name and author must be quoted if they contain spaces.
+    
+    Note: The `data` sub-command can have access rules.
+    Use the name `adventure data` to refer to them in the accessRule command.
     ---
     group: General Commands
     syntax: <sub-command> [args]
@@ -766,6 +771,8 @@ async def _adventure(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: 
             await chat.send_message("Error: Only one game can be played at once.", creator)
             return
         adventures = await load_adventures()
+        if adventures is None:
+            return
         try:
             adv_num = int(args[1]) - 1
         except ValueError:
@@ -782,6 +789,86 @@ async def _adventure(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: 
         adventure_game = adv.Adventure(chat, adv_num)
         await chat.send_message("Game created.", creator)
         await adventure_game.handle_reaction("")
+    elif args[0] == "end":
+        adventure_game = None
+        await chat.send_message("Adventure ended!", creator)
+    elif args[0] == "data":
+        if not Command.all_commands["trivia exportCustomQuestions"].is_authorized(chat, user):
+            await chat.send_message("Error: You are not authorized to do that.", creator)
+            return
+        if len(args) < 2:
+            await chat.send_message("Error: Please specify a sub-sub command.", creator)
+            return
+        if args[1] == "view":
+            adventures = await load_adventures()
+            if adventures is None:
+                await chat.send_message("No adventures file.", creator)
+            else:
+                await send_json(chat, adventures, "Adventures", "adventures.json")
+        elif args[1] == "delete":
+            if len(args) != 3:
+                await chat.send_message("Error: Invalid syntax.", creator)
+                return
+            filepath = adv.ADVENTURES_DIR + args[2]
+            adventures = await load_adventures()
+            if adventures is None:
+                await chat.send_message("Error: No adventures.", creator)
+                return
+            for i, adventure in enumerate(adventures):
+                if adventure["path"] == filepath:
+                    # Found!
+                    del adventures[i]
+                    adv.save_adventures(adventures)
+                    try:
+                        os.remove(filepath)
+                        break
+                    except OSError as e:
+                        await chat.send_message(f"Error: Cannot delete file: {e}", creator)
+                        return
+            else:
+                await chat.send_message("Error: File not found.", creator)
+                return
+            await chat.send_message("Operation successful.", creator)
+        elif args[1] == "upload":
+            if len(args) < 4:
+                await chat.send_message("Error: Invalid syntax.", creator)
+                return
+
+            # Download file contents
+            msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+            file = msg.get_attached_file() # type: pyryver.File
+            if file:
+                # Get the actual contents
+                try:
+                    data = (await file.download_data()).decode("utf-8")
+                except aiohttp.ClientResponseError as e:
+                    await chat.send_message(f"Error while trying to GET file attachment: {e}", creator)
+                    return
+                except UnicodeDecodeError as e:
+                    await chat.send_message(f"File needs to be encoded with utf-8! The following decode error occurred: {e}", creator)
+                    return
+            else:
+                await chat.send_message(f"Data must be uploaded as an attachment!", creator)
+                return
+
+            adventures = await load_adventures()
+            if adventures is None:
+                adventures = []
+            filepath = adv.ADVENTURES_DIR + file.get_name()
+            adventures.append({
+                "name": args[2],
+                "author": args[3],
+                "path": filepath,
+            })
+            # Write data
+            if not os.path.exists(adv.ADVENTURES_DIR):
+                os.makedirs(adv.ADVENTURES_DIR)
+            with open(filepath, "w") as f:
+                f.write(data)
+            adv.save_adventures(adventures)
+            await chat.send_message("Operation successful.", creator)
+        else:
+            await chat.send_message("Error: Invalid sub-sub-command.", creator)
     else:
         await chat.send_message("Error: Invalid sub-command. Check `@latexbot help adventure` for details.", creator)
 
@@ -791,6 +878,8 @@ async def _adventure_on_reaction(ryver: pyryver.Ryver, session: pyryver.RyverWS,
     Extra processing for the chat reactions for adventures.
     """
     global adventure_game
+    if not adventure_game or not adventure_game.ryver_msg:
+        return
     if data["type"] == "Entity.ChatMessage" == pyryver.ENTITY_TYPES[pyryver.TYPE_MESSAGE] and data["id"] == adventure_game.ryver_msg.get_id():
         user = ryver.get_user(id=data["userId"])
         if user.get_username() == os.environ["LATEXBOT_USER"]:
@@ -1137,12 +1226,7 @@ async def _exportRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args
     group: Roles Commands
     syntax:
     """
-    data = json.dumps(org.roles.to_dict(), indent=2)
-    if len(data) < 1000:
-        await chat.send_message(f"```json\n{data}\n```", creator)
-    else:
-        file = (await chat.get_ryver().upload_file("roles.json", data, "application/json")).get_file()
-        await chat.send_message(f"Roles: [{file.get_name()}]({file.get_url()})", creator)
+    await send_json(chat, org.roles.to_dict(), "Roles", "roles.json")
 
 
 async def _importRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
@@ -1605,12 +1689,7 @@ async def _exportConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, arg
     group: Miscellaneous Commands
     syntax:
     """
-    data = json.dumps(org.make_config(), indent=2)
-    if len(data) < 1000:
-        await chat.send_message(f"```json\n{data}\n```", creator)
-    else:
-        file = (await chat.get_ryver().upload_file("config.json", data, "application/json")).get_file()
-        await chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
+    await send_json(chat, org.make_config(), "Config", "config.json")
 
 
 async def _importConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
@@ -1883,6 +1962,7 @@ Command("trivia importCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN)
 Command("trivia exportCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN)
 Command("trivia end", None, Command.ACCESS_LEVEL_FORUM_ADMIN)
 Command("adventure", _adventure, Command.ACCESS_LEVEL_EVERYONE)
+Command("adventure data", None, Command.ACCESS_LEVEL_ORG_ADMIN)
 
 Command("deleteMessages", _deleteMessages, Command.ACCESS_LEVEL_FORUM_ADMIN)
 Command("moveMessages", _moveMessages, Command.ACCESS_LEVEL_FORUM_ADMIN)
