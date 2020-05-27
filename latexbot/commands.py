@@ -3,11 +3,11 @@ This module contains command definitions for LaTeX Bot.
 """
 
 import asyncio
-import adventure as adv
 import io
 import json
 import org
-import aiohttp # This has to be after import org because of a circular dependencies issue
+import adventure as adv # Reorder to avoid circular import problems
+import aiohttp 
 import os
 import pyryver
 import random
@@ -664,7 +664,7 @@ async def _trivia_on_reaction(ryver: pyryver.Ryver, session: pyryver.RyverWS, da
     This coro does extra processing for interfacing trivia with reactions.
     """
     # Verify that this is an answer to a trivia question
-    if data["type"] == "Entity.ChatMessage" and data["id"] == trivia_question_mid:
+    if data["type"] == pyryver.ENTITY_TYPES[pyryver.TYPE_MESSAGE] and data["id"] == trivia_question_mid:
         user = ryver.get_user(id=data["userId"])
         if user.get_username() == os.environ["LATEXBOT_USER"]:
             return
@@ -745,13 +745,6 @@ async def _adventure(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: 
         except json.JSONDecodeError:
             await chat.send_message("Error: Invalid adventures index file. Please contact an admin.", creator)
         return None
-    
-    async def send_current_room():
-        text, reactions = adventure_game.current_room_message()
-        mid = await chat.send_message(text, creator)
-        msg = (await pyryver.retry_until_available(chat.get_message_from_id, mid, timeout=5.0))[0]
-        for reaction in reactions:
-            await msg.react(reaction)
 
     args = shlex.split(args)
 
@@ -786,11 +779,24 @@ async def _adventure(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: 
         if not (0 <= adv_num < len(adventures)):
             await chat.send_message("Error: Invalid adventure. Check `@latexbot adventure list` for a list of adventures.", creator)
             return
-        adventure_game = adv.Adventure(adv_num)
+        adventure_game = adv.Adventure(chat, adv_num)
         await chat.send_message("Game created.", creator)
-        await send_current_room()
+        await adventure_game.handle_reaction("")
     else:
         await chat.send_message("Error: Invalid sub-command. Check `@latexbot help adventure` for details.", creator)
+
+
+async def _adventure_on_reaction(ryver: pyryver.Ryver, session: pyryver.RyverWS, data: typing.Dict[str, typing.Any]):
+    """
+    Extra processing for the chat reactions for adventures.
+    """
+    global adventure_game
+    if data["type"] == "Entity.ChatMessage" == pyryver.ENTITY_TYPES[pyryver.TYPE_MESSAGE] and data["id"] == adventure_game.ryver_msg.get_id():
+        user = ryver.get_user(id=data["userId"])
+        if user.get_username() == os.environ["LATEXBOT_USER"]:
+            return
+        async with session.typing(adventure_game.chat):
+            await adventure_game.handle_reaction(data["reaction"])
 
 
 async def _deleteMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):

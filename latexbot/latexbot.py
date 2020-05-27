@@ -205,8 +205,9 @@ async def main():
             
             @session.on_event(pyryver.RyverWS.EVENT_REACTION_ADDED)
             async def _on_reaction_added(msg: typing.Dict[str, str]):
-                # Extra processing for interfacing trivia with reactions
+                # Extra processing for some commands
                 await commands._trivia_on_reaction(ryver, session, msg["data"])
+                await commands._adventure_on_reaction(ryver, session, msg["data"])
 
             print("LaTeX Bot is running!")
             if os.environ.get("LATEXBOT_SILENT", "0") != "1":
