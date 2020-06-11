@@ -4,3 +4,4 @@ __pycache__
 !calendar_credentials.json
 tex-slave/
 *.tar.gz
+.vscode

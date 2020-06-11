@@ -6,10 +6,7 @@ import asyncio
 import gcalendar
 import json
 import latexbot_util as util
-import os
 import pyryver
-import requests
-import time
 import trivia
 import typing
 import xkcd
@@ -20,7 +17,7 @@ from gcalendar import Calendar
 from markdownify import markdownify
 
 
-VERSION = "v0.5.0"
+VERSION = "v0.6.0-dev (pyryver v0.3.0a1)"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 

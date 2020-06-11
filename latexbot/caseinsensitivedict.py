@@ -30,7 +30,10 @@ class CaseInsensitiveDict(dict):
     """
     A simple case-insensitive dictionary that keeps the original case of the key.
     """
-    def __init__(self, d: typing.Dict[str, typing.Any] = {}):
+    def __init__(self, d: typing.Dict[str, typing.Any] = None):
+        super().__init__()
+        if d is None:
+            return
         for k, v in d.items():
             self.__setitem__(k, v)
 

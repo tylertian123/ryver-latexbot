@@ -1,7 +1,5 @@
 import aiohttp
-import asyncio
 import base64
-import typing
 
 async def render(eqn: str, **kwargs) -> bytes:
     """

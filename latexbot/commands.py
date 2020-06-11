@@ -20,12 +20,12 @@ import xkcd
 from caseinsensitivedict import CaseInsensitiveDict
 from command import Command
 from gcalendar import Calendar
-from latexbot_util import *
+from latexbot_util import * # pylint: disable=redefined-builtin
 from markdownify import markdownify
 from org import creator
 from traceback import format_exc
 
-async def _render(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _render(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Render a LaTeX formula.
 
@@ -50,7 +50,7 @@ async def _render(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str
         await chat.send_message("Formula can't be empty.", creator)
 
 
-async def _chem(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _chem(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Render a chemical formula.
 
@@ -73,7 +73,7 @@ async def _chem(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
         await chat.send_message("Formula can't be empty.", creator)
 
 
-async def _help(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _help(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Get a list of all the commands, or details about a command.
 
@@ -102,7 +102,7 @@ async def _help(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
             await chat.send_message(default, creator)
 
 
-async def _ping(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _ping(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     I will respond with 'Pong' if I'm here.
     ---
@@ -131,7 +131,7 @@ no_msgs = [
 ]
 
 
-async def _whatDoYouThink(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _whatDoYouThink(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Ask my opinion of a thing!
 
@@ -158,7 +158,7 @@ async def _whatDoYouThink(chat: pyryver.Chat, user: pyryver.User, msg_id: str, a
     await chat.send_message(msgs[random.randrange(len(msgs))], creator)
 
 
-async def _xkcd(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _xkcd(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Get the latest xkcd or a specific xkcd by number.
     ---
@@ -189,7 +189,7 @@ async def _xkcd(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
         await chat.send_message(f"An error occurred: {e}", xkcd_creator)
 
 
-async def _checkiday(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _checkiday(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Get a list of today's holidays or holidays for any date.
 
@@ -234,7 +234,7 @@ TRIVIA_POINTS = {
 }
 
 
-async def _trivia(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _trivia(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Play a game of trivia. See extended description for details. 
     
@@ -376,7 +376,7 @@ async def _trivia(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str
                 return
         formatted_question = format_question(trivia_game.current_question)
         mid = await chat.send_message("Loading...", creator)
-        msg = (await pyryver.retry_until_available(chat.get_message_from_id, mid, timeout=5.0))[0] # type: pyryver.ChatMessage
+        msg = await pyryver.retry_until_available(chat.get_message, mid, timeout=5.0)
         if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_MULTIPLE_CHOICE:
             # Iterate the reactions array until all the options are accounted for
             for i, reaction in zip(range(len(trivia_game.current_question["answers"])), TRIVIA_NUMBER_EMOJIS):
@@ -436,7 +436,7 @@ async def _trivia(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str
             await chat.send_message("You are not authorized to do that.", creator)
         return
     elif cmd == "importCustomQuestions":
-        msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+        msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
         if await Command.all_commands["trivia importCustomQuestions"].is_authorized(chat, await msg.get_author()):
             file = msg.get_attached_file()
             if file:
@@ -713,7 +713,7 @@ async def _trivia_on_reaction(ryver: pyryver.Ryver, session: pyryver.RyverWS, da
                         await trivia_chat.send_message(f"Wrong answer! The correct answer was option number {trivia_game.current_question['correct_answer'] + 1}. **{author_name}** did not get any points for that.", creator)
 
 
-async def _deleteMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _deleteMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Delete messages.
 
@@ -749,10 +749,10 @@ async def _deleteMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, a
         msgs = (await get_msgs_before(chat, msg_id, end))[:-(start - 1)]
     for message in msgs:
         await message.delete()
-    await (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0].delete()
+    await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
 
 
-async def _moveMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _moveMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Move messages to another forum or team.
 
@@ -833,7 +833,7 @@ async def _moveMessages(chat: pyryver.Chat, user: pyryver.User, msg_id: str, arg
     await to.send_message("---\n\n# End Moved Message", creator)
 
 
-async def _countMessagesSince(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _countMessagesSince(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Count the number of messages since the first message that matches a pattern.
 
@@ -875,7 +875,8 @@ async def _countMessagesSince(chat: pyryver.Chat, user: pyryver.User, msg_id: st
             if match(message.get_body()):
                 # Found a match
                 resp = f"There are a total of {count} messages, including your command but not this message."
-                resp += f"\n\nMessage matched (sent by {(await message.get_author()).get_display_name()}):\n{sanitize(message.get_body())}"
+                author_name = (await message.get_author()).get_display_name()
+                resp += f"\n\nMessage matched (sent by {author_name}):\n{sanitize(message.get_body())}"
                 await chat.send_message(resp, creator)
                 return
         # No match - change anchor
@@ -884,7 +885,7 @@ async def _countMessagesSince(chat: pyryver.Chat, user: pyryver.User, msg_id: st
         "Error: Max search depth of 250 messages exceeded without finding a match.", creator)
 
 
-async def _roles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _roles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Get information about roles.
 
@@ -930,7 +931,7 @@ async def _roles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str)
             await chat.send_message(f"'{args}' is not a valid username or role name.", creator)
 
 
-async def _addToRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _addToRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Add people to a role.
 
@@ -974,7 +975,7 @@ async def _addToRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: 
     await chat.send_message("Operation successful.", creator)
 
 
-async def _removeFromRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _removeFromRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Remove people from a role.
 
@@ -1016,7 +1017,7 @@ async def _removeFromRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, a
     await chat.send_message("Operation successful.", creator)
 
 
-async def _deleteRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _deleteRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Completely delete a role, removing all users from that role.
 
@@ -1041,7 +1042,7 @@ async def _deleteRole(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args:
     await chat.send_message("Operation successful.", creator)
 
 
-async def _exportRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _exportRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Export roles data as a JSON. 
 
@@ -1059,7 +1060,7 @@ async def _exportRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args
         await chat.send_message(f"Roles: [{file.get_name()}]({file.get_url()})", creator)
 
 
-async def _importRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _importRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Import JSON roles data from the message, or from a file attachment.
 
@@ -1070,7 +1071,7 @@ async def _importRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args
     ---
     > `@latexbot importRoles {}` - Clear all roles.
     """
-    msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+    msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
     file = msg.get_attached_file()
     if file:
         # Get the actual contents
@@ -1094,7 +1095,7 @@ async def _importRoles(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args
         await chat.send_message(f"Error decoding JSON: {e}", creator)
 
 
-async def _events(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _events(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Display information about ongoing and upcoming events from Google Calendar.
 
@@ -1172,7 +1173,7 @@ async def _events(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str
     await chat.send_message(resp, creator)
 
 
-async def _quickAddEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _quickAddEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Add an event to Google Calendar based on a simple text string.
 
@@ -1195,7 +1196,7 @@ async def _quickAddEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, ar
     await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", creator)
 
 
-async def _addEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _addEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Add an event to Google Calendar.
 
@@ -1303,7 +1304,7 @@ async def _addEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: s
         await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**)\u200B:\n{markdownify(event['description'])}\n\nLink: {event['htmlLink']}", creator)
 
 
-async def _deleteEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _deleteEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Delete an event by name from Google Calendar.
 
@@ -1341,7 +1342,7 @@ async def _deleteEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args
         await chat.send_message(f"Error: No event matches that name.", creator)
 
 
-async def _setEnabled(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _setEnabled(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Enable or disable me.
     ---
@@ -1352,7 +1353,7 @@ async def _setEnabled(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args:
     await chat.send_message(f"Invalid option: {args}", creator)
 
 
-async def _kill(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _kill(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Kill me (:fearful:).
 
@@ -1366,7 +1367,7 @@ async def _kill(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
     exit()
 
 
-async def _sleep(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _sleep(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Put me to sleep.
 
@@ -1387,7 +1388,7 @@ async def _sleep(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str)
     await chat.send_message("Good morning!", creator)
 
 
-async def _execute(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _execute(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Execute arbitrary Python code.
 
@@ -1428,7 +1429,7 @@ async def _execute(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: st
         print = new_print
 
 
-async def _updateChats(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _updateChats(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Update the cached list of forums/teams and users.
 
@@ -1443,7 +1444,7 @@ async def _updateChats(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args
     await chat.send_message("Forums/Teams/Users updated.", creator)
 
 
-async def _alias(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _alias(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Manage aliases.
 
@@ -1475,8 +1476,9 @@ async def _alias(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str)
         if not org.aliases:
             resp = "No aliases have been created."
         else:
-            resp = "All aliases:\n"
-            resp += "\n".join(f"* `{alias['from']}` \u2192 `{alias['to']}`" for alias in org.aliases)
+            resp = "All aliases:"
+            for alias in org.aliases:
+                resp += f"\n* `{alias['from']}` \u2192 `{alias['to']}"
         await chat.send_message(resp, creator)
         return
 
@@ -1509,7 +1511,7 @@ async def _alias(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str)
         await chat.send_message("Invalid action. Allowed actions are create, delete and no argument (view).", creator)
 
 
-async def _exportConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _exportConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Export config as a JSON.
 
@@ -1527,7 +1529,7 @@ async def _exportConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, arg
         await chat.send_message(f"Config: [{file.get_name()}]({file.get_url()})", creator)
 
 
-async def _importConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _importConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Import config from JSON.
 
@@ -1539,7 +1541,7 @@ async def _importConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, arg
     group: Miscellaneous Commands
     syntax: <data>
     """
-    msg = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, timeout=5.0))[0]
+    msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
     file = msg.get_attached_file()
     if file:
         # Get the actual contents
@@ -1566,7 +1568,7 @@ async def _importConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, arg
         await chat.send_message(f"Error decoding JSON: {e}", creator)
 
 
-async def _setDailyMessageTime(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _setDailyMessageTime(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Set the time daily messages are sent each day or turn them on/off.
 
@@ -1603,7 +1605,7 @@ async def _setDailyMessageTime(chat: pyryver.Chat, user: pyryver.User, msg_id: s
         await chat.send_message(f"Messages have been disabled.", creator)
 
 
-async def _message(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _message(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Send a message to a chat by ID.
     ---
@@ -1630,7 +1632,7 @@ async def _message(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: st
     await to.send_message(msg, creator)
 
 
-async def _accessRule(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str):
+async def _accessRule(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     View or modify access rules.
 

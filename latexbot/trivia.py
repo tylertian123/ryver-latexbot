@@ -3,7 +3,6 @@ Uses the Open Trivia Database https://opentdb.com/ for a game of trivia.
 """
 
 import aiohttp
-import asyncio
 import html
 import random
 import typing

@@ -1,12 +1,9 @@
-import aiohttp
-import asyncio
 import org
 import pyryver
 import re
 import typing
 from datetime import datetime
 from dateutil import tz
-from random import randrange
 from textwrap import dedent
 
 # Make print() flush immediately
@@ -14,7 +11,7 @@ from textwrap import dedent
 old_print = print
 
 
-def print(*args, **kwargs):
+def print(*args, **kwargs): # pylint: disable=redefined-builtin, missing-docstring
     kwargs["flush"] = True
     # Add timestamp
     old_print(current_time().strftime("%Y-%m-%d %H:%M:%S"), *args, **kwargs)
@@ -53,10 +50,10 @@ async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing
     msgs = []
     # Get around the 25 message restriction
     # Cut off the last one (that one is the message with the id specified)
-    msgs = (await pyryver.retry_until_available(chat.get_message_from_id, msg_id, before=min(25, count), timeout=5.0))[:-1]
+    msgs = (await pyryver.retry_until_available(chat.get_messages_surrounding, msg_id, before=min(25, count), timeout=5.0))[:-1]
     count -= len(msgs)
     while count > 0:
-        prev_msgs = (await pyryver.retry_until_available(chat.get_message_from_id, msgs[0].get_id(), before=min(25, count), timeout=5.0))[:-1]
+        prev_msgs = (await pyryver.retry_until_available(chat.get_messages_surrounding, msgs[0].get_id(), before=min(25, count), timeout=5.0))[:-1]
         msgs = prev_msgs + msgs
         count -= len(prev_msgs)
     return msgs
@@ -66,7 +63,6 @@ def parse_chat_name(ryver: pyryver.Ryver, name: str) -> pyryver.Chat:
     """
     Parse a chat name expression in the form [(name|nickname)=]<forum|team> and return the correct chat.
     """
-    field = pyryver.FIELD_NAME
     # Handle the name= or nickname= syntax
     if name.startswith("name="):
         # Slice off the beginning

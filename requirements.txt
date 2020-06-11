@@ -1,4 +1,5 @@
-pyryver>=0.2.0
+--extra-index-url https://test.pypi.org/simple/
+pyryver==0.3.0a1.post1
 python-dateutil
 google-api-python-client
 google-auth-httplib2
