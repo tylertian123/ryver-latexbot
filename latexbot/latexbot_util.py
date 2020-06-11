@@ -6,15 +6,16 @@ from datetime import datetime
 from dateutil import tz
 from textwrap import dedent
 
-# Make print() flush immediately
-# Otherwise the logs won't show up in real time in Docker
-old_print = print
 
+def log(*args, **kwargs):
+    """
+    Log a message.
 
-def print(*args, **kwargs): # pylint: disable=redefined-builtin, missing-docstring
-    kwargs["flush"] = True
-    # Add timestamp
-    old_print(current_time().strftime("%Y-%m-%d %H:%M:%S"), *args, **kwargs)
+    This function uses print() and flushes immediately.
+    A timestamp is also added to each message.
+    """
+    print(current_time().strftime("%Y-%m-%d %H:%M:%S"), end=" ")
+    print(*args, **kwargs, flush=True)
 
 
 DATE_FORMAT = "%Y-%m-%d %H:%M"

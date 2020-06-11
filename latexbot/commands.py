@@ -20,7 +20,7 @@ import xkcd
 from caseinsensitivedict import CaseInsensitiveDict
 from command import Command
 from gcalendar import Calendar
-from latexbot_util import * # pylint: disable=redefined-builtin
+from latexbot_util import *
 from markdownify import markdownify
 from org import creator
 from traceback import format_exc
@@ -1408,10 +1408,6 @@ async def _execute(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: st
     # Temporarily replace stdout and stderr
     stdout = sys.stdout
     stderr = sys.stderr
-    # Fix print
-    global print
-    new_print = print
-    print = old_print
     # Merge stdout and stderr
     try:
         sys.stdout = io.StringIO()
@@ -1426,7 +1422,6 @@ async def _execute(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: st
     finally:
         sys.stdout = stdout
         sys.stderr = stderr
-        print = new_print
 
 
 async def _updateChats(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
@@ -1559,7 +1554,7 @@ async def _importConfig(chat: pyryver.Chat, user: pyryver.User, msg_id: str, arg
     try:
         errs = org.init_config(chat.get_ryver(), json.loads(data))
         if errs:
-            print("Error loading config:", *errs, sep="\n")
+            log("Error loading config:", *errs, sep="\n")
             await chat.send_message("Error loading config:\n" + "\n".join(errs), creator)
         generate_help_text(chat.get_ryver())
         org.save_config()
@@ -1845,7 +1840,7 @@ def generate_help_text(ryver: pyryver.Ryver):
             continue
 
         if command.get_processor().__doc__ == "":
-            print(f"Warning: Command {name} has no documentation, skipped")
+            log(f"Warning: Command {name} has no documentation, skipped")
             continue
 
         try:
@@ -1874,7 +1869,7 @@ def generate_help_text(ryver: pyryver.Ryver):
             description += f"\n\n{extended_description}\n\n**Examples:**\n{examples}"
             extended_help_text[name] = description
         except (ValueError, KeyError) as e:
-            print(f"Error while parsing doc for {name}: {e}")
+            log(f"Error while parsing doc for {name}: {e}")
 
     for group, cmds in commands.items():
         help_text += group + ":\n"

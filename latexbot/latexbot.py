@@ -7,7 +7,7 @@ import org
 import os
 import pyryver
 from command import Command
-from latexbot_util import * # pylint: disable=redefined-builtin
+from latexbot_util import *
 from org import creator
 from traceback import format_exc
 
@@ -83,7 +83,7 @@ def preprocess_command(command: str, is_dm: bool):
 
 
 async def main():
-    print(f"LaTeX Bot {org.VERSION} has been started. Initializing...")
+    log(f"LaTeX Bot {org.VERSION} has been started. Initializing...")
     # Init Ryver session
     cache = pyryver.FileCacheStorage("data", "latexbot-")
     async with pyryver.Ryver(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"], cache=cache) as ryver: # type: pyryver.Ryver
@@ -95,7 +95,7 @@ async def main():
         async with ryver.get_live_session() as session: # type: pyryver.RyverWS
             @session.on_connection_loss
             async def _on_conn_loss():
-                print("Error: Connection lost!")
+                log("Error: Connection lost!")
                 await session.close()
             
             @session.on_chat
@@ -137,14 +137,14 @@ async def main():
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
                         if not enabled:
                             enabled = True
-                            print(f"Re-enabled by user {from_user.get_name()}!")
+                            log(f"Re-enabled by user {from_user.get_name()}!")
                             await to.send_message("I have been re-enabled!", creator)
                         else:
                             await to.send_message("I'm already enabled.", creator)
                         return
                     elif command == "setEnabled" and args == "false" and enabled:
                         enabled = False
-                        print(f"Disabled by user {from_user.get_name()}.")
+                        log(f"Disabled by user {from_user.get_name()}.")
                         await to.send_message("I have been disabled.", creator)
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AWAY)
                         return
@@ -152,23 +152,23 @@ async def main():
                     if not enabled:
                         return
                     if is_dm:
-                        print(f"DM received from {from_user.get_name()}: {msg.text}")
+                        log(f"DM received from {from_user.get_name()}: {msg.text}")
                     else:
-                        print(f"Command received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
+                        log(f"Command received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
 
                     async with session.typing(to):
                         if command in Command.all_commands:
                             try:
                                 if not await Command.process(command, args, to, from_user, msg.message_id):
                                     await to.send_message(Command.get_access_denied_message(), creator)
-                                    print("Access Denied")
+                                    log("Access Denied")
                                 else:
-                                    print("Command processed.")
+                                    log("Command processed.")
                             except Exception as e: # pylint: disable=broad-except
-                                print(f"Exception raised:\n{format_exc()}")
+                                log(f"Exception raised:\n{format_exc()}")
                                 await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", creator)
                         else:
-                            print("Invalid command.")
+                            log("Invalid command.")
                             await to.send_message(f"Sorry, I didn't understand what you were asking me to do.", creator)
                 # Not a command
                 else:
@@ -185,7 +185,7 @@ async def main():
                         if new_text != msg.text:
                             # Get the message object
                             to = ryver.get_chat(jid=msg.to_jid)
-                            print(f"Role mention received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
+                            log(f"Role mention received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
                             async with session.typing(to):
                                 # Pretend to be the creator
                                 msg_creator = pyryver.Creator(
@@ -207,7 +207,7 @@ async def main():
                 # Extra processing for interfacing trivia with reactions
                 await commands._trivia_on_reaction(ryver, session, msg.event_data)
 
-            print("LaTeX Bot is running!")
+            log("LaTeX Bot is running!")
             if os.environ.get("LATEXBOT_DEBUG", "0") != "1":
                 await org.home_chat.send_message(f"LaTeX Bot {org.VERSION} is online! **I now respond to messages in real time!**\n\n{commands.help_text}", creator)
 

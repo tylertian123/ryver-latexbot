@@ -196,11 +196,11 @@ async def daily_message(init_delay: float = 0):
     try:
         await asyncio.sleep(init_delay)
         while True:
-            print("Checking today's events...")
+            util.log("Checking today's events...")
             now = util.current_time()
             events = calendar.get_today_events(calendar_id, now)
             if not events:
-                print("No events today!")
+                util.log("No events today!")
             else:
                 resp = "Reminder: These events are happening today:"
                 for event in events:
@@ -221,13 +221,13 @@ async def daily_message(init_delay: float = 0):
                         # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
                         resp += f"\u200B:\n{markdownify(event['description'])}"
                 await announcements_chat.send_message(resp, creator)
-                print("Events reminder sent!")
+                util.log("Events reminder sent!")
             
-            print("Checking for holidays...")
+            util.log("Checking for holidays...")
             url = f"https://www.checkiday.com/api/3/?d={util.current_time().strftime('%Y/%m/%d')}"
             async with aiohttp.request("GET", url) as resp:
                 if resp.status != 200:
-                    print(f"HTTP error while trying to get holidays: {resp}")
+                    util.log(f"HTTP error while trying to get holidays: {resp}")
                     data = {
                         "error": f"HTTP error while trying to get holidays: {resp}",
                     }
@@ -240,19 +240,19 @@ async def daily_message(init_delay: float = 0):
                     msg = f"Here is a list of all the holidays today:\n"
                     msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
                     await messages_chat.send_message(msg, creator)
-            print("Done checking for holidays.")
-            print("Checking for a new xkcd...")
+            util.log("Done checking for holidays.")
+            util.log("Checking for a new xkcd...")
             comic = await xkcd.get_comic()
             if comic['num'] <= last_xkcd:
-                print(f"No new xkcd found (latest is {comic['num']}).")
+                util.log(f"No new xkcd found (latest is {comic['num']}).")
             else:
-                print(f"New comic found! (#{comic['num']})")
+                util.log(f"New comic found! (#{comic['num']})")
                 xkcd_creator = pyryver.Creator(creator.name, util.XKCD_PROFILE)
                 await messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
                 # Update xkcd number
                 last_xkcd = comic['num']
                 save_config()
-            print("Daily message sent.")
+            util.log("Daily message sent.")
             # Sleep for an entire day
             await asyncio.sleep(60 * 60 * 24)
     except asyncio.CancelledError:
@@ -269,7 +269,7 @@ def schedule_daily_message():
         daily_message_task.cancel()
     
     if not daily_message_time:
-        print("Daily message not scheduled because time isn't defined.")
+        util.log("Daily message not scheduled because time isn't defined.")
         return
     t = datetime.strptime(daily_message_time, "%H:%M")
     now = util.current_time()
@@ -279,7 +279,7 @@ def schedule_daily_message():
     if t < now:
         t += timedelta(days=1)
     init_delay = (t - now).total_seconds()
-    print(f"Daily message re-scheduled, starting after {init_delay} seconds.")
+    util.log(f"Daily message re-scheduled, starting after {init_delay} seconds.")
     daily_message_task = asyncio.ensure_future(daily_message(init_delay))
 
 
@@ -300,7 +300,7 @@ async def init(ryver: pyryver.Ryver):
         with open(ROLES_FILE, "r") as f:
             roles = CaseInsensitiveDict(json.load(f))
     except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error while loading roles: {e}. Defaulting to {{}}.")
+        util.log(f"Error while loading roles: {e}. Defaulting to {{}}.")
         roles = CaseInsensitiveDict()
     # Load config
     try:
@@ -308,10 +308,10 @@ async def init(ryver: pyryver.Ryver):
             config = json.load(f)
         errs = init_config(ryver, config)
         if errs:
-            print("Error loading config:", *errs, sep="\n")
+            util.log("Error loading config:", *errs, sep="\n")
             await home_chat.send_message("Error loading config:\n" + "\n".join(errs), creator)
     except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
-        print(f"Error while loading config: {e}. Using the following defaults:")
+        util.log(f"Error while loading config: {e}. Using the following defaults:")
         # Call init_config with an empty dict so variables are initialized to their defaults
         # Ignore errors
         init_config(ryver, {})
@@ -321,4 +321,4 @@ async def init(ryver: pyryver.Ryver):
             trivia_questions = json.load(f)
         trivia.set_custom_trivia_questions(trivia_questions)
     except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error while loading custom trivia questions: {e}")
+        util.log(f"Error while loading custom trivia questions: {e}")
