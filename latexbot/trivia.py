@@ -99,7 +99,7 @@ class TriviaSession:
     TYPE_MULTIPLE_CHOICE = "multiple"
     TYPE_TRUE_OR_FALSE = "boolean"
 
-    async def get_questions(self, amount: int, category: int = None, difficulty: str = None, type: str = None):
+    async def get_questions(self, amount: int, category: int = None, difficulty: str = None, question_type: str = None):
         """
         Get questions.
         """
@@ -108,8 +108,8 @@ class TriviaSession:
             url += f"&category={category}"
         if difficulty is not None:
             url += f"&difficulty={difficulty}"
-        if type is not None:
-            url += f"&type={type}"
+        if question_type is not None:
+            url += f"&type={question_type}"
         if self._token is not None:
             url += f"&token={self._token}"
         async with self._session.get(url) as resp:
@@ -151,7 +151,7 @@ class CustomTriviaSession:
         self._index = 0
         random.shuffle(self._questions)
     
-    def get_question(self, difficulty: str = None, type: str = None):
+    def get_question(self, difficulty: str = None, question_type: str = None):
         """
         Get a question.
         """
@@ -160,7 +160,7 @@ class CustomTriviaSession:
             self._index += 1
             if difficulty is not None and question["difficulty"] != difficulty:
                 continue
-            if type is not None and question["type"] != type:
+            if question_type is not None and question["type"] != question_type:
                 continue
             return question
         raise OpenTDBError("Ran out of questions!", OpenTDBError.CODE_TOKEN_EMPTY)
@@ -177,7 +177,7 @@ class TriviaGame:
 
         self.category = None
         self.difficulty = None
-        self.type = None
+        self.question_type = None
 
         self.current_question = None
         self.host = None
@@ -227,11 +227,11 @@ class TriviaGame:
         """
         self.difficulty = difficulty
     
-    def set_type(self, type: str):
+    def set_type(self, question_type: str):
         """
         Set the question type (True/False or Multiple Choice).
         """
-        self.type = type
+        self.question_type = question_type
     
     async def get_categories(self) -> typing.List[typing.Dict[str, typing.Any]]:
         """
@@ -254,9 +254,9 @@ class TriviaGame:
         - "answered": If the question has been answered (bool)
         """
         if isinstance(self.category, str):
-            question = self._custom_session.get_question(difficulty=self.difficulty, type=self.type)
+            question = self._custom_session.get_question(difficulty=self.difficulty, question_type=self.question_type)
         else:
-            question = (await self._session.get_questions(1, category=self.category, difficulty=self.difficulty, type=self.type))[0]
+            question = (await self._session.get_questions(1, category=self.category, difficulty=self.difficulty, question_type=self.question_type))[0]
         
         self.current_question = {
             "category": question["category"],

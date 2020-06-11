@@ -56,6 +56,9 @@ class CaseInsensitiveDict(dict):
         return super().get(CaseInsensitiveKey(key), default)
     
     def to_dict(self):
+        """
+        Convert this case insensitive dict to a regular dict.
+        """
         return {k: v for k, v in self.items()}
     
     def items(self):

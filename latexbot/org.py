@@ -6,6 +6,7 @@ import asyncio
 import gcalendar
 import json
 import latexbot_util as util
+import os
 import pyryver
 import trivia
 import typing
@@ -17,7 +18,11 @@ from gcalendar import Calendar
 from markdownify import markdownify
 
 
+DEBUG = os.environ.get("LATEXBOT_DEBUG", "0") == "1"
+
 VERSION = "v0.6.0-dev (pyryver v0.3.0a1)"
+if DEBUG:
+    VERSION += " (DEBUG)"
 
 creator = pyryver.Creator(f"LaTeX Bot {VERSION}", "")
 
@@ -110,36 +115,36 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
     err = []
     try:
         admins = set(config["admins"])
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'admins'. Defaulting to [] or leaving unchanged.")
         admins = admins or []
     try:
         org_tz = config["organizationTimeZone"]
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'organizationTimeZone'. Defaulting to UTC or leaving unchanged.")
         org_tz = org_tz or "UTC"
     try:
         home_chat = ryver.get_groupchat(nickname=config["homeChat"])
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'homeChat'. Defaulting to +Test or leaving unchanged.")
         home_chat = home_chat or ryver.get_groupchat(nickname="Test")
     try:
         announcements_chat = ryver.get_groupchat(nickname=config["announcementsChat"])
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'announcementsChat'. Defaulting to +Gen or leaving unchanged.")
         announcements_chat = announcements_chat or ryver.get_groupchat(nickname="Gen")
     try:
         messages_chat = ryver.get_groupchat(nickname=config["messagesChat"])
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'messagesChat'. Defaulting to +Test or leaving unchanged.")
         messages_chat = messages_chat or ryver.get_groupchat(nickname="Test")
     try:
         calendar_id = config["googleCalendarId"]
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'googleCalendarId'. Defaulting to null or leaving unchanged.")
     try:
         daily_message_time = config["dailyMessageTime"]
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'dailyMessageTime'. Defaulting to null or leaving unchanged.")
     # Schedule or unschedule the daily message task
     if daily_message_time:
@@ -149,27 +154,27 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
             daily_message_task.cancel()
     try:
         last_xkcd = config["lastXKCD"]
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'lastXKCD'. Defaulting to 0 or leaving unchanged.")
         last_xkcd = last_xkcd or 0
     try:
         command_prefixes = config["commandPrefixes"]
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'commandPrefixes'. Defaulting to ['@latexbot '] or leaving unchanged.")
         command_prefixes = command_prefixes or ["@latexbot "]
     try:
         aliases = config["aliases"]
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'aliases'. Defaulting to [] or leaving unchanged.")
         aliases = aliases or []
     try:
         access_rules = config["accessRules"] # type: typing.Dict[str, typing.Dict[str, typing.Any]]
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'accessRules'. Defaulting to {} or leaving unchanged.")
         access_rules = access_rules or {}
     try:
         opinions = config["opinions"] # type: typing.List[typing.Dict[str, typing.List[str]]]
-    except Exception as e:
+    except Exception:
         err.append("Error: Invalid field 'opinions'. Defaulting to [] or leaving unchanged.")
         opinions = opinions or []
     return err

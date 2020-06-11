@@ -16,6 +16,7 @@ services:
       - LATEXBOT_ORG=${LATEXBOT_ORG}
       - LATEXBOT_USER=${LATEXBOT_USER}
       - LATEXBOT_PASS=${LATEXBOT_PASS}
+      - LATEXBOT_DEBUG=${LATEXBOT_DEBUG}
 
 volumes: 
   latexbot-data:

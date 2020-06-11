@@ -6,7 +6,6 @@ import commands
 import org
 import os
 import pyryver
-import typing
 from command import Command
 from latexbot_util import * # pylint: disable=redefined-builtin
 from org import creator
@@ -165,7 +164,7 @@ async def main():
                                     print("Access Denied")
                                 else:
                                     print("Command processed.")
-                            except Exception as e:
+                            except Exception as e: # pylint: disable=broad-except
                                 print(f"Exception raised:\n{format_exc()}")
                                 await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", creator)
                         else:
@@ -206,9 +205,10 @@ async def main():
             @session.on_event(pyryver.RyverWS.EVENT_REACTION_ADDED)
             async def _on_reaction_added(msg: pyryver.WSEventData):
                 # Extra processing for interfacing trivia with reactions
-                await commands._trivia_on_reaction(ryver, session, msg.data)
+                await commands._trivia_on_reaction(ryver, session, msg.event_data)
 
             print("LaTeX Bot is running!")
-            await org.home_chat.send_message(f"LaTeX Bot {org.VERSION} is online! **I now respond to messages in real time!**\n\n{commands.help_text}", creator)
+            if os.environ.get("LATEXBOT_DEBUG", "0") != "1":
+                await org.home_chat.send_message(f"LaTeX Bot {org.VERSION} is online! **I now respond to messages in real time!**\n\n{commands.help_text}", creator)
 
             await session.run_forever()

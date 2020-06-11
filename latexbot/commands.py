@@ -379,7 +379,7 @@ async def _trivia(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str
         msg = await pyryver.retry_until_available(chat.get_message, mid, timeout=5.0)
         if trivia_game.current_question["type"] == trivia.TriviaSession.TYPE_MULTIPLE_CHOICE:
             # Iterate the reactions array until all the options are accounted for
-            for i, reaction in zip(range(len(trivia_game.current_question["answers"])), TRIVIA_NUMBER_EMOJIS):
+            for _, reaction in zip(trivia_game.current_question["answers"], TRIVIA_NUMBER_EMOJIS):
                 await msg.react(reaction)
         else:
             await msg.react("white_check_mark")
@@ -1416,11 +1416,11 @@ async def _execute(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: st
     try:
         sys.stdout = io.StringIO()
         sys.stderr = sys.stdout
-        exec(args, globals(), locals())
+        exec(args, globals(), locals()) # pylint: disable=exec-used
         output = sys.stdout.getvalue()
 
         await chat.send_message(output, creator)
-    except Exception as e:
+    except Exception: # pylint: disable=broad-except
         await chat.send_message(
             f"An exception has occurred:\n```\n{format_exc()}\n```", creator)
     finally:
