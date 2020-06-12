@@ -1,101 +1,115 @@
-"""
-This module contains the main logic for LaTeX Bot.
-"""
-
 import commands
-import org
-import os
+import config
+import json
 import pyryver
-from command import Command
-from latexbot_util import *
-from org import creator
+import util
+from caseinsensitivedict import CaseInsensitiveDict
+from command import Command, CommandSet
+from gcalendar import Calendar
 from traceback import format_exc
 
 
-################################ GLOBAL VARIABLES AND CONSTANTS ################################
-
-enabled = True
-
-################################ UTILITY FUNCTIONS ################################
-
-
-def preprocess_command(command: str, is_dm: bool):
+class LatexBot:
     """
-    Preprocess a command.
-
-    Separate the command into the command name and args and resolve aliases 
-    if it is a command. Otherwise return None.
-
-    If it encouters a recursive alias, it raises ValueError.
+    An instance of LaTeX Bot.
     """
-    is_command = False
-    for prefix in org.command_prefixes:
-        # Check for a valid command prefix
-        if command.startswith(prefix) and len(command) > len(prefix):
-            is_command = True
-            # Remove the prefix
-            command = command[len(prefix):]
-    
-    # DMs don't require command prefixes
-    if not is_command and not is_dm:
-        return None
-    
-    # Repeat until all aliases are expanded
-    used_aliases = set()
-    while True:
-        # Separate command from args
-        # Find the first whitespace
-        command = command.strip()
-        space = None
-        # Keep track of this for alias expansion
-        space_char = ""
-        for i, c in enumerate(command):
-            if c.isspace():
-                space = i
-                space_char = c
-                break
-        
-        if space:
-            cmd = command[:space]
-            args = command[space + 1:]
+
+    def __init__(self, version: str, debug: bool = False):
+        self.debug = debug
+        if debug:
+            self.version = version + " (DEBUG)"
         else:
-            cmd = command
-            args = ""
+            self.version = version
+        self.enabled = True
 
-        # Expand aliases
-        command = None
-        for alias in org.aliases:
-            if alias["from"] == cmd:
-                # Check for recursion
-                if alias["from"] in used_aliases:
-                    raise ValueError(f"Recursive alias: '{alias['from']}'!")
-                used_aliases.add(alias["from"])
-                # Expand the alias
-                command = alias["to"] + space_char + args
-                break
-        # No aliases were expanded - return
-        if not command:
-            return (cmd.strip(), args.strip())
-        # Otherwise go again until no more expansion happens
+        self.ryver = None # type: pyryver.Ryver
+        self.username = None # type: str
+        self.user_avatars = None # type: typing.Dict[str, str]
 
+        self.config_file = None # type: str
+        self.calendar = None # type: Calendar
+        self.home_chat = None # type: pyryver.GroupChat
+        self.announcements_chat = None # type: pyryver.GroupChat
+        self.messages_chat = None # type: pyryver.GroupChat
 
-################################ OTHER FUNCTIONS ################################
+        self.roles_file = None # type: str
+        self.roles = CaseInsensitiveDict()
 
+        self.trivia_file = None # type: str
 
-async def main():
-    log(f"LaTeX Bot {org.VERSION} has been started. Initializing...")
-    # Init Ryver session
-    cache = pyryver.FileCacheStorage("data", "latexbot-")
-    async with pyryver.Ryver(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"], cache=cache) as ryver: # type: pyryver.Ryver
-        # Init other stuff
-        await ryver.load_missing_chats()
-        await org.init(ryver)
-        commands.generate_help_text(ryver)
+        self.commands = None # type: CommandSet
+        self.help = None # type: str
+        self.command_help = {} # type: typing.Dict[str, str]
+       
+        self.msg_creator = pyryver.Creator("LaTeX Bot " + self.version)
+    
+    async def init(self, org: str, user: str, password: str, cache_dir: str, cache_prefix: str) -> None:
+        """
+        Initialize LaTeX Bot.
+        """
+        self.username = user
+        cache = pyryver.FileCacheStorage(cache_dir, cache_prefix)
+        self.ryver = pyryver.Ryver(org=org, user=user, password=password, cache=cache)
+        await self.ryver.load_missing_chats()
+
+        # Get user avatar URLs
+        # This information is not included in the regular user info
+        info = await self.ryver.get_info()
+        users_json = info["users"]
+        self.user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
+
+        # Define commands
+        self.commands = CommandSet()
+        self.commands.add_command(Command("ping", commands.command_ping, Command.ACCESS_LEVEL_EVERYONE))
+    
+    async def load_config(self, config_file: str, roles_file: str, trivia_file: str) -> str:
+        """
+        Load the config.
+
+        Returns an error message.
+        """
+        self.config_file = config_file
+        self.roles_file = roles_file
+        self.trivia_file = trivia_file
+
+        # Load config
+        try:
+            with open(config_file, "r") as f:
+                config_data = json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            util.log(f"Error reading config: {e}. Falling back to empty config...")
+        
+        err = config.loader.load(config_data, config.config, True)
+        self.calendar = Calendar("calendar_credentials.json", config.config["googleCalendarId"])
+        self.home_chat = self.ryver.get_groupchat(nickname=config.config["homeChat"])
+        self.announcements_chat = self.ryver.get_groupchat(nickname=config.config["announcementsChat"])
+        self.messages_chat = self.ryver.get_groupchat(nickname=config.config["messagesChat"])
+        if err:
+            util.log(err)
+            if self.home_chat is not None:
+                await self.home_chat.send_message(err, self.msg_creator)
+
+        # Load roles
+        try:
+            with open(roles_file, "r") as f:
+                self.roles = CaseInsensitiveDict(json.load(f))
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            util.log(f"Error while loading roles: {e}. Defaulting to {{}}.")
+            if self.home_chat is not None:
+                await self.home_chat.send_message(f"Error while loading roles: {e}. Defaulting to {{}}.", self.msg_creator)
+            self.roles = CaseInsensitiveDict()
+    
+    async def run(self) -> None:
+        """
+        Run LaTeX Bot.
+        """
+        util.log(f"LaTeX Bot {self.version} has been started. Initializing...")
+        self.help, self.command_help = self.commands.generate_help_text(self.ryver)
         # Start live session
-        async with ryver.get_live_session() as session: # type: pyryver.RyverWS
+        async with self.ryver.get_live_session() as session: # type: pyryver.RyverWS
             @session.on_connection_loss
             async def _on_conn_loss():
-                log("Error: Connection lost!")
+                util.log("Error: Connection lost!")
                 await session.close()
             
             @session.on_chat
@@ -105,13 +119,13 @@ async def main():
                     return
 
                 # Check the sender
-                from_user = ryver.get_user(jid=msg.from_jid)
+                from_user = self.ryver.get_user(jid=msg.from_jid)
                 # Ignore messages sent by us
-                if from_user.get_username() == os.environ["LATEXBOT_USER"]:
+                if from_user.get_username() == self.username:
                     return
                 
                 # Check if this is a DM
-                to = ryver.get_chat(jid=msg.to_jid)
+                to = self.ryver.get_chat(jid=msg.to_jid)
                 if isinstance(to, pyryver.User):
                     # For DMs special processing is required
                     # Since we don't want to reply to ourselves, reply to the sender directly instead
@@ -120,13 +134,13 @@ async def main():
                 else:
                     is_dm = False
 
-                global enabled
                 try:
-                    preprocessed = preprocess_command(msg.text, is_dm)
+                    preprocessed = util.preprocess_command(config.config["commandPrefixes"], config.config["aliases"],
+                                                           msg.text, is_dm)
                 except ValueError as e:
-                    # Skip if not enabled
-                    if enabled:
-                        await to.send_message(f"Cannot process command: {e}", creator)
+                    # Skip if not self.
+                    if self.enabled:
+                        await to.send_message(f"Cannot process command: {e}", self.msg_creator)
                     return
                 
                 if preprocessed:
@@ -135,61 +149,60 @@ async def main():
                     if command == "setEnabled" and args == "true":
                         # Send the presence change anyways in case it gets messed up
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
-                        if not enabled:
-                            enabled = True
-                            log(f"Re-enabled by user {from_user.get_name()}!")
-                            await to.send_message("I have been re-enabled!", creator)
+                        if not self.enabled:
+                            self.enabled = True
+                            util.log(f"Re-enabled by user {from_user.get_name()}!")
+                            await to.send_message("I have been re-enabled!", self.msg_creator)
                         else:
-                            await to.send_message("I'm already enabled.", creator)
+                            await to.send_message("I'm already enabled.", self.msg_creator)
                         return
-                    elif command == "setEnabled" and args == "false" and enabled:
-                        enabled = False
-                        log(f"Disabled by user {from_user.get_name()}.")
-                        await to.send_message("I have been disabled.", creator)
+                    elif command == "setEnabled" and args == "false" and self.enabled:
+                        self.enabled = False
+                        util.log(f"Disabled by user {from_user.get_name()}.")
+                        await to.send_message("I have been disabled.", self.msg_creator)
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AWAY)
                         return
 
-                    if not enabled:
+                    if not self.enabled:
                         return
                     if is_dm:
-                        log(f"DM received from {from_user.get_name()}: {msg.text}")
+                        util.log(f"DM received from {from_user.get_name()}: {msg.text}")
                     else:
-                        log(f"Command received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
+                        util.log(f"Command received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
 
                     async with session.typing(to):
-                        if command in Command.all_commands:
+                        if command in self.commands.commands:
                             try:
-                                if not await Command.process(command, args, to, from_user, msg.message_id):
-                                    await to.send_message(Command.get_access_denied_message(), creator)
-                                    log("Access Denied")
+                                if not await self.commands.process(command, args, self, to, from_user, msg.message_id):
+                                    await to.send_message(Command.get_access_denied_message(), self.msg_creator)
+                                    util.log("Access Denied")
                                 else:
-                                    log("Command processed.")
+                                    util.log("Command processed.")
                             except Exception as e: # pylint: disable=broad-except
-                                log(f"Exception raised:\n{format_exc()}")
-                                await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", creator)
+                                util.log(f"Exception raised:\n{format_exc()}")
+                                await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", self.msg_creator)
                         else:
-                            log("Invalid command.")
-                            await to.send_message(f"Sorry, I didn't understand what you were asking me to do.", creator)
+                            util.log("Invalid command.")
+                            await to.send_message(f"Sorry, I didn't understand what you were asking me to do.", self.msg_creator)
                 # Not a command
                 else:
                     # Check for roles
-                    if MENTION_REGEX.search(msg.text):
+                    if util.MENTION_REGEX.search(msg.text):
                         # Replace roles and re-send
                         def replace_func(match):
                             group1 = match.group(1)
                             name = match.group(2)
-                            if name in org.roles:
-                                name = " @".join(org.roles[name])
+                            if name in self.roles:
+                                name = " @".join(self.roles[name])
                             return group1 + name
-                        new_text = MENTION_REGEX.sub(replace_func, msg.text)
+                        new_text = util.MENTION_REGEX.sub(replace_func, msg.text)
                         if new_text != msg.text:
                             # Get the message object
-                            to = ryver.get_chat(jid=msg.to_jid)
-                            log(f"Role mention received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
+                            to = self.ryver.get_chat(jid=msg.to_jid)
+                            util.log(f"Role mention received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
                             async with session.typing(to):
                                 # Pretend to be the creator
-                                msg_creator = pyryver.Creator(
-                                    from_user.get_name(), org.user_avatars.get(from_user.get_id(), ""))
+                                msg_creator = pyryver.Creator(from_user.get_name(), self.user_avatars.get(from_user.get_id(), ""))
                                 await to.send_message(new_text, msg_creator)
                             # Can't delete the other person's messages in DMs, so skip
                             if not is_dm:
@@ -205,10 +218,11 @@ async def main():
             @session.on_event(pyryver.RyverWS.EVENT_REACTION_ADDED)
             async def _on_reaction_added(msg: pyryver.WSEventData):
                 # Extra processing for interfacing trivia with reactions
-                await commands._trivia_on_reaction(ryver, session, msg.event_data)
+                pass
+                #await commands._trivia_on_reaction(self.ryver, session, msg.event_data)
 
-            log("LaTeX Bot is running!")
-            if os.environ.get("LATEXBOT_DEBUG", "0") != "1":
-                await org.home_chat.send_message(f"LaTeX Bot {org.VERSION} is online! **I now respond to messages in real time!**\n\n{commands.help_text}", creator)
+            util.log("LaTeX Bot is running!")
+            if not self.debug and self.home_chat is not None:
+                await self.home_chat.send_message(f"LaTeX Bot {self.version} is online! **I now respond to messages in real time!**\n\n{self.help}", self.msg_creator)
 
             await session.run_forever()

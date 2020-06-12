@@ -62,9 +62,9 @@ class ConfigLoader:
                 return f"While processing '{field}', an error occurred: '{e}' Defaulting to '{default}'."
             return f"While processing '{field}', an error occurred: '{e}' Skipped."
     
-    def load(self, filename, config: typing.Dict[str, typing.Any], use_defaults=True) -> str:
+    def load(self, data: typing.Dict[str, typing.Any], config: typing.Dict[str, typing.Any], use_defaults=True) -> str:
         """
-        Load a file.
+        Load config.
 
         Returns an error message and modifies the param config.
 
@@ -73,8 +73,6 @@ class ConfigLoader:
         will not be included. If the field is already present, it will not be updated
         on error.
         """
-        with open(filename, "r") as f:
-            data = json.load(f)
         errs = []
 
         for field, (handler, _, field_type, default) in self.fields.items():

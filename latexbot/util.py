@@ -1,21 +1,9 @@
-import org
 import pyryver
 import re
 import typing
-from datetime import datetime
-from dateutil import tz
+import datetime
+import dateutil
 from textwrap import dedent
-
-
-def log(*args, **kwargs):
-    """
-    Log a message.
-
-    This function uses print() and flushes immediately.
-    A timestamp is also added to each message.
-    """
-    print(current_time().strftime("%Y-%m-%d %H:%M:%S"), end=" ")
-    print(*args, **kwargs, flush=True)
 
 
 DATE_FORMAT = "%Y-%m-%d %H:%M"
@@ -38,6 +26,78 @@ ALL_TIME_FORMATS = [
 XKCD_PROFILE = "https://www.explainxkcd.com/wiki/images/6/6d/BlackHat_head.png"
 
 MENTION_REGEX = re.compile(r"((?:^|[^a-zA-Z0-9_!@#$%&*])(?:(?:@)(?!\/)))([a-zA-Z0-9_]*)(?:\b(?!@)|$)", flags=re.MULTILINE)
+
+
+def log(*args, **kwargs):
+    """
+    Log a message.
+
+    This function uses print() and flushes immediately.
+    A timestamp is also added to each message.
+    """
+    print(current_time("EST5EDT").strftime("%Y-%m-%d %H:%M:%S"), end=" ")
+    print(*args, **kwargs, flush=True)
+
+
+def preprocess_command(prefixes: typing.List[str], aliases: typing.List[typing.Dict[str, str]], 
+                       command: str, is_dm: bool):
+    """
+    Preprocess a command.
+
+    Separate the command into the command name and args and resolve aliases 
+    if it is a command. Otherwise return None.
+
+    If it encouters a recursive alias, it raises ValueError.
+    """
+    is_command = False
+    for prefix in prefixes:
+        # Check for a valid command prefix
+        if command.startswith(prefix) and len(command) > len(prefix):
+            is_command = True
+            # Remove the prefix
+            command = command[len(prefix):]
+    
+    # DMs don't require command prefixes
+    if not is_command and not is_dm:
+        return None
+    
+    # Repeat until all aliases are expanded
+    used_aliases = set()
+    while True:
+        # Separate command from args
+        # Find the first whitespace
+        command = command.strip()
+        space = None
+        # Keep track of this for alias expansion
+        space_char = ""
+        for i, c in enumerate(command):
+            if c.isspace():
+                space = i
+                space_char = c
+                break
+        
+        if space:
+            cmd = command[:space]
+            args = command[space + 1:]
+        else:
+            cmd = command
+            args = ""
+
+        # Expand aliases
+        command = None
+        for alias in aliases:
+            if alias["from"] == cmd:
+                # Check for recursion
+                if alias["from"] in used_aliases:
+                    raise ValueError(f"Recursive alias: '{alias['from']}'!")
+                used_aliases.add(alias["from"])
+                # Expand the alias
+                command = alias["to"] + space_char + args
+                break
+        # No aliases were expanded - return
+        if not command:
+            return (cmd.strip(), args.strip())
+        # Otherwise go again until no more expansion happens
 
 
 async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
@@ -88,7 +148,7 @@ def sanitize(msg: str) -> str:
     return MENTION_REGEX.sub(r"\1 \2", msg)
 
 
-def caldays_diff(a: datetime, b: datetime) -> int:
+def caldays_diff(a: datetime.datetime, b: datetime.datetime) -> int:
     """
     Calculate the difference in calendar days between a and b (a - b).
 
@@ -190,13 +250,11 @@ def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
     return doc_dict
 
 
-tz_utc = tz.tzutc()
-
-def current_time() -> datetime:
+def current_time(timezone: str) -> datetime:
     """
-    Get the current organization time, according to the server and org time zones.
+    Get the current time in a timezone specified by string.
     """
-    return datetime.utcnow().replace(tzinfo=tz_utc).astimezone(tz.gettz(org.org_tz))
+    return datetime.datetime.now(datetime.timezone.utc).astimezone(dateutil.tz.gettz(timezone))
 
 
 def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
@@ -207,7 +265,7 @@ def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
     """
     for fmt in formats:
         try:
-            return datetime.strptime(s, fmt)
+            return datetime.datetime.strptime(s, fmt)
         except ValueError:
             pass
     return None
