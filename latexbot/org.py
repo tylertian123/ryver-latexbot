@@ -46,7 +46,7 @@ CONFIG_FILE = "data/config.json"
 TRIVIA_FILE = "data/trivia.json"
 
 SERVICE_ACCOUNT_FILE = "calendar_credentials.json"
-calendar = gcalendar.Calendar(SERVICE_ACCOUNT_FILE)
+calendar = None # type: gcalendar.Calendar
 
 daily_message_task = None # type: asyncio.Future
 
@@ -140,6 +140,8 @@ def init_config(ryver: pyryver.Ryver, config: typing.Dict[str, typing.Any]):
         messages_chat = messages_chat or ryver.get_groupchat(nickname="Test")
     try:
         calendar_id = config["googleCalendarId"]
+        global calendar
+        calendar = gcalendar.Calendar(SERVICE_ACCOUNT_FILE, calendar_id)
     except Exception:
         err.append("Error: Invalid field 'googleCalendarId'. Defaulting to null or leaving unchanged.")
     try:

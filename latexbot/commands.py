@@ -1115,7 +1115,7 @@ async def _events(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str
         await chat.send_message(f"Error: Invalid number.", creator)
         return
     
-    events = org.calendar.get_upcoming_events(org.calendar_id, count)
+    events = org.calendar.get_upcoming_events(count)
 
     now = current_time()
     ongoing = []
@@ -1186,7 +1186,7 @@ async def _quickAddEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, ar
     ---
     > `@latexbot quickAddEvent Appointment at Somewhere on June 3rd 10am-10:25am`
     """
-    event = org.calendar.quick_add(org.calendar_id, args)
+    event = org.calendar.quick_add(args)
     start = Calendar.parse_time(event["start"])
     end = Calendar.parse_time(event["end"])
     # Correctly format based on whether the event is an all-day event
@@ -1294,7 +1294,7 @@ async def _addEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: s
     event_body["summary"] = args[0]
     if desc:
         event_body["description"] = desc
-    event = org.calendar.add_event(org.calendar_id, event_body)
+    event = org.calendar.add_event(event_body)
     start_str = datetime.strftime(start, DATETIME_DISPLAY_FORMAT if len(args) == 5 else DATE_DISPLAY_FORMAT)
     end_str = datetime.strftime(end, DATETIME_DISPLAY_FORMAT if len(args) == 5 else DATE_DISPLAY_FORMAT)
     if not desc:
@@ -1331,7 +1331,7 @@ async def _deleteEvent(chat: pyryver.Chat, user: pyryver.User, msg_id: str, args
             break
     
     if matched_event:
-        org.calendar.remove_event(org.calendar_id, matched_event["id"])
+        org.calendar.remove_event(matched_event["id"])
         # Format the start and end of the event into strings
         start = Calendar.parse_time(matched_event["start"])
         end = Calendar.parse_time(matched_event["end"])
