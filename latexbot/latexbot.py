@@ -17,7 +17,7 @@ class LatexBot:
     def __init__(self, version: str, debug: bool = False):
         self.debug = debug
         if debug:
-            self.version = version + " (DEBUG)"
+            self.version = version + f" (DEBUG: pyryver v{pyryver.__version__})"
         else:
             self.version = version
         self.enabled = True
@@ -60,7 +60,13 @@ class LatexBot:
 
         # Define commands
         self.commands = CommandSet()
+        self.commands.add_command(Command("render", commands.command_render, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("chem", commands.command_chem, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("help", commands.command_help, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("ping", commands.command_ping, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("whatDoYouThink", commands.command_whatDoYouThink, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("xkcd", commands.command_xkcd, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("checkiday", commands.command_checkiday, Command.ACCESS_LEVEL_EVERYONE))
     
     async def load_config(self, config_file: str, roles_file: str, trivia_file: str) -> str:
         """
@@ -79,11 +85,11 @@ class LatexBot:
         except (json.JSONDecodeError, FileNotFoundError) as e:
             util.log(f"Error reading config: {e}. Falling back to empty config...")
         
-        err = config.loader.load(config_data, config.config, True)
-        self.calendar = Calendar("calendar_credentials.json", config.config["googleCalendarId"])
-        self.home_chat = self.ryver.get_groupchat(nickname=config.config["homeChat"])
-        self.announcements_chat = self.ryver.get_groupchat(nickname=config.config["announcementsChat"])
-        self.messages_chat = self.ryver.get_groupchat(nickname=config.config["messagesChat"])
+        err = config.load(config_data, True)
+        self.calendar = Calendar("calendar_credentials.json", config.calendar_id)
+        self.home_chat = self.ryver.get_groupchat(nickname=config.home_chat)
+        self.announcements_chat = self.ryver.get_groupchat(nickname=config.announce_chat)
+        self.messages_chat = self.ryver.get_groupchat(nickname=config.msgs_chat)
         if err:
             util.log(err)
             if self.home_chat is not None:
@@ -135,8 +141,7 @@ class LatexBot:
                     is_dm = False
 
                 try:
-                    preprocessed = util.preprocess_command(config.config["commandPrefixes"], config.config["aliases"],
-                                                           msg.text, is_dm)
+                    preprocessed = util.preprocess_command(config.prefixes, config.aliases, msg.text, is_dm)
                 except ValueError as e:
                     # Skip if not self.
                     if self.enabled:

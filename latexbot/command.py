@@ -54,7 +54,7 @@ class Command:
         """
         if user.get_id() == cls.TYLER_ID:
             return cls.ACCESS_LEVEL_TYLER
-        if user.get_id() in config.config["admins"]:
+        if user.get_id() in config.admins:
             return cls.ACCESS_LEVEL_BOT_ADMIN
         if user.is_admin():
             return cls.ACCESS_LEVEL_ORG_ADMIN
@@ -93,7 +93,7 @@ class Command:
         Note: This access level may have been overridden in the config.
         """
         # Get access rules
-        rules = config.config["accessRules"].get(self._name, {})
+        rules = config.access_rules.get(self._name, {})
         return rules["level"] if "level" in rules else self._level
     
     async def is_authorized(self, bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User) -> bool:
@@ -101,7 +101,7 @@ class Command:
         Test if a user is authorized to use this command.
         """
         # Get access rules
-        rules = config.config["accessRules"].get(self._name, {})
+        rules = config.access_rules.get(self._name, {})
         # disallowUser has the highest precedence
         user_disallowed = user.get_username() in rules["disallowUser"] if "disallowUser" in rules else False
         if user_disallowed:
@@ -213,17 +213,17 @@ class CommandSet:
             for description in cmds:
                 help_text += f"  - {description}\n"
             help_text += "\n"
-        admins = ", ".join([ryver.get_user(id=uid).get_name() for uid in config.config["admins"]])
+        admins = ", ".join([ryver.get_user(id=uid).get_name() for uid in config.admins])
         if admins:
             help_text += f"\nCurrent Bot Admins are: {admins}."
         else:
             help_text += "\nNo Bot Admins are in the configuration."
         help_text += "\n\nFor more details about a command, try `@latexbot help <command>`."
         help_text += "\nClick [here](https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md) for a usage guide."
-        if config.config["aliases"]:
+        if config.aliases:
             help_text += "\n\nCurrent Aliases:\n"
-            help_text += "\n".join(f"* `{alias['from']}` \u2192 `{alias['to']}`" for alias in config.config["aliases"])
+            help_text += "\n".join(f"* `{alias['from']}` \u2192 `{alias['to']}`" for alias in config.aliases)
         return help_text, extended_help_text
 
 
-import latexbot # nopep8
+import latexbot # nopep8 # pylint: disable=unused-import

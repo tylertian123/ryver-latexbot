@@ -10,7 +10,7 @@ import latexbot
 import os
 
 
-VERSION = "v0.6.0-dev (pyryver v0.3.0a1)"
+VERSION = f"v0.6.0-dev"
 
 DATA_DIR = "data/"
 CONFIG_FILE = DATA_DIR + "config.json"
@@ -25,5 +25,6 @@ async def main():
                    DATA_DIR, "latexbot-")
     await bot.load_config(CONFIG_FILE, ROLES_FILE, TRIVIA_FILE)
     await bot.run()
-    
-asyncio.get_event_loop().run_until_complete(main())
+
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(main())
