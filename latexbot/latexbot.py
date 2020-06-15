@@ -24,6 +24,7 @@ class LatexBot:
 
         self.ryver = None # type: pyryver.Ryver
         self.username = None # type: str
+        self.user = None # type: pyryver.User
         self.user_avatars = None # type: typing.Dict[str, str]
 
         self.config_file = None # type: str
@@ -51,6 +52,7 @@ class LatexBot:
         cache = pyryver.FileCacheStorage(cache_dir, cache_prefix)
         self.ryver = pyryver.Ryver(org=org, user=user, password=password, cache=cache)
         await self.ryver.load_missing_chats()
+        self.user = self.ryver.get_user(username=self.username)
 
         # Get user avatar URLs
         # This information is not included in the regular user info
@@ -67,7 +69,18 @@ class LatexBot:
         self.commands.add_command(Command("whatDoYouThink", commands.command_whatDoYouThink, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("xkcd", commands.command_xkcd, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("checkiday", commands.command_checkiday, Command.ACCESS_LEVEL_EVERYONE))
-    
+        
+        self.commands.add_command(Command("deleteMessages", commands.command_deleteMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))
+        self.commands.add_command(Command("moveMessages", commands.command_moveMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))
+        self.commands.add_command(Command("countMessagesSince", commands.command_countMessagesSince, Command.ACCESS_LEVEL_FORUM_ADMIN))
+
+        self.commands.add_command(Command("roles", commands.command_roles, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("addToRole", commands.command_addToRole, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("removeFromRole", commands.command_removeFromRole, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("deleteRole", commands.command_deleteRole, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("exportRoles", commands.command_exportRoles, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("importRoles", commands.command_importRoles, Command.ACCESS_LEVEL_ORG_ADMIN))
+
     async def load_config(self, config_file: str, roles_file: str, trivia_file: str) -> str:
         """
         Load the config.
@@ -104,6 +117,13 @@ class LatexBot:
             if self.home_chat is not None:
                 await self.home_chat.send_message(f"Error while loading roles: {e}. Defaulting to {{}}.", self.msg_creator)
             self.roles = CaseInsensitiveDict()
+
+    def save_roles(self) -> None:
+        """
+        Save the current roles to the roles JSON.
+        """
+        with open(self.roles_file, "w") as f:
+            json.dump(self.roles.to_dict(), f)
     
     async def run(self) -> None:
         """

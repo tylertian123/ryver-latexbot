@@ -1,8 +1,10 @@
+import aiohttp
+import datetime
+import dateutil
+import json
 import pyryver
 import re
 import typing
-import datetime
-import dateutil
 from textwrap import dedent
 
 
@@ -287,3 +289,45 @@ def format_access_rules(command: str, rule: typing.Dict[str, typing.Any]) -> str
     if "disallowRole" in rule:
         result += f"\n- `disallowRole`: {', '.join(rule['disallowRole'])}"
     return result
+
+
+async def send_json_data(chat: pyryver.Chat, data: typing.Any, message: str, filename: str, from_user: pyryver.User, msg_creator: pyryver.Creator):
+    """
+    Send a JSON to the chat. 
+
+    If the JSON is less than 1000 characters, it will be sent as text.
+    Otherwise it will be attached as a file.
+    """
+    json_data = json.dumps(data, indent=2)
+    if len(json_data) < 1000:
+        await chat.send_message(f"```json\n{json_data}\n```", msg_creator)
+    else:
+        file = await chat.get_ryver().upload_file(filename, json_data, "application/json")
+        await chat.send_message(message, creator=msg_creator, attachment=file, from_user=from_user)
+
+
+async def get_attached_json_data(msg: pyryver.ChatMessage, msg_contents: str) -> typing.Dict[str, typing.Any]:
+    """
+    Load the JSON data attached to the message.
+
+    If there is a file attached, the contents will be downloaded and the JSON data will
+    be loaded from it. Otherwise, the message contents will be used for the data.
+
+    If an error occurs, a ValueError will be raised with a message.
+    """
+    file = msg.get_attached_file()
+    if file:
+        # Get the actual contents
+        try:
+            data = (await file.download_data()).decode("utf-8")
+        except aiohttp.ClientResponseError as e:
+            raise ValueError(f"Error while trying to GET file attachment: {e}")
+        except UnicodeDecodeError as e:
+            raise ValueError(f"File needs to be encoded with utf-8! The following decode error occurred: {e}")
+    else:
+        data = msg_contents
+    
+    try:
+        return json.loads(data)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Error decoding JSON: {e}")
