@@ -44,23 +44,10 @@ class LatexBot:
        
         self.msg_creator = pyryver.Creator("LaTeX Bot " + self.version)
     
-    async def init(self, org: str, user: str, password: str, cache_dir: str, cache_prefix: str) -> None:
+    def init_commands(self) -> None:
         """
-        Initialize LaTeX Bot.
+        Initialize the command set.
         """
-        self.username = user
-        cache = pyryver.FileCacheStorage(cache_dir, cache_prefix)
-        self.ryver = pyryver.Ryver(org=org, user=user, password=password, cache=cache)
-        await self.ryver.load_missing_chats()
-        self.user = self.ryver.get_user(username=self.username)
-
-        # Get user avatar URLs
-        # This information is not included in the regular user info
-        info = await self.ryver.get_info()
-        users_json = info["users"]
-        self.user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
-
-        # Define commands
         self.commands = CommandSet()
         self.commands.add_command(Command("render", commands.command_render, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("chem", commands.command_chem, Command.ACCESS_LEVEL_EVERYONE))
@@ -80,6 +67,35 @@ class LatexBot:
         self.commands.add_command(Command("deleteRole", commands.command_deleteRole, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("exportRoles", commands.command_exportRoles, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("importRoles", commands.command_importRoles, Command.ACCESS_LEVEL_ORG_ADMIN))
+
+        self.commands.add_command(Command("events", commands.command_events, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("addEvent", commands.command_addEvent, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("quickAddEvent", commands.command_quickAddEvent, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("deleteEvent", commands.command_deleteEvent, Command.ACCESS_LEVEL_ORG_ADMIN))
+
+        self.commands.add_command(Command("setEnabled", commands.command_setEnabled, Command.ACCESS_LEVEL_BOT_ADMIN))
+        self.commands.add_command(Command("kill", commands.command_kill, Command.ACCESS_LEVEL_BOT_ADMIN))
+        self.commands.add_command(Command("sleep", commands.command_sleep, Command.ACCESS_LEVEL_BOT_ADMIN))
+        self.commands.add_command(Command("execute", commands.command_execute, Command.ACCESS_LEVEL_BOT_ADMIN))
+        self.commands.add_command(Command("updateChats", commands.command_updateChats, Command.ACCESS_LEVEL_FORUM_ADMIN))
+    
+    async def init(self, org: str, user: str, password: str, cache_dir: str, cache_prefix: str) -> None:
+        """
+        Initialize LaTeX Bot.
+        """
+        self.username = user
+        cache = pyryver.FileCacheStorage(cache_dir, cache_prefix)
+        self.ryver = pyryver.Ryver(org=org, user=user, password=password, cache=cache)
+        await self.ryver.load_missing_chats()
+        self.user = self.ryver.get_user(username=self.username)
+
+        # Get user avatar URLs
+        # This information is not included in the regular user info
+        info = await self.ryver.get_info()
+        users_json = info["users"]
+        self.user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
+
+        self.init_commands()
 
     async def load_config(self, config_file: str, roles_file: str, trivia_file: str) -> str:
         """

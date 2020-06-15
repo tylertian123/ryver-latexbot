@@ -3,14 +3,23 @@ This module contains command definitions for LaTeX Bot.
 """
 import aiohttp
 import config
+import io
 import json
 import pyryver
 import random
 import re
 import render
+import shlex
+import sys
+import time
 import util
 import xkcd
 from caseinsensitivedict import CaseInsensitiveDict
+from datetime import datetime
+from dateutil import tz
+from gcalendar import Calendar
+from markdownify import markdownify
+from traceback import format_exc
 
 
 async def command_render(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
@@ -100,7 +109,7 @@ async def command_ping(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     await chat.send_message("Pong", bot.msg_creator)
 
 
-yes_msgs = [
+YES_MSGS = [
     "Yes.",
     "I like it!",
     "Brilliant!",
@@ -109,7 +118,7 @@ yes_msgs = [
     "It's good.",
     ":thumbsup:",
 ]
-no_msgs = [
+NO_MSGS = [
     "No.",
     ":thumbsdown:",
     "I hate it.",
@@ -142,7 +151,7 @@ async def command_whatDoYouThink(bot: "latexbot.LatexBot", chat: pyryver.Chat, u
             else:
                 await chat.send_message(opinion["opinion"][random.randrange(len(opinion["opinion"]))], bot.msg_creator)
                 return
-    msgs = no_msgs if hash(args) % 2 == 0 else yes_msgs
+    msgs = NO_MSGS if hash(args) % 2 == 0 else YES_MSGS
     await chat.send_message(msgs[random.randrange(len(msgs))], bot.msg_creator)
 
 
@@ -588,6 +597,358 @@ async def command_importRoles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
             f"Operation successful. Use `@latexbot roles` to view the updated roles.", bot.msg_creator)
     except json.JSONDecodeError as e:
         await chat.send_message(f"Error decoding JSON: {e}", bot.msg_creator)
+
+
+async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Display information about ongoing and upcoming events from Google Calendar.
+
+    If the count is not specified, this command will display the next 3 events. 
+    This number includes ongoing events.
+    ---
+    group: Events/Google Calendar Commands
+    syntax: [count]
+    ---
+    > `@latexbot events 5` - Get the next 5 events, including ongoing events.
+    """
+    try:
+        count = int(args) if args else 3
+        if count < 1:
+            raise ValueError
+    except ValueError:
+        await chat.send_message(f"Error: Invalid number.", bot.msg_creatorbot.msg_creator)
+        return
+    
+    events = bot.calendar.get_upcoming_events(count)
+
+    now = util.current_time(config.timezone)
+    ongoing = []
+    upcoming = []
+    
+    # Process all the events
+    for event in events:
+        start = Calendar.parse_time(event["start"])
+        end = Calendar.parse_time(event["end"])
+        # See if the event has started
+        # If the date has no timezone info, make it the organization timezone for comparisons
+        if not start.tzinfo:
+            start = start.replace(tzinfo=tz.gettz(config.timezone))
+            # No timezone info means this was created as an all-day event
+            has_time = False
+        else:
+            has_time = True
+        if now > start:
+            ongoing.append((event, start, end, has_time))
+        else:
+            upcoming.append((event, start, end, has_time))
+
+    if len(ongoing) > 0:
+        resp = "---------- Ongoing Events ----------"
+        for evt in ongoing:
+            event, start, end, has_time = evt
+            # The day number of the event
+            day = util.caldays_diff(now, start) + 1
+            # If the event does not have a time, then don't include the time
+            start_str = datetime.strftime(start, util.DATETIME_DISPLAY_FORMAT if has_time else util.DATE_DISPLAY_FORMAT)
+            end_str = datetime.strftime(end, util.DATETIME_DISPLAY_FORMAT if has_time else util.DATE_DISPLAY_FORMAT)
+            resp += f"\n# Day *{day}* of {event['summary']} (*{start_str}* to *{end_str}*)"
+            if "description" in event and event["description"] != "":
+                # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+                resp += f"\u200B:\n{markdownify(event['description'])}"
+        resp += "\n\n"
+    else:
+        resp = ""
+    if len(upcoming) > 0:
+        resp += "---------- Upcoming Events ----------"
+        for evt in upcoming:
+            event, start, end, has_time = evt
+            # days until the event
+            day = util.caldays_diff(start, now)
+            # If the event does not have a time, then don't include the time
+            start_str = datetime.strftime(start, util.DATETIME_DISPLAY_FORMAT if has_time else util.DATE_DISPLAY_FORMAT)
+            end_str = datetime.strftime(end, util.DATETIME_DISPLAY_FORMAT if has_time else util.DATE_DISPLAY_FORMAT)
+            resp += f"\n# *{day}* day(s) until {event['summary']} (*{start_str}* to *{end_str}*)"
+            if "description" in event and event["description"] != "":
+                # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+                resp += f"\u200B:\n{markdownify(event['description'])}"
+    else:
+        resp += "***No upcoming events at the moment.***"
+
+    await chat.send_message(resp, bot.msg_creator)
+
+
+async def command_quickAddEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Add an event to Google Calendar based on a simple text string.
+
+    Powered by Google Magic. Don't ask me how it works.
+
+    For more details, see [the Google Calendar API Documentation for quickAdd](https://developers.google.com/calendar/v3/reference/events/quickAdd).
+    ---
+    group: Events/Google Calendar Commands
+    syntax: <event>
+    ---
+    > `@latexbot quickAddEvent Appointment at Somewhere on June 3rd 10am-10:25am`
+    """
+    event = bot.calendar.quick_add(args)
+    start = Calendar.parse_time(event["start"])
+    end = Calendar.parse_time(event["end"])
+    # Correctly format based on whether the event is an all-day event
+    # All day events don't come with timezone info
+    start_str = datetime.strftime(start, util.DATETIME_DISPLAY_FORMAT if start.tzinfo else util.DATE_DISPLAY_FORMAT)
+    end_str = datetime.strftime(end, util.DATETIME_DISPLAY_FORMAT if end.tzinfo else util.DATE_DISPLAY_FORMAT)
+    await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", bot.msg_creator)
+
+
+async def command_addEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Add an event to Google Calendar.
+
+    If the event name or start/end time/date contains spaces, surround it with quotes (").
+
+    The description is optional but must be on a new line separate from the rest of the command.
+    To type a newline in the chat box, use Shift+Enter.
+
+    The time is optional; if not specified, the event will be created as an all-day event.
+
+    The date must be in one of the formats shown below:
+    - YYYY-MM-DD, e.g. 2020-01-01
+    - YYYY/MM/DD, e.g. 2020/01/01
+    - MMM DD YYYY, e.g. Jan 01 2020
+    - MMM DD, YYYY, e.g. Jan 01, 2020
+
+    The time must be in one of the formats shown below:
+    - HH:MM, e.g. 00:00
+    - HH:MM (AM/PM), e.g. 12:00 AM
+    - HH:MM(AM/PM), e.g. 12:00AM
+    ---
+    group: Events/Google Calendar Commands
+    syntax: <name> <startdate> [starttime] <enddate> [endtime] [description on a new line]
+    ---
+    > `@latexbot addEvent "Foo Bar" 2020-01-01 2020-01-02` - Add an event named "Foo Bar", starting on 2020-01-01 and ending the next day.
+    > `@latexbot addEvent "Foo Bar" "Jan 1, 2020" "Jan 2, 2020"` - An alternative syntax for creating the same event.
+    > `@latexbot addEvent Foo 2020-01-01 00:00 2020-01-01 12:00` - Add an event named "Foo", starting midnight on 2020-01-01 and ending 12 PM on the same day.
+    """
+    # If a description is included
+    if "\n" in args:
+        i = args.index("\n")
+        desc = args[i + 1:]
+        args = args[:i]
+    else:
+        desc = None
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
+        return  
+    if len(args) != 3 and len(args) != 5:
+        await chat.send_message("Error: Invalid syntax. Check `@latexbot help addEvent` for help. You may have to use quotes if any of the parameters contain spaces.", bot.msg_creator)
+        return
+    
+    # No times specified
+    if len(args) == 3:
+        start = util.tryparse_datetime(args[1], util.ALL_DATE_FORMATS)
+        if not start:
+            await chat.send_message(f"Error: The date {args[1]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", bot.msg_creator)
+            return
+        end = util.tryparse_datetime(args[2], util.ALL_DATE_FORMATS)
+        if not end:
+            await chat.send_message(f"Error: The date {args[2]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", bot.msg_creator)
+            return
+        event_body = {
+            "start": {
+                "date": datetime.strftime(start, util.CALENDAR_DATE_FORMAT),
+            },
+            "end": {
+                "date": datetime.strftime(end, util.CALENDAR_DATE_FORMAT),
+            }
+        }
+    else:
+        start_date = util.tryparse_datetime(args[1], util.ALL_DATE_FORMATS)
+        if not start_date:
+            await chat.send_message(f"Error: The date {args[1]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", bot.msg_creator)
+            return
+        start_time = util.tryparse_datetime(args[2], util.ALL_TIME_FORMATS)
+        if not start_time:
+            await chat.send_message(f"Error: The time {args[2]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", bot.msg_creator)
+            return
+
+        end_date = util.tryparse_datetime(args[3], util.ALL_DATE_FORMATS)
+        if not end_date:
+            await chat.send_message(f"Error: The date {args[3]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", bot.msg_creator)
+            return
+        end_time = util.tryparse_datetime(args[4], util.ALL_TIME_FORMATS)
+        if not end_time:
+            await chat.send_message(f"Error: The time {args[4]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.", bot.msg_creator)
+            return
+        
+        # Merge to get datetimes
+        start = datetime.combine(start_date, start_time.time())
+        end = datetime.combine(end_date, end_time.time())
+        event_body = {
+            "start": {
+                "dateTime": start.isoformat(),
+                "timeZone": bot.timezone,
+            },
+            "end": {
+                "dateTime": end.isoformat(),
+                "timeZone": bot.timezone,
+            }
+        }
+    event_body["summary"] = args[0]
+    if desc:
+        event_body["description"] = desc
+    event = bot.calendar.add_event(event_body)
+    start_str = datetime.strftime(start, util.DATETIME_DISPLAY_FORMAT if len(args) == 5 else util.DATE_DISPLAY_FORMAT)
+    end_str = datetime.strftime(end, util.DATETIME_DISPLAY_FORMAT if len(args) == 5 else util.DATE_DISPLAY_FORMAT)
+    if not desc:
+        await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**).\nLink: {event['htmlLink']}", bot.msg_creator)
+    else:
+        # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+        await chat.send_message(f"Created event {event['summary']} (**{start_str}** to **{end_str}**)\u200B:\n{markdownify(event['description'])}\n\nLink: {event['htmlLink']}", bot.msg_creator)
+
+
+async def command_deleteEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Delete an event by name from Google Calendar.
+
+    Note that the event name only has to be a partial match, and is case-insensitive.
+    Therefore, try to be as specific as possible to avoid accidentally deleting the wrong event.
+
+    This command can only remove events that have not ended.
+
+    Unlike addEvent, this command only takes a single argument, so quotes should not be used.
+    ---
+    group: Events/Google Calendar Commands
+    syntax: <name>
+    ---
+    > `@latexbot deleteEvent Foo Bar` - Remove the event "Foo Bar".
+    """
+    args = args.lower()
+    events = bot.calendar.get_upcoming_events()
+    matched_event = None
+    
+    for event in events:
+        # Found a match
+        if args in event["summary"].lower():
+            matched_event = event
+            break
+    
+    if matched_event:
+        bot.calendar.remove_event(matched_event["id"])
+        # Format the start and end of the event into strings
+        start = Calendar.parse_time(matched_event["start"])
+        end = Calendar.parse_time(matched_event["end"])
+        start_str = datetime.strftime(start, util.DATETIME_DISPLAY_FORMAT if start.tzinfo else util.DATE_DISPLAY_FORMAT)
+        end_str = datetime.strftime(end, util.DATETIME_DISPLAY_FORMAT if end.tzinfo else util.DATE_DISPLAY_FORMAT)
+        await chat.send_message(f"Deleted event {matched_event['summary']} (**{start_str}** to **{end_str}**).", bot.msg_creator)
+    else:
+        await chat.send_message(f"Error: No event matches that name.", bot.msg_creator)
+
+
+async def command_setEnabled(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Enable or disable me.
+    ---
+    group: Developer Commands
+    syntax: true|false
+    """
+    # The only way this actually gets called is if the user passed neither "true" nor "false"
+    await chat.send_message(f"Invalid option: {args}", bot.msg_creator)
+
+
+KILL_MSGS = [
+    "Goodbye, world.",
+    "Bleh I'm dead",
+    "x_x",
+    "Goodbye cruel world",
+]
+
+
+async def command_kill(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Kill me (:fearful:).
+
+    With the current settings, I will restart a few minutes after being killed.
+    Consider using the disable or sleep commands if you intend to disable me.
+    ---
+    group: Developer Commands
+    syntax:
+    """
+    await chat.send_message(KILL_MSGS[random.randrange(0, len(KILL_MSGS))], bot.msg_creator)
+    exit()
+
+
+async def command_sleep(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Put me to sleep.
+
+    When sleeping, I will not respond to any commands.
+    If you accidentally put me to sleep for a long time, contact Tyler to wake me back up.
+    ---
+    group: Developer Commands
+    syntax: <seconds>
+    """
+    secs = 0
+    try:
+        secs = float(args)
+    except ValueError:
+        await chat.send_message("Invalid number.", bot.msg_creator)
+        return
+    # TODO: Change this
+    await chat.send_message("Good night! :sleeping:", bot.msg_creator)
+    time.sleep(secs)
+    await chat.send_message("Good morning!", bot.msg_creator)
+
+
+async def command_execute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Execute arbitrary Python code.
+
+    Before you start messing around, keep in mind I run in a Docker container,
+    so everything you do here is sandboxed.
+
+    All output to stdout and stderr will be sent as a message after the code finishes executing.
+
+    Best to stay away from this command unless you're a dev.
+    ---
+    group: Developer Commands
+    syntax: <code>
+    ---
+    > `@latexbot execute print("Hello World")`
+    """
+    # Temporarily replace stdout and stderr
+    stdout = sys.stdout
+    stderr = sys.stderr
+    # Merge stdout and stderr
+    try:
+        sys.stdout = io.StringIO()
+        sys.stderr = sys.stdout
+        exec(args, globals(), locals()) # pylint: disable=exec-used
+        output = sys.stdout.getvalue()
+
+        await chat.send_message(output, bot.msg_creator)
+    except Exception: # pylint: disable=broad-except
+        await chat.send_message(
+            f"An exception has occurred:\n```\n{format_exc()}\n```", bot.msg_creator)
+    finally:
+        sys.stdout = stdout
+        sys.stderr = stderr
+
+
+async def command_updateChats(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Update the cached list of forums/teams and users.
+
+    As getting organization data takes time, LaTeX Bot caches this information,
+    so when org data is updated, such as when a new user joins, or when a new forum is created,
+    LaTeX Bot might fail to recognize it. Run this command to fix it.
+    ---
+    group: Developer Commands
+    syntax:
+    """
+    await bot.ryver.load_chats()
+    await chat.send_message("Forums/Teams/Users updated.", bot.msg_creator)
 
 
 import latexbot # nopep8 # pylint: disable=unused-import
