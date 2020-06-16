@@ -10,7 +10,7 @@ import latexbot
 import os
 
 
-VERSION = "v0.6.0-dev"
+__version__ = "v0.6.0-dev"
 
 DATA_DIR = "data/"
 CONFIG_FILE = DATA_DIR + "config.json"
@@ -20,7 +20,7 @@ TRIVIA_FILE = DATA_DIR + "trivia.json"
 async def main():
     debug = os.environ.get("LATEXBOT_DEBUG", "0") != "0"
     
-    bot = latexbot.LatexBot(VERSION, debug)
+    bot = latexbot.LatexBot(__version__, debug)
     await bot.init(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"], 
                    DATA_DIR, "latexbot-")
     await bot.load_files(CONFIG_FILE, ROLES_FILE, TRIVIA_FILE)

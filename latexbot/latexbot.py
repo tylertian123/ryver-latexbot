@@ -1,3 +1,4 @@
+import asyncio
 import commands
 import config
 import json
@@ -5,6 +6,8 @@ import pyryver
 import util
 from caseinsensitivedict import CaseInsensitiveDict
 from command import Command, CommandSet
+from datetime import datetime, timedelta
+from dateutil import tz
 from gcalendar import Calendar
 from traceback import format_exc
 
@@ -37,6 +40,8 @@ class LatexBot:
         self.roles = CaseInsensitiveDict()
 
         self.trivia_file = None # type: str
+
+        self.daily_msg_task = None # type: typing.Awaitable
 
         self.commands = None # type: CommandSet
         self.help = None # type: str
@@ -84,6 +89,7 @@ class LatexBot:
         self.commands.add_command(Command("importConfig", commands.command_importConfig, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("accessRule", commands.command_accessRule, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("setDailyMessageTime", commands.command_setDailyMessageTime, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("dailyMessage", commands.command_dailyMessage, Command.ACCESS_LEVEL_FORUM_ADMIN))
 
         self.commands.add_command(Command("message", commands.command_message, Command.ACCESS_LEVEL_ORG_ADMIN))
 
@@ -131,6 +137,7 @@ class LatexBot:
                 config_data = json.load(f)
         except (json.JSONDecodeError, FileNotFoundError) as e:
             util.log(f"Error reading config: {e}. Falling back to empty config...")
+            config_data = []
         
         err = config.load(config_data, True)
         self.reload_config()
@@ -161,7 +168,7 @@ class LatexBot:
         Save the current config to the config JSON.
         """
         with open(self.config_file, "w") as f:
-            json.dump(config.dump(), f)
+            json.dump(config.dump()[0], f)
     
     def update_help(self) -> None:
         """
@@ -169,12 +176,48 @@ class LatexBot:
         """
         self.help, self.command_help = self.commands.generate_help_text(self.ryver)
     
+    async def _daily_msg(self, init_delay: float = 0):
+        """
+        A task that sends the daily message after a delay and repeats every 24h.
+        """
+        try:
+            await asyncio.sleep(init_delay)
+            while True:
+                util.log("Executing daily message routine...")
+                await commands.command_dailyMessage(self, None, None, None, None)
+                util.log("Daily message was sent.")
+                # Sleep for an entire day
+                await asyncio.sleep(60 * 60 * 24)
+        except asyncio.CancelledError:
+            pass
+    
+    def schedule_daily_message(self):
+        """
+        Start the daily message task with the correct delay.
+        """
+        if self.daily_msg_task:
+            self.daily_msg_task.cancel()
+        
+        if not config.daily_msg_time:
+            util.log("Daily message not scheduled because time isn't defined.")
+            return
+        now = util.current_time(config.timezone)
+        # Get that time, today
+        t = datetime.combine(now, config.daily_msg_time.time(), tzinfo=tz.gettz(config.timezone))
+        # If already passed, get that time the next day
+        if t < now:
+            t += timedelta(days=1)
+        init_delay = (t - now).total_seconds()
+        self.daily_msg_task = asyncio.ensure_future(self._daily_msg(init_delay))
+        util.log(f"Daily message re-scheduled, starting after {init_delay} seconds.")
+    
     async def run(self) -> None:
         """
         Run LaTeX Bot.
         """
         util.log(f"LaTeX Bot {self.version} has been started. Initializing...")
         self.update_help()
+        self.schedule_daily_message()
         # Start live session
         async with self.ryver.get_live_session() as session: # type: pyryver.RyverWS
             @session.on_connection_loss

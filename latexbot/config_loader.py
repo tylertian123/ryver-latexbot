@@ -1,4 +1,3 @@
-import json
 import typing
 
 class ConfigLoader:
@@ -26,7 +25,7 @@ class ConfigLoader:
     
     def _handle_field(self, config: typing.Dict[str, typing.Any], data: typing.Dict[str, typing.Any], 
                       field: str, handler: typing.Callable[[typing.Any], typing.Any], field_type: type, 
-                      default: typing.Any, use_defaults: bool, load: bool) -> str:
+                      default: typing.Any, use_defaults: bool, check_types: bool) -> str:
         """
         Handle a field during parsing or dumping.
 
@@ -40,7 +39,7 @@ class ConfigLoader:
                 return f"Warning: Field '{field}' not in config. Defaulting to '{default}'."
             return f"Warning: Field '{field}' not in config. Skipped."
 
-        if load and not isinstance(data[field], field_type):
+        if check_types and not isinstance(data[field], field_type):
             if field in config:
                 return f"Error: Field '{field}' needs to be of type '{field_type}'. Leaving unchanged."
             if use_defaults:
@@ -60,11 +59,6 @@ class ConfigLoader:
                     config[field] = default
                     return f"While processing '{field}', an error occurred: '{e}' Defaulting to '{default}'."
                 return f"While processing '{field}', an error occurred: '{e}' Skipped."
-        
-        if not load and not isinstance(val, field_type):
-            if field in config:
-                return f"Error: Field '{field}' needs to be of type '{field_type}'. Leaving unchanged."
-            return f"Error: Field '{field}' needs to be of type '{field_type}'. Skipped."
         config[field] = val
         return None
     

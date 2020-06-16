@@ -1237,19 +1237,80 @@ async def command_setDailyMessageTime(bot: "latexbot.LatexBot", chat: pyryver.Ch
             await chat.send_message("Invalid time format.", bot.msg_creator)
             return
     
-    # TODO
     # Schedule or unschedule the daily message task
-    # if org.daily_message_time:
-    #     org.schedule_daily_message()
-    # else:
-    #     if org.daily_message_task:
-    #         org.daily_message_task.cancel()
+    bot.schedule_daily_message()
     
     bot.save_config()
     if config.daily_msg_time:
         await chat.send_message(f"Messages will now be sent at {args} daily.", bot.msg_creator)
     else:
         await chat.send_message(f"Messages have been disabled.", bot.msg_creator)
+
+
+async def command_dailyMessage(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Send the daily message.
+
+    The daily message is sent automatically each day at a set time if it is turned on
+    (through `setDailyMessageTime`). This command can be used to trigger it manually.
+
+    Note that the daily message will be sent to the chats in the config, not the chat
+    that this command was invoked from.
+    ---
+    group: Miscellaneous Commands
+    syntax:
+    ---
+    > `@latexbot dailyMessage` - Send the daily message.
+    """
+    now = util.current_time(config.timezone)
+    events = bot.calendar.get_today_events(now)
+    if events:
+        resp = "Reminder: These events are happening today:"
+        for event in events:
+            start = Calendar.parse_time(event["start"])
+            end = Calendar.parse_time(event["end"])
+
+            # The event has a time, and it starts today (not already started)
+            if start.tzinfo and start > now:
+                resp += f"\n# {event['summary']} today at *{start.strftime(util.TIME_DISPLAY_FORMAT)}*"
+            else:
+                # Otherwise format like normal
+                start_str = start.strftime(util.DATETIME_DISPLAY_FORMAT if start.tzinfo else util.DATE_DISPLAY_FORMAT)
+                end_str = end.strftime(util.DATETIME_DISPLAY_FORMAT if end.tzinfo else util.DATE_DISPLAY_FORMAT)
+                resp += f"\n# {event['summary']} (*{start_str}* to *{end_str}*)"
+
+            # Add description if there is one
+            if "description" in event and event["description"] != "":
+                # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+                resp += f"\u200B:\n{markdownify(event['description'])}"
+        await bot.announcements_chat.send_message(resp, bot.msg_creator)
+    
+    url = f"https://www.checkiday.com/api/3/?d={now.strftime('%Y/%m/%d')}"
+    async with aiohttp.request("GET", url) as resp:
+        if resp.status != 200:
+            util.log(f"HTTP error while trying to get holidays: {resp}")
+            data = {
+                "error": f"HTTP error while trying to get holidays: {resp}",
+            }
+        else:
+            data = await resp.json()
+    if data["error"] != "none":
+        await bot.messages_chat.send_message(f"Error while trying to check today's holidays: {data['error']}", bot.msg_creator)
+    else:
+        if data.get("holidays", None):
+            msg = f"Here is a list of all the holidays today:\n"
+            msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
+            await bot.messages_chat.send_message(msg, bot.msg_creator)
+    comic = await xkcd.get_comic()
+    if comic['num'] <= config.last_xkcd:
+        util.log(f"No new xkcd found (latest is {comic['num']}).")
+    else:
+        util.log(f"New comic found! (#{comic['num']})")
+        xkcd_creator = pyryver.Creator(bot.msg_creator.name, util.XKCD_PROFILE)
+        await bot.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
+        # Update xkcd number
+        config.last_xkcd = comic['num']
+        bot.save_config()
 
 
 async def command_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument

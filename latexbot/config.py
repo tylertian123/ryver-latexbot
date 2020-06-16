@@ -69,12 +69,12 @@ def opinions_loader(opinions: list): # pylint: disable=redefined-outer-name
 
 loader.field("admins", list, admins_loader, list, set())
 loader.field("organizationTimeZone", str, default="UTC")
-loader.field("homeChat", str)
-loader.field("announcementsChat", str)
-loader.field("messagesChat", str)
-loader.field("googleCalendarId", str)
-loader.field("dailyMessageTime", str, lambda t: datetime.strptime(t, "%H:%M"), 
-             lambda t: t.strftime("%H:%M"), default=datetime.strptime("00:00", "%H:%M"))
+loader.field("homeChat", str, default="Test")
+loader.field("announcementsChat", str, default="Test")
+loader.field("messagesChat", str, default="Test")
+loader.field("googleCalendarId", (str, type(None)))
+loader.field("dailyMessageTime", (str, type(None)), lambda t: None if t is None else datetime.strptime(t, "%H:%M"), 
+             lambda t: None if t is None else t.strftime("%H:%M"), default=datetime.strptime("00:00", "%H:%M"))
 loader.field("lastXKCD", int, default=0)
 loader.field("commandPrefixes", list, command_prefixes_loader, default=["@latexbot "])
 loader.field("aliases", list, aliases_loader, default=[])
