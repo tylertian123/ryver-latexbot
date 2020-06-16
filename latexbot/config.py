@@ -89,7 +89,7 @@ home_chat = None # type: str
 announce_chat = None # type: str
 msgs_chat = None # type: str
 calendar_id = None # type: str
-msg_time = None # type: datetime
+daily_msg_time = None # type: datetime
 last_xkcd = None # type: int
 prefixes = None # type: typing.List[str]
 aliases = None # type: typing.List[typing.Dict[str, str]]
@@ -101,7 +101,7 @@ def load(data: typing.Dict[str, typing.Any], use_defaults: bool = True) -> str:
     Load the config from parsed JSON data.
     """
     global admins, timezone, home_chat, announce_chat, msgs_chat, calendar_id # pylint: disable=global-statement
-    global msg_time, last_xkcd, prefixes, aliases, access_rules, opinions # pylint: disable=global-statement
+    global daily_msg_time, last_xkcd, prefixes, aliases, access_rules, opinions # pylint: disable=global-statement
     err = loader.load(data, config, use_defaults)
     admins = config["admins"]
     timezone = config["organizationTimeZone"]
@@ -109,10 +109,28 @@ def load(data: typing.Dict[str, typing.Any], use_defaults: bool = True) -> str:
     announce_chat = config["announcementsChat"]
     msgs_chat = config["messagesChat"]
     calendar_id = config["googleCalendarId"]
-    msg_time = config["dailyMessageTime"]
+    daily_msg_time = config["dailyMessageTime"]
     last_xkcd = config["lastXKCD"]
     prefixes = config["commandPrefixes"]
     aliases = config["aliases"]
     access_rules = config["accessRules"]
     opinions = config["opinions"]
     return err
+
+def dump(use_defaults: bool = True) -> typing.Tuple[typing.Dict[str, typing.Any], str]:
+    """
+    Dump the config to a dict.
+    """
+    config["admins"] = admins
+    config["organizationTimeZone"] = timezone
+    config["homeChat"] = home_chat
+    config["announcementsChat"] = announce_chat
+    config["messagesChat"] = msgs_chat
+    config["googleCalendarId"] = calendar_id
+    config["dailyMessageTime"] = daily_msg_time
+    config["lastXKCD"] = last_xkcd
+    config["commandPrefixes"] = prefixes
+    config["aliases"] = aliases
+    config["accessRules"] = access_rules
+    config["opinions"] = opinions
+    return loader.dump(config, use_defaults)

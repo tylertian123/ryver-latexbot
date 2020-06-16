@@ -26,7 +26,7 @@ class ConfigLoader:
     
     def _handle_field(self, config: typing.Dict[str, typing.Any], data: typing.Dict[str, typing.Any], 
                       field: str, handler: typing.Callable[[typing.Any], typing.Any], field_type: type, 
-                      default: typing.Any, use_defaults: bool) -> str:
+                      default: typing.Any, use_defaults: bool, load: bool) -> str:
         """
         Handle a field during parsing or dumping.
 
@@ -40,7 +40,7 @@ class ConfigLoader:
                 return f"Warning: Field '{field}' not in config. Defaulting to '{default}'."
             return f"Warning: Field '{field}' not in config. Skipped."
 
-        if not isinstance(data[field], field_type):
+        if load and not isinstance(data[field], field_type):
             if field in config:
                 return f"Error: Field '{field}' needs to be of type '{field_type}'. Leaving unchanged."
             if use_defaults:
@@ -49,18 +49,24 @@ class ConfigLoader:
             return f"Error: Field '{field}' needs to be of type '{field_type}'. Skipped."
         
         if handler is None:
-            config[field] = data[field]
-            return None
+            val = data[field]
+        else:
+            try:
+                val = handler(data[field])
+            except ValueError as e:
+                if field in config:
+                    return f"While processing '{field}', an error occurred: '{e}' Field unchanged."
+                if use_defaults:
+                    config[field] = default
+                    return f"While processing '{field}', an error occurred: '{e}' Defaulting to '{default}'."
+                return f"While processing '{field}', an error occurred: '{e}' Skipped."
         
-        try:
-            config[field] = handler(data[field])
-        except ValueError as e:
+        if not load and not isinstance(val, field_type):
             if field in config:
-                return f"While processing '{field}', an error occurred: '{e}' Field unchanged."
-            if use_defaults:
-                config[field] = default
-                return f"While processing '{field}', an error occurred: '{e}' Defaulting to '{default}'."
-            return f"While processing '{field}', an error occurred: '{e}' Skipped."
+                return f"Error: Field '{field}' needs to be of type '{field_type}'. Leaving unchanged."
+            return f"Error: Field '{field}' needs to be of type '{field_type}'. Skipped."
+        config[field] = val
+        return None
     
     def load(self, data: typing.Dict[str, typing.Any], config: typing.Dict[str, typing.Any], use_defaults=True) -> str:
         """
@@ -76,14 +82,14 @@ class ConfigLoader:
         errs = []
 
         for field, (handler, _, field_type, default) in self.fields.items():
-            err = self._handle_field(config, data, field, handler, field_type, default, use_defaults)
+            err = self._handle_field(config, data, field, handler, field_type, default, use_defaults, True)
             if err is not None:
                 errs.append(err)
         return "\n".join(errs) if errs else None
     
-    def dump(self, data: typing.Dict[str, typing.Any], use_defaults=True) -> typing.Tuple[str, str]:
+    def dump(self, data: typing.Dict[str, typing.Any], use_defaults=True) -> typing.Tuple[typing.Dict[str, typing.Any], str]:
         """
-        Convert a config into a string.
+        Convert a config into a dict.
 
         Returns a tuple of the data and an error message.
 
@@ -94,7 +100,7 @@ class ConfigLoader:
         config = {}
         errs = []
         for field, (_, handler, field_type, default) in self.fields.items():
-            err = self._handle_field(config, data, field, handler, field_type, default, use_defaults)
+            err = self._handle_field(config, data, field, handler, field_type, default, use_defaults, False)
             if err is not None:
                 errs.append(err)
-        return json.dumps(config), "\n".join(errs)
+        return config, "\n".join(errs)

@@ -79,9 +79,20 @@ class LatexBot:
         self.commands.add_command(Command("execute", commands.command_execute, Command.ACCESS_LEVEL_BOT_ADMIN))
         self.commands.add_command(Command("updateChats", commands.command_updateChats, Command.ACCESS_LEVEL_FORUM_ADMIN))
     
+        self.commands.add_command(Command("alias", commands.command_alias, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("exportConfig", commands.command_exportConfig, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("importConfig", commands.command_importConfig, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("accessRule", commands.command_accessRule, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("setDailyMessageTime", commands.command_setDailyMessageTime, Command.ACCESS_LEVEL_ORG_ADMIN))
+
+        self.commands.add_command(Command("message", commands.command_message, Command.ACCESS_LEVEL_ORG_ADMIN))
+
     async def init(self, org: str, user: str, password: str, cache_dir: str, cache_prefix: str) -> None:
         """
         Initialize LaTeX Bot.
+
+        Note: This does not load the configuration files. 
+        The files should be loaded with load_files() before run() is called.
         """
         self.username = user
         cache = pyryver.FileCacheStorage(cache_dir, cache_prefix)
@@ -96,12 +107,19 @@ class LatexBot:
         self.user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
 
         self.init_commands()
-
-    async def load_config(self, config_file: str, roles_file: str, trivia_file: str) -> str:
+    
+    def reload_config(self) -> None:
         """
-        Load the config.
+        This function should be called whenever the config JSON is updated.
+        """
+        self.calendar = Calendar("calendar_credentials.json", config.calendar_id)
+        self.home_chat = self.ryver.get_groupchat(nickname=config.home_chat)
+        self.announcements_chat = self.ryver.get_groupchat(nickname=config.announce_chat)
+        self.messages_chat = self.ryver.get_groupchat(nickname=config.msgs_chat)
 
-        Returns an error message.
+    async def load_files(self, config_file: str, roles_file: str, trivia_file: str) -> None:
+        """
+        Load all configuration files.
         """
         self.config_file = config_file
         self.roles_file = roles_file
@@ -115,10 +133,7 @@ class LatexBot:
             util.log(f"Error reading config: {e}. Falling back to empty config...")
         
         err = config.load(config_data, True)
-        self.calendar = Calendar("calendar_credentials.json", config.calendar_id)
-        self.home_chat = self.ryver.get_groupchat(nickname=config.home_chat)
-        self.announcements_chat = self.ryver.get_groupchat(nickname=config.announce_chat)
-        self.messages_chat = self.ryver.get_groupchat(nickname=config.msgs_chat)
+        self.reload_config()
         if err:
             util.log(err)
             if self.home_chat is not None:
@@ -141,12 +156,25 @@ class LatexBot:
         with open(self.roles_file, "w") as f:
             json.dump(self.roles.to_dict(), f)
     
+    def save_config(self) -> None:
+        """
+        Save the current config to the config JSON.
+        """
+        with open(self.config_file, "w") as f:
+            json.dump(config.dump(), f)
+    
+    def update_help(self) -> None:
+        """
+        Re-generate the help text.
+        """
+        self.help, self.command_help = self.commands.generate_help_text(self.ryver)
+    
     async def run(self) -> None:
         """
         Run LaTeX Bot.
         """
         util.log(f"LaTeX Bot {self.version} has been started. Initializing...")
-        self.help, self.command_help = self.commands.generate_help_text(self.ryver)
+        self.update_help()
         # Start live session
         async with self.ryver.get_live_session() as session: # type: pyryver.RyverWS
             @session.on_connection_loss

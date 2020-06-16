@@ -551,7 +551,7 @@ async def command_exportRoles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     """
     Export roles data as a JSON. 
 
-    If the data is less than 1k characters long, it will be sent as a chat message.
+    If the data is less than 1000 characters long, it will be sent as a chat message.
     Otherwise it will be sent as a file attachment.
     ---
     group: Roles Commands
@@ -949,6 +949,334 @@ async def command_updateChats(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     """
     await bot.ryver.load_chats()
     await chat.send_message("Forums/Teams/Users updated.", bot.msg_creator)
+
+
+async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Manage aliases.
+
+    Aliases allow you to save typing time on a commonly used command.
+    They're expanded as if they were a command; therefore, they cannot contain whitespace.
+
+    E.g. If there is an alias `answer` \u2192 `trivia answer`, the command
+    `@latexbot answer 1` will expand to `@latexbot trivia answer 1`.
+    However, the `answer` in `@latexbot trivia answer` will not be expanded.
+    Note that alias expansion happens before command evaluation.
+
+    Aliases can refer to other aliases. However, recursive aliases cannot be evaluated.
+    E.g. If `A` \u2192 `B` and `B` \u2192 `C`, both `A` and `B` will expand to `C`.
+    However, if `B` \u2192 `A`, both `A` and `B` will fail to evaluate.
+
+    The alias command has 3 actions (sub-commands). They are as follows:
+    - No argument: View all aliases.
+    - `create [from] [to]` - Create an alias. If the expansion has spaces, it should be surrounded by quotes.
+    - `delete [alias]` - Delete an alias.
+    ---
+    group: Miscellaneous Commands
+    syntax: [create|delete] [args]
+    ---
+    > `@latexbot alias` - View all aliases.
+    > `@latexbot alias create "answer" "trivia answer"` - Create an alias `answer` that expands to `trivia answer`.
+    > `@latexbot alias delete "answer"` - Delete the alias `answer`.
+    """
+    if args == "":
+        if not config.aliases:
+            resp = "No aliases have been created."
+        else:
+            resp = "All aliases:"
+            for alias in config.aliases:
+                resp += f"\n* `{alias['from']}` \u2192 `{alias['to']}"
+        await chat.send_message(resp, bot.msg_creator)
+        return
+
+    args = shlex.split(args)
+    if args[0] == "create":
+        if len(args) != 3:
+            await chat.send_message("Invalid syntax. Did you forget the quotes?", bot.msg_creator)
+            return
+        config.aliases.append({
+            "from": args[1],
+            "to": args[2],
+        })
+        bot.update_help()
+        bot.save_config()
+        await chat.send_message(f"Successfully created alias `{args[1]}` \u2192 `{args[2]}`.", bot.msg_creator)
+    elif args[0] == "delete":
+        if len(args) != 2:
+            await chat.send_message("Invalid syntax.", bot.msg_creator)
+            return
+        
+        for i, alias in enumerate(config.aliases):
+            if alias["from"] == args[1]:
+                del config.aliases[i]
+                bot.update_help()
+                bot.save_config()
+                await chat.send_message(f"Successfully deleted alias `{args[1]}`.", bot.msg_creator)
+                return
+        await chat.send_message(f"Alias not found!", bot.msg_creator)
+    else:
+        await chat.send_message("Invalid action. Allowed actions are create, delete and no argument (view).", bot.msg_creator)
+
+
+async def command_exportConfig(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Export config as a JSON.
+
+    If the data is less than 1000 characters long, it will be sent as a chat message.
+    Otherwise it will be sent as a file attachment.
+    ---
+    group: Miscellaneous Commands
+    syntax:
+    """
+    data, err = config.dump()
+    if err:
+        await chat.send_message(err, bot.msg_creator)
+    await util.send_json_data(chat, data, "Config:", "config.json", bot.user, bot.msg_creator)
+
+
+async def command_importConfig(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Import config from JSON.
+
+    Note that although it is encouraged, the config JSON does not have to contain all fields.
+    If a field is not specified, it will just be left unchanged.
+
+    If a file is attached to this message, the config will always be imported from the file.
+    ---
+    group: Miscellaneous Commands
+    syntax: <data>
+    """
+    try:
+        errs = config.load(util.get_attached_json_data(await pyryver.retry_until_available(
+            chat.get_message, msg_id, timeout=5.0), args))
+        if errs:
+            util.log("Error loading config:", errs)
+        bot.reload_config()
+        bot.update_help()
+        bot.save_config()
+        if errs:
+            await chat.send_message(errs, bot.msg_creator)
+        else:
+            await chat.send_message("Operation successful.", bot.msg_creator)
+    except ValueError as e:
+        await chat.send_message(str(e), bot.msg_creator)
+
+
+async def command_accessRule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    View or modify access rules.
+
+    Access rules are a powerful and flexible way of controlling access to commands.
+    They work together with access levels to grant and restrict access.
+
+    Each command may have a number of access rules associated with it. 
+    Here are all the types of access rules:
+    - `level`: Override the access level of the command. Each access level is represented by a number. See [the usage guide](https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md#access-levels) for more details.
+    - `allowUser`: Allow a user to access the command regardless of their access level.
+    - `disallowUser`: Disallow a user to access the command regardless of their access level.
+    - `allowRole`: Allow users with a role to access the command regardless of their access level.
+    - `disallowRole`: Disallow users with a role to access the command regardless of their access level.
+
+    If there is a conflict between two rules, the more specific rule will come on top;
+    i.e. rules about specific users are the most powerful, followed by rules about specific roles, and then followed by general access level rules.
+    Rules that disallow access are also more powerful than rules that allow access.
+    E.g. "disallowRole" overrides "allowRole", but "allowUser" still overrides them both as it's more specific.
+
+    To use this command, you need to specify a command, an action, a rule type and argument(s).
+    If none of these arguments are given, this command will print out all access rules for every command.
+    If only a command name is given, this command will print out the access rules for that command.
+
+    The command is simply the command for which you want to modify or view the access rules.
+    The action can be one of these:
+    - `set` - Set the value; **only supported by the `level` rule type and only takes 1 argument**.
+    - `add` - Add a value to the list; **not supported by the `level` rule type**.
+    - `remove` - Remove a value from the list; **not supported by the `level` rule type**.
+    - `delete` - Remove a rule entirely; **does not take any arguments**.
+
+    The rule type is one of the 5 access rule types mentioned above (`level`, `allowUser`, etc).
+    The argument(s) are one or more values for the operation, e.g. users to add to the allow list.
+    Note that the `set` action can only take one argument.
+    
+    See the examples below.
+    ---
+    group: Miscellaneous Commands
+    syntax: [command] [action] [ruletype] [args]
+    ---
+    > `@latexbot accessRule` - View all access rules for every command.
+    > `@latexbot accessRule ping` - View access rules for the "ping" command.
+    > `@latexbot accessRule ping set level 1` - Set the access level for "ping" to 1 (Forum Admins).
+    > `@latexbot accessRule ping delete level` - Undo the command above.
+    > `@latexbot accessRule ping add allowUser tylertian foo` - Allow users tylertian and foo to access the ping command regardless of his access level.
+    > `@latexbot accessRule ping remove allowUser tylertian foo` - Undo the command above.
+    > `@latexbot accessRule ping add allowRole Pingers` - Allow the "pingers" role to access the ping command regardless of their access level.
+    > `@latexbot accessRule ping add disallowUser tylertian` - Disallow tylertian from accessing the ping command regardless of his access level.
+    """
+    if args == "":
+        if not config.access_rules:
+            await chat.send_message("No access rules were created.", bot.msg_creator)
+            return
+        resp = "\n\n".join(util.format_access_rules(command, rule) for command, rule in config.access_rules.items())
+        await chat.send_message(resp, bot.msg_creator)
+        return
+    args = shlex.split(args)
+    # Only command name is given - show access rules
+    if len(args) == 1:
+        if args[0] not in bot.commands.commands:
+            await chat.send_message(f"Error: Invalid command.", bot.msg_creator)
+            return
+        if args[0] in config.access_rules:
+            await chat.send_message(util.format_access_rules(args[0], config.access_rules[args[0]]), bot.msg_creator)
+        else:
+            await chat.send_message(f"No access rules for command {args[0]}.", bot.msg_creator)
+    # If both command name and action are given, then rule type and args must be given
+    elif len(args) < 3:
+        await chat.send_message("Invalid syntax! See `@latexbot help accessRule` for details.", bot.msg_creator)
+    else:
+        # Verify arguments are correct
+        if args[0] not in bot.commands.commands:
+            await chat.send_message(f"Error: Invalid command.", bot.msg_creator)
+            return
+        if args[1] == "set":
+            if args[2] != "level":
+                await chat.send_message(f"Error: Invalid rule type for action `set`: {args[2]}. See `@latexbot help accessRule` for details.", bot.msg_creator)
+                return
+            if len(args) != 4:
+                await chat.send_message(f"Error: The `set` action takes exactly 1 argument.", bot.msg_creator)
+                return
+            try:
+                level = int(args[3])
+            except ValueError:
+                await chat.send_message(f"Error: Invalid access level: {level}. Access levels must be integers. See `@latexbot help accessRule` for details.", bot.msg_creator)
+            # Set the rules
+            rules = config.access_rules.get(args[0], {})
+            rules["level"] = level
+            config.access_rules[args[0]] = rules
+        # Combine the two because they're similar
+        elif args[1] == "add" or args[1] == "remove":
+            # Verify rule type
+            if args[2] not in ["allowUser", "disallowUser", "allowRole", "disallowRole"]:
+                await chat.send_message(f"Error: Invalid rule type for action `{args[1]}`: {args[2]}. See `@latexbot help accessRule` for details.", bot.msg_creator)
+                return
+            if len(args) < 4:
+                await chat.send_message(f"Error: At least one argument must be supplied for action `{args[1]}`. See `@latexbot help accessRule` for details.", bot.msg_creator)
+                return
+            # Set the rules
+            rules = config.access_rules.get(args[0], {})
+            if args[1] == "add":
+                # If there are already items, merge the lists
+                if args[2] in rules:
+                    for arg in args[3:]:
+                        # Don't allow duplicates
+                        if arg in rules[args[2]]:
+                            await chat.send_message(f"Warning: {arg} is already in the list for rule {args[2]}.", bot.msg_creator)
+                        else:
+                            rules[args[2]].append(arg)
+                # Otherwise directly assign
+                else:
+                    rules[args[2]] = args[3:]
+            else:
+                if args[2] not in rules:
+                    await chat.send_message(f"Error: Rule {args[2]} is not set for command {args[0]}.", bot.msg_creator)
+                    return
+                # Remove each one
+                for arg in args[3:]:
+                    if arg not in rules[args[2]]:
+                        await chat.send_message(f"Warning: {arg} is not in the list for rule {args[2]}.", bot.msg_creator)
+                    else:
+                        rules[args[2]].remove(arg)
+                # Don't leave empty arrays
+                if not rules[args[2]]:
+                    rules.pop(args[2])
+            # Set the field
+            # This is needed in case get() returned the empty dict
+            config.access_rules[args[0]] = rules
+            # Don't leave empty dicts
+            if not config.access_rules[args[0]]:
+                config.access_rules.pop(args[0])
+        elif args[1] == "delete":
+            if len(args) != 3:
+                await chat.send_message(f"Error: The `delete` action does not take any arguments.", bot.msg_creator)
+                return
+            try:
+                config.access_rules[args[0]].pop(args[2])
+                # Don't leave empty dicts
+                if not config.access_rules[args[0]]:
+                    config.access_rules.pop(args[0])
+            except KeyError:
+                await chat.send_message(f"Error: Command {args[0]} does not have rule {args[2]} set.", bot.msg_creator)
+                return
+        else:
+            await chat.send_message(f"Error: Invalid action: {args[1]}. See `@latexbot help accessRule` for details.", bot.msg_creator)
+            return
+        
+        bot.update_help()
+        bot.save_config()
+        await chat.send_message("Operation successful.", bot.msg_creator)
+
+
+async def command_setDailyMessageTime(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Set the time daily messages are sent each day or turn them on/off.
+
+    The time must be in the "HH:MM" format (24-hour clock).
+    Leave the argument blank to turn daily messages off.
+    ---
+    group: Miscellaneous Commands
+    syntax: [time]
+    ---
+    > `@latexbot setDailyMessageTime 00:00` - Set daily messages to be sent at 12am each day.
+    > `@latexbot setDailyMessageTime` - Turn off daily messages.
+    """
+    if args == "" or args.lower() == "off":
+        config.daily_msg_time = None
+    else:
+        # Try parse to ensure validity
+        try:
+            config.daily_msg_time = datetime.strptime(args, "%H:%M")
+        except ValueError:
+            await chat.send_message("Invalid time format.", bot.msg_creator)
+            return
+    
+    # TODO
+    # Schedule or unschedule the daily message task
+    # if org.daily_message_time:
+    #     org.schedule_daily_message()
+    # else:
+    #     if org.daily_message_task:
+    #         org.daily_message_task.cancel()
+    
+    bot.save_config()
+    if config.daily_msg_time:
+        await chat.send_message(f"Messages will now be sent at {args} daily.", bot.msg_creator)
+    else:
+        await chat.send_message(f"Messages have been disabled.", bot.msg_creator)
+
+
+async def command_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Send a message to a chat by ID.
+    ---
+    group: Hidden Commands
+    syntax: <id> <message>
+    hidden: true
+    """
+    try:
+        i = args.index(" ")
+    except ValueError:
+        await chat.send_message("Invalid syntax.", bot.msg_creator)
+        return
+    chat_id = args[:i]
+    msg = args[i + 1:]
+    try:
+        chat_id = int(chat_id)
+    except ValueError:
+        await chat.send_message("Invalid chat ID.", bot.msg_creator)
+        return
+    to = chat.get_ryver().get_chat(id=chat_id)
+    if to is None:
+        await chat.send_message("Chat not found.", bot.msg_creator)
+        return
+    await to.send_message(msg, bot.msg_creator)
 
 
 import latexbot # nopep8 # pylint: disable=unused-import
