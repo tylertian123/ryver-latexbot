@@ -289,17 +289,18 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         sub_args = ""
     
     if cmd == "exportCustomQuestions":
-        if await bot.commands.commands["trivia exportCustomQuestions"].is_authorized(chat, user):
+        if await bot.commands.commands["trivia exportCustomQuestions"].is_authorized(bot, chat, user):
             await util.send_json_data(chat, trivia.CUSTOM_TRIVIA_QUESTIONS, "Custom Questions:", 
                                       "trivia.json", bot.user, bot.msg_creator)
         else:
             await chat.send_message("You are not authorized to do that.", bot.msg_creator)
         return
     elif cmd == "importCustomQuestions":
-        msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
-        if await bot.commands.commands["trivia importCustomQuestions"].is_authorized(chat, await msg.get_author()):
+        if await bot.commands.commands["trivia importCustomQuestions"].is_authorized(bot, chat, user):
+            msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
             try:
-                trivia.set_custom_trivia_questions(util.get_attached_json_data(msg, sub_args))
+                trivia.set_custom_trivia_questions(await util.get_attached_json_data(msg, sub_args))
+                await chat.send_message("Operation successful.", bot.msg_creator)
             except ValueError as e:
                 await chat.send_message(str(e), bot.msg_creator)
         else:
@@ -471,7 +472,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             return
         game = bot.trivia_games[chat.get_id()]
         # Get the message object so we can check if the user is authorized
-        if user.get_id() == game.game.host or await bot.commands.commands["trivia end"].is_authorized(chat, user):
+        if user.get_id() == game.game.host or await bot.commands.commands["trivia end"].is_authorized(bot, chat, user):
             # Display the scores
             scores = trivia.order_scores(game.game.scores)
             if not scores:
@@ -898,7 +899,7 @@ async def command_importRoles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     > `@latexbot importRoles {}` - Clear all roles.
     """
     try:
-        data = util.get_attached_json_data(await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0), args)
+        data = await util.get_attached_json_data(await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0), args)
     except ValueError as e:
         await chat.send_message(str(e), bot.msg_creator)
     msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
@@ -1373,7 +1374,7 @@ async def command_importConfig(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     syntax: <data>
     """
     try:
-        errs = config.load(util.get_attached_json_data(await pyryver.retry_until_available(
+        errs = config.load(await util.get_attached_json_data(await pyryver.retry_until_available(
             chat.get_message, msg_id, timeout=5.0), args))
         if errs:
             util.log("Error loading config:", errs)
