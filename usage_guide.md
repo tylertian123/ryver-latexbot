@@ -95,7 +95,9 @@ Trivia is a multiplayer game ~~(if you don't have friends, singleplayer is fine 
 However, the game itself doesn't implement any rules, such as turns, etc.
 It only provides a scoreboard, so moderation is required if you want an organized game.
 
-All trivia games are global, and there can only ever be one trivia game at a time.
+Since LaTeX Bot v0.6.0, trivia games are no longer global and are now chat-local. 
+This means you can have two different games at the same time, as long as they're in different chats.
+(This includes forums, teams and private messages.) However, there can only be one trivia game per chat.
 
 The `trivia` command can be used to play trivia, and it has a few sub-commands used to manipulate the game.
 

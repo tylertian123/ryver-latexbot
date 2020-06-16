@@ -3,7 +3,9 @@ Uses the Open Trivia Database https://opentdb.com/ for a game of trivia.
 """
 
 import aiohttp
+import asyncio
 import html
+import pyryver
 import random
 import typing
 
@@ -333,5 +335,192 @@ def set_custom_trivia_questions(questions):
     """
     Set the custom trivia questions.
     """
-    global CUSTOM_TRIVIA_QUESTIONS
+    global CUSTOM_TRIVIA_QUESTIONS # pylint: disable=global-statement
     CUSTOM_TRIVIA_QUESTIONS = questions
+
+
+_T = typing.TypeVar("T")
+def order_scores(scores: typing.Dict[_T, int]) -> typing.Dict[int, typing.List[_T]]:
+    """
+    Order a dict of {player: score} to produce a ranking.
+
+    The ranking will be a dict of {rank: (players, score)}. It will be ordered from first place
+    to last place and start at 1.
+    """
+    if not scores:
+        return {}
+    scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    rank = 0
+    last_score = None
+    ranks = {}
+    for player, score in scores:
+        if last_score is None or score < last_score:
+            rank += len(ranks[rank]) if rank in ranks else 1
+            last_score = score
+            ranks[rank] = ([player], score)
+        elif score == last_score:
+            ranks[rank][0].append(player)
+    return ranks
+
+
+class LatexBotTriviaGame:
+    """
+    A game of trivia in latexbot. 
+    """
+
+    TRIVIA_NUMBER_EMOJIS = ["one", "two", "three", "four", "five", "six", "seven", "eight"]
+
+    TRIVIA_POINTS = {
+        TriviaSession.DIFFICULTY_EASY: 10,
+        TriviaSession.DIFFICULTY_MEDIUM: 20,
+        TriviaSession.DIFFICULTY_HARD: 30,
+    }
+
+    ERR_MSGS = {
+        OpenTDBError.CODE_NO_RESULTS: "No results!",
+        OpenTDBError.CODE_INVALID_PARAM: "Internal error",
+        OpenTDBError.CODE_TOKEN_EMPTY: "Ran out of questions! Please end the game using `@latexbot trivia end`.",
+        OpenTDBError.CODE_TOKEN_NOT_FOUND: "Invalid game session! Perhaps the game has expired?",
+        OpenTDBError.CODE_SUCCESS: "This should never happen.",
+    }
+
+    def __init__(self, chat: pyryver.Chat, game: TriviaGame, msg_creator: pyryver.Creator):
+        self.game = game
+        self.chat = chat
+        self.msg_creator = msg_creator
+        self.lock = asyncio.Lock()
+        self.timeout_task_handle = None # type: asyncio.Future
+        self.question_msg = None # type: pyryver.ChatMessage
+        self.ended = False
+
+        self.refresh_timeout()
+
+    async def _timeout(self, delay: float):
+        """
+        A task that waits for an amount of time and then terminates the game.
+        """
+        try:
+            await asyncio.sleep(delay)
+            if not self.ended:
+                self.ended = True
+                await self.chat.send_message(f"The trivia game started by {self.get_user_name(self.game.host)} has ended due to inactivity.", self.msg_creator)
+                await self.end()
+        except asyncio.CancelledError:
+            pass
+    
+    def refresh_timeout(self, delay: float = 15 * 60):
+        if self.timeout_task_handle is not None:
+            self.timeout_task_handle.cancel()
+        self.timeout_task_handle = asyncio.ensure_future(self._timeout(delay))
+    
+    async def _try_get_next(self) -> bool:
+        """
+        Try to get the next trivia question while handling errors.
+
+        Returns whether the question was obtained successfully.
+
+        This does not acquire the lock.
+        """
+        try:
+            await self.game.next_question()
+            return True
+        except OpenTDBError as e:
+            err = self.ERR_MSGS[e.code]
+            await self.chat.send_message(f"Cannot get next question: {err}", self.msg_creator)
+            if e.code == OpenTDBError.CODE_TOKEN_NOT_FOUND:
+                # End the session
+                await self.chat.send_message(f"Ending invalid session...", self.msg_creator)
+                await self.end()
+            return False
+
+    async def next_question(self):
+        """
+        Get the next question or repeat the current question and send it to the chat.
+        """
+        async with self.lock:
+            self.refresh_timeout()
+
+            # Only update the question if already answered
+            if self.game.current_question["answered"]:
+                # Try to get the next question
+                if not await self._try_get_next():
+                    return
+        
+            formatted_question = self.format_question(self.game.current_question)
+            # Send the message
+            # First send an empty message to get the reactions
+            mid = await self.chat.send_message("Loading...", self.msg_creator)
+            msg = await pyryver.retry_until_available(self.chat.get_message, mid, timeout=5.0, retry_delay=0)
+            if self.game.current_question["type"] == TriviaSession.TYPE_MULTIPLE_CHOICE:
+                # Iterate the reactions array until all the options are accounted for
+                for _, reaction in zip(self.game.current_question["answers"], self.TRIVIA_NUMBER_EMOJIS):
+                    await msg.react(reaction)
+            else:
+                await msg.react("white_check_mark")
+                await msg.react("x")
+            await msg.react("trophy")
+            await msg.react("fast_forward")
+            # Now edit the message to show the actual question contents
+            await msg.edit(formatted_question)
+            self.question_msg = msg
+    
+    async def send_scores(self):
+        """
+        Send the scoreboard to the chat.
+        """
+        async with self.lock:
+            self.refresh_timeout()
+            scores = order_scores(self.game.scores)
+            if not scores:
+                await self.chat.send_message("No scores at the moment. Scores are only recorded after you answer a question.", self.msg_creator)
+                return
+            # The \\ before the . is to make it not a valid markdown list
+            # because you can't skip numbers in markdown lists in Ryver
+            resp = "\n".join(f"{rank}\\. **{', '.join(self.get_user_name(player) for player in players)}** with a score of {score}!" for rank, (players, score) in scores.items())
+            await self.chat.send_message(resp, self.msg_creator)
+    
+    async def answer(self, answer: int, user: int):
+        """
+        Answer the current question.
+        """
+        async with self.lock:
+            self.refresh_timeout()
+            points = self.TRIVIA_POINTS[self.game.current_question["difficulty"]]
+            name = self.get_user_name(user)
+            if self.game.answer(answer, user, points):
+                await self.chat.send_message(f"Correct answer! **{name}** earned {points} points!", self.msg_creator)
+            else:
+                await self.chat.send_message(f"Wrong answer! The correct answer was option number {self.game.current_question['correct_answer'] + 1}. **{name}** did not get any points for that.", self.msg_creator)
+    
+    async def end(self):
+        """
+        End the game and clean up.
+        """
+        async with self.lock:
+            self.ended = True
+            if self.timeout_task_handle is not None:
+                self.timeout_task_handle.cancel()
+            await self.game.end()
+    
+    def get_user_name(self, user_id: int) -> str:
+        """
+        Get the name of a user specified by ID.
+        """
+        user = self.chat.get_ryver().get_user(id=user_id)
+        return user.get_name() if user is not None else "Unknown User"
+    
+    @classmethod
+    def format_question(cls, question: typing.Dict[str, typing.Any]) -> str:
+        """
+        Format a trivia question.
+        """
+        result = f":grey_question: Category: *{question['category']}*, Difficulty: **{question['difficulty']}**\n\n"
+        if question['type'] == TriviaSession.TYPE_TRUE_OR_FALSE:
+            result += "True or False: "
+        result += question["question"]
+        answers = "\n".join(f"{i + 1}. {answer}" for i, answer in enumerate(question["answers"]))
+        result += "\n" + answers
+        return result
+
+
+import latexbot # nopep8 # pylint: disable=unused-import

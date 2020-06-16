@@ -3,6 +3,7 @@ import commands
 import config
 import json
 import pyryver
+import trivia
 import util
 from caseinsensitivedict import CaseInsensitiveDict
 from command import Command, CommandSet
@@ -40,6 +41,7 @@ class LatexBot:
         self.roles = CaseInsensitiveDict()
 
         self.trivia_file = None # type: str
+        self.trivia_games = {} # type: typing.Dict[int, trivia.LatexBotTriviaGame]
 
         self.daily_msg_task = None # type: typing.Awaitable
 
@@ -61,6 +63,10 @@ class LatexBot:
         self.commands.add_command(Command("whatDoYouThink", commands.command_whatDoYouThink, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("xkcd", commands.command_xkcd, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("checkiday", commands.command_checkiday, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("trivia", commands.command_trivia, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("trivia importCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("trivia exportCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("trivia end", None, Command.ACCESS_LEVEL_FORUM_ADMIN))
         
         self.commands.add_command(Command("deleteMessages", commands.command_deleteMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))
         self.commands.add_command(Command("moveMessages", commands.command_moveMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))
@@ -125,7 +131,7 @@ class LatexBot:
 
     async def load_files(self, config_file: str, roles_file: str, trivia_file: str) -> None:
         """
-        Load all configuration files.
+        Load all configuration files, including the config, roles and custom trivia.
         """
         self.config_file = config_file
         self.roles_file = roles_file
@@ -155,6 +161,15 @@ class LatexBot:
             if self.home_chat is not None:
                 await self.home_chat.send_message(f"Error while loading roles: {e}. Defaulting to {{}}.", self.msg_creator)
             self.roles = CaseInsensitiveDict()
+        
+        # Load trivia
+        try:
+            with open(trivia_file, "r") as f:
+                trivia.set_custom_trivia_questions(json.load(f))
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            util.log(f"Error while loading custom trivia questions: {e}.")
+            if self.home_chat is not None:
+                await self.home_chat.send_message(f"Error while loading custom trivia questions: {e}.", self.msg_creator)
 
     def save_roles(self) -> None:
         """
@@ -330,8 +345,7 @@ class LatexBot:
             @session.on_event(pyryver.RyverWS.EVENT_REACTION_ADDED)
             async def _on_reaction_added(msg: pyryver.WSEventData):
                 # Extra processing for interfacing trivia with reactions
-                pass
-                #await commands._trivia_on_reaction(self.ryver, session, msg.event_data)
+                await commands.reaction_trivia(self, self.ryver, session, msg.event_data)
 
             util.log("LaTeX Bot is running!")
             if not self.debug and self.home_chat is not None:

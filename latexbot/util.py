@@ -306,7 +306,7 @@ async def send_json_data(chat: pyryver.Chat, data: typing.Any, message: str, fil
         await chat.send_message(message, creator=msg_creator, attachment=file, from_user=from_user)
 
 
-async def get_attached_json_data(msg: pyryver.ChatMessage, msg_contents: str) -> typing.Dict[str, typing.Any]:
+async def get_attached_json_data(msg: pyryver.ChatMessage, msg_contents: str) -> typing.Any:
     """
     Load the JSON data attached to the message.
 
