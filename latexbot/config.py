@@ -31,9 +31,10 @@ Config JSON format:
     ]
 """
 
+import datetime
+import dateutil
 import typing
 from config_loader import ConfigLoader
-from datetime import datetime
 
 loader = ConfigLoader()
 
@@ -41,6 +42,13 @@ def admins_loader(admins: list): # pylint: disable=redefined-outer-name
     if admins and not isinstance(admins[0], int):
         raise ValueError("Admins must be a list of ints!")
     return set(admins)
+# This is the string representation of the timezone (same as specified in config)
+# because we can't go from a tzinfo back to the string
+tz_str = None # type: str
+def timezone_loader(tz: str):
+    global tz_str # pylint: disable=global-statement
+    tz_str = tz
+    return dateutil.tz.gettz(tz)
 def command_prefixes_loader(p: list):
     if not p or not isinstance(p[0], str):
         raise ValueError("Command prefixes must be a non-empty list of strings!")
@@ -68,13 +76,13 @@ def opinions_loader(opinions: list): # pylint: disable=redefined-outer-name
     return opinions
 
 loader.field("admins", list, admins_loader, list, set())
-loader.field("organizationTimeZone", str, default="UTC")
+loader.field("organizationTimeZone", str, timezone_loader, lambda x: tz_str, default=datetime.timezone.utc)
 loader.field("homeChat", str, default="Test")
 loader.field("announcementsChat", str, default="Test")
 loader.field("messagesChat", str, default="Test")
 loader.field("googleCalendarId", (str, type(None)))
-loader.field("dailyMessageTime", (str, type(None)), lambda t: None if t is None else datetime.strptime(t, "%H:%M"), 
-             lambda t: None if t is None else t.strftime("%H:%M"), default=datetime.strptime("00:00", "%H:%M"))
+loader.field("dailyMessageTime", (str, type(None)), lambda t: None if t is None else datetime.datetime.strptime(t, "%H:%M"), 
+             lambda t: None if t is None else t.strftime("%H:%M"), default=datetime.datetime.strptime("00:00", "%H:%M"))
 loader.field("lastXKCD", int, default=0)
 loader.field("commandPrefixes", list, command_prefixes_loader, default=["@latexbot "])
 loader.field("aliases", list, aliases_loader, default=[])
@@ -84,12 +92,12 @@ loader.field("opinions", list, opinions_loader, default=[])
 config = {}
 
 admins = None # type: typing.Set[int]
-timezone = None # type: str
+timezone = None # type: datetime.tzinfo
 home_chat = None # type: str
 announce_chat = None # type: str
 msgs_chat = None # type: str
 calendar_id = None # type: str
-daily_msg_time = None # type: datetime
+daily_msg_time = None # type: datetime.datetime
 last_xkcd = None # type: int
 prefixes = None # type: typing.List[str]
 aliases = None # type: typing.List[typing.Dict[str, str]]

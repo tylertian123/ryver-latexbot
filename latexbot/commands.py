@@ -202,7 +202,7 @@ async def command_checkiday(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
     > `@latexbot checkiday` - Get today's holidays.
     > `@latexbot checkiday 2020/05/12` - Get the holidays on May 12, 2020.
     """
-    url = f"https://www.checkiday.com/api/3/?d={args or util.current_time(config.timezone).strftime('%Y/%m/%d')}"
+    url = f"https://www.checkiday.com/api/3/?d={args or util.current_time().strftime('%Y/%m/%d')}"
     async with aiohttp.request("GET", url) as resp:
         if resp.status != 200:
             await chat.send_message(f"HTTP error while trying to get holidays: {resp}", bot.msg_creator)
@@ -948,7 +948,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     
     events = bot.calendar.get_upcoming_events(count)
 
-    now = util.current_time(config.timezone)
+    now = util.current_time()
     ongoing = []
     upcoming = []
     
@@ -959,7 +959,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         # See if the event has started
         # If the date has no timezone info, make it the organization timezone for comparisons
         if not start.tzinfo:
-            start = start.replace(tzinfo=tz.gettz(config.timezone))
+            start = start.replace(tzinfo=config.timezone)
             # No timezone info means this was created as an all-day event
             has_time = False
         else:
@@ -1589,7 +1589,7 @@ async def command_dailyMessage(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     ---
     > `@latexbot dailyMessage` - Send the daily message.
     """
-    now = util.current_time(config.timezone)
+    now = util.current_time()
     events = bot.calendar.get_today_events(now)
     if events:
         resp = "Reminder: These events are happening today:"

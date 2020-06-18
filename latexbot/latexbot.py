@@ -217,9 +217,9 @@ class LatexBot:
         if not config.daily_msg_time:
             util.log("Daily message not scheduled because time isn't defined.")
             return
-        now = util.current_time(config.timezone)
+        now = util.current_time()
         # Get that time, today
-        t = datetime.combine(now, config.daily_msg_time.time(), tzinfo=tz.gettz(config.timezone))
+        t = datetime.combine(now, config.daily_msg_time.time(), tzinfo=config.timezone)
         # If already passed, get that time the next day
         if t < now:
             t += timedelta(days=1)

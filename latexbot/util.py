@@ -1,6 +1,6 @@
 import aiohttp
+import config
 import datetime
-import dateutil
 import json
 import pyryver
 import re
@@ -37,7 +37,7 @@ def log(*args, **kwargs):
     This function uses print() and flushes immediately.
     A timestamp is also added to each message.
     """
-    print(current_time("EST5EDT").strftime("%Y-%m-%d %H:%M:%S"), end=" ")
+    print(current_time().strftime("%Y-%m-%d %H:%M:%S"), end=" ")
     print(*args, **kwargs, flush=True)
 
 
@@ -252,11 +252,11 @@ def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
     return doc_dict
 
 
-def current_time(timezone: str) -> datetime:
+def current_time() -> datetime:
     """
     Get the current time in a timezone specified by string.
     """
-    return datetime.datetime.now(datetime.timezone.utc).astimezone(dateutil.tz.gettz(timezone))
+    return datetime.datetime.now(datetime.timezone.utc).astimezone(config.timezone)
 
 
 def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
