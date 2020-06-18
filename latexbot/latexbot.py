@@ -4,6 +4,7 @@ import config
 import json
 import pyryver
 import trivia
+import typing
 import util
 from caseinsensitivedict import CaseInsensitiveDict
 from command import Command, CommandSet
@@ -238,6 +239,11 @@ class LatexBot:
             @session.on_connection_loss
             async def _on_conn_loss():
                 util.log("Error: Connection lost!")
+                await session.close()
+            
+            @session.on_error
+            async def _on_error(err: typing.Union[TypeError, ValueError]):
+                util.log(f"pyryver realtime error: {err}")
                 await session.close()
             
             @session.on_chat
