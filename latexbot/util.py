@@ -29,6 +29,7 @@ XKCD_PROFILE = "https://www.explainxkcd.com/wiki/images/6/6d/BlackHat_head.png"
 
 MENTION_REGEX = re.compile(r"((?:^|[^a-zA-Z0-9_!@#$%&*])(?:(?:@)(?!\/)))([a-zA-Z0-9_]*)(?:\b(?!@)|$)", flags=re.MULTILINE)
 
+CHAT_LOOKUP_REGEX = re.compile(r"([a-z]+)=(.*)")
 
 def log(*args, **kwargs):
     """
@@ -102,7 +103,7 @@ def preprocess_command(prefixes: typing.List[str], aliases: typing.List[typing.D
         # Otherwise go again until no more expansion happens
 
 
-async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.Message]:
+async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.ChatMessage]:
     """
     Get any number of messages before a message from an ID.
 
@@ -124,17 +125,29 @@ async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing
 
 def parse_chat_name(ryver: pyryver.Ryver, name: str) -> pyryver.Chat:
     """
-    Parse a chat name expression in the form [(name|nickname)=]<forum|team> and return the correct chat.
+    Parse a chat name expression in the form [(name|nickname|id|jid)=][+]<forum|team> and return the correct chat.
     """
-    # Handle the name= or nickname= syntax
-    if name.startswith("name="):
-        # Slice off the beginning
-        name = name[len("name="):]
-        return ryver.get_groupchat(name=name)
-    elif name.startswith("nickname="):
-        name = name[len("nickname="):]
-        return ryver.get_groupchat(nickname=name)
-    # Handle names starting with a + (nickname reference)
+    match = CHAT_LOOKUP_REGEX.match(name) # type: re.Match
+    if match:
+        key = match.group(1)
+        val = match.group(2)
+        if key not in ("name", "nickname", "id", "jid"):
+            raise ValueError(f"Invalid query param type: {key}")
+        if key == "id":
+            val = int(val)
+        if key == "nickname" and val.startswith("+"):
+            val = val[1:]
+        # Handle both users and teams/forums
+        # Nicknames only apply to group chats
+        if key == "nickname":
+            return ryver.get_groupchat(**{key: val})
+        # IDs and JIDs can be used to look up anything
+        if key == "id" or key == "jid":
+            return ryver.get_chat(**{key: val})
+        # Names are ambiguous, so try both
+        return ryver.get_groupchat(**{key: val}) or ryver.get_user(**{key: val})
+            
+    # Alternative nickname syntax
     elif name.startswith("+"):
         name = name[1:]
         return ryver.get_groupchat(nickname=name)

@@ -9,7 +9,6 @@ import util
 from caseinsensitivedict import CaseInsensitiveDict
 from command import Command, CommandSet
 from datetime import datetime, timedelta
-from dateutil import tz
 from gcalendar import Calendar
 from traceback import format_exc
 
@@ -126,9 +125,18 @@ class LatexBot:
         This function should be called whenever the config JSON is updated.
         """
         self.calendar = Calendar("calendar_credentials.json", config.calendar_id)
-        self.home_chat = self.ryver.get_groupchat(nickname=config.home_chat)
-        self.announcements_chat = self.ryver.get_groupchat(nickname=config.announce_chat)
-        self.messages_chat = self.ryver.get_groupchat(nickname=config.msgs_chat)
+        try:
+            self.home_chat = util.parse_chat_name(self.ryver, config.home_chat)
+        except ValueError as e:
+            util.log(f"Error looking up home chat: {e}")
+        try:
+            self.announcements_chat = util.parse_chat_name(self.ryver, config.announcements_chat)
+        except ValueError as e:
+            util.log(f"Error looking up announcements chat: {e}")
+        try:
+            self.messages_chat = util.parse_chat_name(self.ryver, config.messages_chat)
+        except ValueError as e:
+            util.log(f"Error looking up messages chat: {e}")
 
     async def load_files(self, config_file: str, roles_file: str, trivia_file: str) -> None:
         """

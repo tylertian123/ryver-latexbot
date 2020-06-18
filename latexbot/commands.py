@@ -591,23 +591,26 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     If no <start> is provided, this command moves the last <count>/<end> messages.
     If <start> is provided, this command moves messages from <start> to <end> inclusive, with 1-based indexing.
 
-    By default this command goes by the display name of the forum/team.
-    Specify `nickname=` before the forum/team name to use nicknames instead.
+    The destination chat is specified with the Standard Chat Lookup Syntax.
+    Refer to [the usage guide](https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md#the-standard-chat-lookup-syntax) for more info.
+    But if you're lazy, you can just use the *case-sensitive* exact name of the destination forum/team.
 
     Note that reactions cannot be moved perfectly, and are instead shown with text.
     ---
     group: Administrative Commands
-    syntax: [<start>-]<end|count> [(name|nickname)=]<forum|team>
+    syntax: [<start>-]<end|count> [(name|nickname|id|jid)=][+]<forum|team>
     ---
     > `@latexbot moveMessages 10 Off-Topic` - Move the last 10 messages to Off-Topic.
     > `@latexbot moveMessages 10-20 nickname=OffTopic` - Move the 10th last to 20th last messages (inclusive) to a forum/team with the nickname +OffTopic.
     """
-    args = args.split()
-    if len(args) < 2:
-        chat.send_message("Invalid syntax.", bot.msg_creator)
+    try:
+        i = args.index(" ")
+        msg_range = args[:i]
+        to_chat = args[i + 1:]
+    except ValueError:
+        await chat.send_message("Invalid syntax.", bot.msg_creator)
         return
 
-    msg_range = args[0]
     try:
         # Try and parse the range
         if "-" in msg_range:
@@ -620,10 +623,13 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
         await chat.send_message("Invalid syntax.", bot.msg_creator)
         return
 
-    to = util.parse_chat_name(chat.get_ryver(), " ".join(args[1:]))
-    if not to:
-        await chat.send_message("Forum/team not found", bot.msg_creator)
-        return
+    try:
+        to = util.parse_chat_name(chat.get_ryver(), to_chat)
+        if not to:
+            await chat.send_message("Chat not found.", bot.msg_creator)
+            return
+    except ValueError as e:
+        await chat.send_message(str(e), bot.msg_creator)
 
     # Special case for start = 1
     if start == 1:
@@ -642,10 +648,9 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
         if not msg_creator:
             # First attempt to search for the ID in the list
             # if that fails then get it directly using a request
-            msg_author = chat.get_ryver().get_user(id=msg.get_author_id) or (await msg.get_author())
+            msg_author = bot.ryver.get_user(id=msg.get_author_id()) or (await msg.get_author())
             # Pretend to be another person
-            msg_creator = pyryver.Creator(
-                msg_author.get_display_name(), bot.user_avatars.get(msg_author.get_id(), ""))
+            msg_creator = pyryver.Creator(msg_author.get_name(), bot.user_avatars.get(msg_author.get_id(), ""))
 
         msg_body = util.sanitize(msg.get_body())
         # Handle reactions
@@ -1642,10 +1647,10 @@ async def command_dailyMessage(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
 
 async def command_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
-    Send a message to a chat by ID.
+    Send a message to a chat.
     ---
     group: Hidden Commands
-    syntax: <id> <message>
+    syntax: [(name|nickname|id|jid)=][+]<forum|team> <message>
     hidden: true
     """
     try:
@@ -1653,14 +1658,13 @@ async def command_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: py
     except ValueError:
         await chat.send_message("Invalid syntax.", bot.msg_creator)
         return
-    chat_id = args[:i]
+    chat_name = args[:i]
     msg = args[i + 1:]
     try:
-        chat_id = int(chat_id)
-    except ValueError:
-        await chat.send_message("Invalid chat ID.", bot.msg_creator)
+        to = util.parse_chat_name(bot.ryver, chat_name)
+    except ValueError as e:
+        await chat.send_message(str(e), bot.msg_creator)
         return
-    to = chat.get_ryver().get_chat(id=chat_id)
     if to is None:
         await chat.send_message("Chat not found.", bot.msg_creator)
         return

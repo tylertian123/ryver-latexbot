@@ -5,6 +5,8 @@ It covers many important topics that you might find helpful.
 For more information about a particular command, do `@latexbot help <command>`. 
 This guide does not cover all commands, nor does it offer in-depth syntax info for most commands.
 
+This guide is for LaTeX Bot v0.6.0.
+
 # Table of Contents
   - [Access Levels](#access-levels)
   - [General Usage](#general-usage)
@@ -25,6 +27,7 @@ This guide does not cover all commands, nor does it offer in-depth syntax info f
     - [Chat Admin Commands](#chat-admin-commands)
       - [`deleteMessages`](#deletemessages)
       - [`moveMessages`](#movemessages)
+        - [The Standard Chat Lookup Syntax](#the-standard-chat-lookup-syntax)
       - [`countMessagesSince`](#countmessagessince)
     - [Roles](#roles)
       - [Viewing Roles](#viewing-roles)
@@ -63,10 +66,12 @@ This section outlines commands and topics accessible to everyone.
 
 ## Rendering Math/Chemical Equations
 Of course, the primary function of LaTeX Bot is to render LaTeX.
-You can render an equation with the `render` command, e.g. `@latexbot render \frac{1}{2}` will render the fraction 1/2.
+You can render an equation with the `render` command, 
+e.g. `F(s) = \int_{0}^{\infty} f(t) e^{-st} dt` will render the definition of the Laplace Transform.
 
 LaTeX Bot also supports rendering chemical equations with `mhchem`.
-Render chemical equations with the `chem` command, e.g. `@latex bot render HCl_{(aq)} + NaOH_{(aq)} -> H2O_{(l)} + NaCl_{(aq)}`.
+Render chemical equations with the `chem` command, 
+e.g. `@latex bot render HCl_{(aq)} + NaOH_{(aq)} -> H2O_{(l)} + NaCl_{(aq)}` will render the neutralization of hydrochloric acid and sodium hydroxide.
 Note that the spaces before and after the plus signs and the arrow are required; 
 if there are no spaces around the arrow, the equation cannot be rendered;
 if there are no spaces around the plus signs, they will get rendered as charges instead.
@@ -224,10 +229,22 @@ As you can't actually "move" messages, this is accomplished by LaTeX Bot sending
 This unfortunately means reactions cannot be moved properly; however, they will still be shown in the moved message with text.
 
 Like `deleteMessages`, `moveMessages` can also accept either a number or a range.
-Additionally, you must specify where to move the messages to. 
-By default, you can provide the forum/team using its display name, e.g. `@latexbot moveMessages Off-Topic`. 
-However, you can also provide it using nicknames by using the standard syntax for nickname linking (+), e.g. `@latexbot moveMessages 10 +OffTopic`, 
-or specify the lookup method explicitly by putting `name=` or `nickname=` before the name, e.g. `@latexbot moveMessages 10 nickname=OffTopic`.
+Additionally, you must specify where to move the messages to.
+This is done using the Standard Chat Lookup Syntax (see below section).
+
+#### The Standard Chat Lookup Syntax
+The Standard Chat Lookup Syntax is specified by the following:
+```
+[(name|nickname|id|jid)=][+]<forum|team>
+```
+Essentially, this means that you have several ways of specifying a chat (includes users too!):
+  - Specify by name directly (e.g. "Programming"), without any additional specifiers.
+  - Specify by name, nickname, ID or JID (e.g. "nickname=Prog", "id=1303314").
+    You can do this by putting the type of the query parameter before the value, with a = in between, as demonstrated in the examples. 
+    Note that if you're specifying by nickname (and *only* nickname), it is ok to have the nickname starting with a + (e.g. "nickname=+Prog").
+  - Specify using the Ryver nickname linking syntax, putting a + before the nickname (e.g. "+Prog").
+
+Note that due to implementation details, these queries are *case sensitive* and must match exactly!
 
 ### `countMessagesSince`
 `countMessagesSince` is a helper command you can use with the other two commands to help you count messages.
@@ -368,9 +385,9 @@ Below is an illustration of the JSON config file format:
     // ...
   ],
   "organizationTimeZone": "EST5EDT", // The timezone of the organization
-  "homeChat": "Test", // The nickname of the forum/team where startup messages and other misc messages are sent
-  "announcementsChat": "Gen", // The nickname of the forum/team where daily event reminders are sent
-  "messagesChat": "OffTopic", // The nickname of the forum/team where daily xkcds and holidays are sent
+  "homeChat": "nickname=Test", // The forum/team where startup messages and other misc messages are sent, (Standard Chat Lookup Syntax)
+  "announcementsChat": "nickname=Gen", // The forum/team where daily event reminders are sent (Standard Chat Lookup Syntax)
+  "messagesChat": "nickname=OffTopic", // The forum/team where daily xkcds and holidays are sent (Standard Chat Lookup Syntax)
   "googleCalendarId": "foo@group.calendar.google.com", // The ID of the calendar for Google Calendar Integration
   "dailyMessageTime": "00:00", // The time of day daily messages are sent, HH:MM
   "lastXKCD": 0, // The newest XKCD; used to determine if a comic is new; set automatically
@@ -420,8 +437,6 @@ Out of these configuration options, these can *only* be changed through updating
 
 Congratulations! You've read until the end!
 
-As a reward... If you're an Org Admin, there's a hidden command in LaTeX Bot, `message`, that allows you to send a message to anywhere you want.
-The syntax is `@latexbot message <id> <message>`.
-You can find the ID of a user by going to their profile, or the ID of a forum/team in the URL of the webpage.
-You can use this command in DMs, so it allows you to send completely anonymous messages.
-Have fun!
+Hint: There's a hidden command in LaTeX Bot, `message`, that allows admins to send a message to anywhere they want (including user DMs).
+The syntax is `@latexbot message [(name|nickname|id|jid)=][+]<forum|team> <message>`.
+(The chat is specified using the [Standard Chat Lookup Syntax](#the-standard-chat-lookup-syntax).)
