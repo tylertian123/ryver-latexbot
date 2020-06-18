@@ -42,67 +42,6 @@ def log(*args, **kwargs):
     print(*args, **kwargs, flush=True)
 
 
-def preprocess_command(prefixes: typing.List[str], aliases: typing.List[typing.Dict[str, str]], 
-                       command: str, is_dm: bool):
-    """
-    Preprocess a command.
-
-    Separate the command into the command name and args and resolve aliases 
-    if it is a command. Otherwise return None.
-
-    If it encouters a recursive alias, it raises ValueError.
-    """
-    is_command = False
-    for prefix in prefixes:
-        # Check for a valid command prefix
-        if command.startswith(prefix) and len(command) > len(prefix):
-            is_command = True
-            # Remove the prefix
-            command = command[len(prefix):]
-    
-    # DMs don't require command prefixes
-    if not is_command and not is_dm:
-        return None
-    
-    # Repeat until all aliases are expanded
-    used_aliases = set()
-    while True:
-        # Separate command from args
-        # Find the first whitespace
-        command = command.strip()
-        space = None
-        # Keep track of this for alias expansion
-        space_char = ""
-        for i, c in enumerate(command):
-            if c.isspace():
-                space = i
-                space_char = c
-                break
-        
-        if space:
-            cmd = command[:space]
-            args = command[space + 1:]
-        else:
-            cmd = command
-            args = ""
-
-        # Expand aliases
-        command = None
-        for alias in aliases:
-            if alias["from"] == cmd:
-                # Check for recursion
-                if alias["from"] in used_aliases:
-                    raise ValueError(f"Recursive alias: '{alias['from']}'!")
-                used_aliases.add(alias["from"])
-                # Expand the alias
-                command = alias["to"] + space_char + args
-                break
-        # No aliases were expanded - return
-        if not command:
-            return (cmd.strip(), args.strip())
-        # Otherwise go again until no more expansion happens
-
-
 async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.ChatMessage]:
     """
     Get any number of messages before a message from an ID.

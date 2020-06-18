@@ -27,6 +27,7 @@ class LatexBot:
         self.enabled = True
 
         self.ryver = None # type: pyryver.Ryver
+        self.session = None # type: pyryver.RyverWS
         self.username = None # type: str
         self.user = None # type: pyryver.User
         self.user_avatars = None # type: typing.Dict[str, str]
@@ -235,6 +236,66 @@ class LatexBot:
         self.daily_msg_task = asyncio.ensure_future(self._daily_msg(init_delay))
         util.log(f"Daily message re-scheduled, starting after {init_delay} seconds.")
     
+    def preprocess_command(self, command: str, is_dm: bool):
+        """
+        Preprocess a command.
+
+        Separate the command into the command name and args and resolve aliases 
+        if it is a command. Otherwise return None.
+
+        If it encouters a recursive alias, it raises ValueError.
+        """
+        for prefix in config.prefixes:
+            # Check for a valid command prefix
+            if command.startswith(prefix) and len(command) > len(prefix):
+                # Remove the prefix
+                command = command[len(prefix):]
+                break
+        else:
+            if command.startswith("@" + self.msg_creator.name + " "):
+                command = command[len(self.msg_creator.name) + 2:]
+            # DMs don't require command prefixes
+            elif not is_dm:
+                return None
+        
+        # Repeat until all aliases are expanded
+        used_aliases = set()
+        while True:
+            # Separate command from args
+            # Find the first whitespace
+            command = command.strip()
+            space = None
+            # Keep track of this for alias expansion
+            space_char = ""
+            for i, c in enumerate(command):
+                if c.isspace():
+                    space = i
+                    space_char = c
+                    break
+            
+            if space:
+                cmd = command[:space]
+                args = command[space + 1:]
+            else:
+                cmd = command
+                args = ""
+
+            # Expand aliases
+            command = None
+            for alias in config.aliases:
+                if alias["from"] == cmd:
+                    # Check for recursion
+                    if alias["from"] in used_aliases:
+                        raise ValueError(f"Recursive alias: '{alias['from']}'!")
+                    used_aliases.add(alias["from"])
+                    # Expand the alias
+                    command = alias["to"] + space_char + args
+                    break
+            # No aliases were expanded - return
+            if not command:
+                return (cmd.strip(), args.strip())
+            # Otherwise go again until no more expansion happens
+    
     async def run(self) -> None:
         """
         Run LaTeX Bot.
@@ -244,6 +305,7 @@ class LatexBot:
         self.schedule_daily_message()
         # Start live session
         async with self.ryver.get_live_session() as session: # type: pyryver.RyverWS
+            self.session = session
             @session.on_connection_loss
             async def _on_conn_loss():
                 util.log("Error: Connection lost!")
@@ -277,7 +339,7 @@ class LatexBot:
                     is_dm = False
 
                 try:
-                    preprocessed = util.preprocess_command(config.prefixes, config.aliases, msg.text, is_dm)
+                    preprocessed = self.preprocess_command(msg.text, is_dm)
                 except ValueError as e:
                     # Skip if not self.
                     if self.enabled:
@@ -287,7 +349,7 @@ class LatexBot:
                 if preprocessed:
                     command, args = preprocessed
                     # Processing for re-enabling after disable
-                    if command == "setEnabled" and args == "true":
+                    if (command == "setEnabled" and args == "true") or command == "wakeUp":
                         # Send the presence change anyways in case it gets messed up
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
                         if not self.enabled:

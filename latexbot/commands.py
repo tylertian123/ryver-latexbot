@@ -2,6 +2,7 @@
 This module contains command definitions for LaTeX Bot.
 """
 import aiohttp
+import asyncio
 import config
 import io
 import json
@@ -11,14 +12,12 @@ import re
 import render
 import shlex
 import sys
-import time
 import trivia
 import typing
 import util
 import xkcd
 from caseinsensitivedict import CaseInsensitiveDict
 from datetime import datetime
-from dateutil import tz
 from gcalendar import Calendar
 from markdownify import markdownify
 from traceback import format_exc
@@ -1215,8 +1214,7 @@ async def command_sleep(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     """
     Put me to sleep.
 
-    When sleeping, I will not respond to any commands.
-    If you accidentally put me to sleep for a long time, contact Tyler to wake me back up.
+    To wake me back up, use `@latexbot wakeUp` or `@latexbot setEnabled true`.
     ---
     group: Developer Commands
     syntax: <seconds>
@@ -1227,10 +1225,20 @@ async def command_sleep(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     except ValueError:
         await chat.send_message("Invalid number.", bot.msg_creator)
         return
-    # TODO: Change this
     await chat.send_message("Good night! :sleeping:", bot.msg_creator)
-    time.sleep(secs)
-    await chat.send_message("Good morning!", bot.msg_creator)
+    bot.enabled = False
+    await bot.session.send_presence_change(pyryver.RyverWS.PRESENCE_AWAY)
+    async def _wakeup_task():
+        try:
+            await asyncio.sleep(secs)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if not bot.enabled:
+                bot.enabled = True
+                await bot.session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
+                await chat.send_message("Good morning!", bot.msg_creator)
+    asyncio.ensure_future(_wakeup_task())
 
 
 async def command_execute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
