@@ -296,6 +296,9 @@ Currently, the daily message consists of the following:
   - A new xkcd, if there is one, to the "messages" chat
   - Today's holidays, to the "messages" chat
 
+Additionally, the cached data is also updated as part of this routine.
+See [Updating Cached Chat Data](#updating-cached-chat-data) for more info.
+
 Org Admins can change the time of day the message is sent using the `setDailyMessageTime` command.
 By default, daily messages are sent at 12am each day.
 If this command is given the argument "off", daily messages will be turned off.
@@ -366,6 +369,9 @@ The syntax of the `accessRule` command is thoroughly explained in `@latexbot hel
 In order to make LaTeX Bot boot up faster, the internal data for users/teams/forums are all cached.
 This means that they're not automatically updated when a new user/team/forum is created, and as a result, LaTeX Bot may not recognize them.
 If this ever happens, run the `updateChats` command to update the cache.
+
+This usually should not be necessary, as the chat cache is updated automatically as part of the daily message routine.
+However, disabling daily messages will also disable the automatic refreshes, so this command may be necessary.
 
 # Configuring LaTeX Bot
 This section outlines the usage of the config file.

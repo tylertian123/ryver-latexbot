@@ -1596,12 +1596,15 @@ async def command_dailyMessage(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
 
     Note that the daily message will be sent to the chats in the config, not the chat
     that this command was invoked from.
+
+    Sending the daily message also updates the cached chats data.
     ---
     group: Miscellaneous Commands
     syntax:
     ---
     > `@latexbot dailyMessage` - Send the daily message.
     """
+    await bot.ryver.load_chats()
     now = util.current_time()
     events = bot.calendar.get_today_events(now)
     if events:
