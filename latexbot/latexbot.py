@@ -1,6 +1,7 @@
 import asyncio
 import commands
 import config
+import hooks
 import json
 import pyryver
 import trivia
@@ -34,9 +35,10 @@ class LatexBot:
 
         self.config_file = None # type: str
         self.calendar = None # type: Calendar
-        self.home_chat = None # type: pyryver.GroupChat
-        self.announcements_chat = None # type: pyryver.GroupChat
-        self.messages_chat = None # type: pyryver.GroupChat
+        self.home_chat = None # type: pyryver.Chat
+        self.announcements_chat = None # type: pyryver.Chat
+        self.messages_chat = None # type: pyryver.Chat
+        self.gh_updates_chat = None # type: pyryver.Chat
 
         self.roles_file = None # type: str
         self.roles = CaseInsensitiveDict()
@@ -51,6 +53,8 @@ class LatexBot:
         self.command_help = {} # type: typing.Dict[str, str]
        
         self.msg_creator = pyryver.Creator("LaTeX Bot " + self.version)
+
+        self.webhook_server = None # type: hooks.Webhooks
     
     def init_commands(self) -> None:
         """
@@ -138,6 +142,10 @@ class LatexBot:
             self.messages_chat = util.parse_chat_name(self.ryver, config.messages_chat)
         except ValueError as e:
             util.log(f"Error looking up messages chat: {e}")
+        try:
+            self.gh_updates_chat = util.parse_chat_name(self.ryver, config.gh_updates_chat)
+        except ValueError as e:
+            util.log(f"Error looking up GitHub updates chat: {e}")
 
     async def load_files(self, config_file: str, roles_file: str, trivia_file: str) -> None:
         """
@@ -303,18 +311,21 @@ class LatexBot:
         util.log(f"LaTeX Bot {self.version} has been started. Initializing...")
         self.update_help()
         self.schedule_daily_message()
+        # Start webhook server
+        self.webhook_server = hooks.Webhooks(self)
+        await self.webhook_server.start()
         # Start live session
         async with self.ryver.get_live_session() as session: # type: pyryver.RyverWS
             self.session = session
             @session.on_connection_loss
             async def _on_conn_loss():
                 util.log("Error: Connection lost!")
-                await session.close()
+                await self.shutdown()
             
             @session.on_error
             async def _on_error(err: typing.Union[TypeError, ValueError]):
                 util.log(f"pyryver realtime error: {err}")
-                await session.close()
+                await self.shutdown()
             
             @session.on_chat
             async def _on_chat(msg: pyryver.WSChatMessageData):
@@ -428,3 +439,10 @@ class LatexBot:
                 await self.home_chat.send_message(f"LaTeX Bot {self.version} is online! **I now respond to messages in real time!**\n\n{self.help}", self.msg_creator)
 
             await session.run_forever()
+    
+    async def shutdown(self):
+        """
+        Stop running LaTeX Bot.
+        """
+        await self.webhook_server.stop()
+        await self.session.close()

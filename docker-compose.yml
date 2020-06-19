@@ -11,6 +11,8 @@ services:
       - type: volume
         source: latexbot-data
         target: /usr/src/latexbot/data
+    ports: 
+      - "80:80"
     environment: 
       - PYTHONHASHSEED=0
       - LATEXBOT_ORG=${LATEXBOT_ORG}

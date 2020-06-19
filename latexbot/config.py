@@ -4,9 +4,10 @@ Global config.
 Config JSON format:
 - "admins": IDs of all the Bot Admins. (list of ints)
 - "organizationTimeZone": The organization timezone. (string)
-- "homeChat": The nickname of the chat to send misc messsages to. (string)
+- "homeChat": The chat to send misc messsages to. (string)
 - "announcementsChat": The nickname of the chat to send event reminders to. (string)
-- "messagesChat": The nickname of the chat to send off-topic messages to. (string)
+- "messagesChat": The chat to send off-topic messages to. (string)
+- "ghUpdatesChat": The chat to send GitHub updates to. (string)
 - "googleCalendarId": The ID of the Google calendar to use for events. (string)
 - "dailyMessageTime": The time of day when daily messages are sent, in the format "HH:MM". If null, daily messages will be disabled. (string)
 - "lastXKCD": The number of the latest xkcd. Used to check for new comics. (int)
@@ -80,6 +81,7 @@ loader.field("organizationTimeZone", str, timezone_loader, lambda x: tz_str, def
 loader.field("homeChat", str, default="Test")
 loader.field("announcementsChat", str, default="Test")
 loader.field("messagesChat", str, default="Test")
+loader.field("ghUpdatesChat", str, default="Test")
 loader.field("googleCalendarId", (str, type(None)))
 loader.field("dailyMessageTime", (str, type(None)), lambda t: None if t is None else datetime.datetime.strptime(t, "%H:%M"), 
              lambda t: None if t is None else t.strftime("%H:%M"), default=datetime.datetime.strptime("00:00", "%H:%M"))
@@ -96,6 +98,7 @@ timezone = None # type: datetime.tzinfo
 home_chat = None # type: str
 announcements_chat = None # type: str
 messages_chat = None # type: str
+gh_updates_chat = None # type: str
 calendar_id = None # type: str
 daily_msg_time = None # type: datetime.datetime
 last_xkcd = None # type: int
@@ -108,14 +111,15 @@ def load(data: typing.Dict[str, typing.Any], use_defaults: bool = True) -> str:
     """
     Load the config from parsed JSON data.
     """
-    global admins, timezone, home_chat, announcements_chat, messages_chat, calendar_id # pylint: disable=global-statement
-    global daily_msg_time, last_xkcd, prefixes, aliases, access_rules, opinions # pylint: disable=global-statement
+    global admins, timezone, home_chat, announcements_chat, messages_chat, gh_updates_chat # pylint: disable=global-statement
+    global calendar_id, daily_msg_time, last_xkcd, prefixes, aliases, access_rules, opinions # pylint: disable=global-statement
     err = loader.load(data, config, use_defaults)
     admins = config["admins"]
     timezone = config["organizationTimeZone"]
     home_chat = config["homeChat"]
     announcements_chat = config["announcementsChat"]
     messages_chat = config["messagesChat"]
+    gh_updates_chat = config["ghUpdatesChat"]
     calendar_id = config["googleCalendarId"]
     daily_msg_time = config["dailyMessageTime"]
     last_xkcd = config["lastXKCD"]
@@ -134,6 +138,7 @@ def dump(use_defaults: bool = True) -> typing.Tuple[typing.Dict[str, typing.Any]
     config["homeChat"] = home_chat
     config["announcementsChat"] = announcements_chat
     config["messagesChat"] = messages_chat
+    config["ghUpdatesChat"] = gh_updates_chat
     config["googleCalendarId"] = calendar_id
     config["dailyMessageTime"] = daily_msg_time
     config["lastXKCD"] = last_xkcd

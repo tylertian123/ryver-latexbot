@@ -1207,7 +1207,7 @@ async def command_kill(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     syntax:
     """
     await chat.send_message(KILL_MSGS[random.randrange(0, len(KILL_MSGS))], bot.msg_creator)
-    exit()
+    await bot.shutdown()
 
 
 async def command_sleep(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
