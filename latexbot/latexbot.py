@@ -211,18 +211,21 @@ class LatexBot:
     
     async def _daily_msg(self, init_delay: float = 0):
         """
-        A task that sends the daily message after a delay and repeats every 24h.
+        A task that sends the daily message after a delay.
         """
+        cancelled = False
         try:
             await asyncio.sleep(init_delay)
-            while True:
-                util.log("Executing daily message routine...")
-                await commands.command_dailyMessage(self, None, None, None, None)
-                util.log("Daily message was sent.")
-                # Sleep for an entire day
-                await asyncio.sleep(60 * 60 * 24)
+            util.log("Executing daily message routine...")
+            await commands.command_dailyMessage(self, None, None, None, None)
+            util.log("Daily message was sent.")
         except asyncio.CancelledError:
-            pass
+            cancelled = True
+        except Exception as e: # pylint: disable=broad-except
+            util.log(f"Error while executing daily message routine: {e}")
+        finally:
+            if not cancelled:
+                self.schedule_daily_message()
     
     def schedule_daily_message(self):
         """
