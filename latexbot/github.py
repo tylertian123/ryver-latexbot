@@ -15,7 +15,19 @@ def format_repo(data: typing.Dict[str, typing.Any]) -> str:
     """
     Format a GitHub repository JSON into a Markdown message.
     """
-    return f"[**{data['name']}**]({data['html_url']})"
+    return f"[**{data['full_name']}**]({data['html_url']})"
+
+
+def format_issue(data: typing.Dict[str, typing.Any], include_title: bool = True) -> str:
+    """
+    Format a GitHub issue JSON into a markdown message.
+
+    If include_title is true, the title of the issue will also be included.
+    """
+    result = f"[**#{data['number']}**]({data['html_url']})"
+    if include_title:
+        result += f" (*{data['title']}*)"
+    return result
 
 
 def format_commit_sha(commit: str, repo: typing.Dict[str, typing.Any]) -> str:
@@ -37,6 +49,79 @@ def format_event_commit_comment(data: typing.Dict[str, typing.Any]) -> str:
     resp = f"{format_author(data['sender'])} [commented]({data['comment']['html_url']}) on commit "
     resp += f"{format_commit_sha(data['comment']['commit_id'], data['repository'])} in "
     resp += f"{format_repo(data['repository'])}:\n\n{data['comment']['body']}."
+    return resp
+
+
+CHECK_RUN_PREFIXES = {
+    "success": ":white_check_mark: Check Success:",
+    "failure": ":x: Check Failed:",
+    "neutral": ":heavy_minus_sign: Check Neutral:",
+    "cancelled": ":warning: Check Cancelled:",
+    "timed_out": ":clock3: Check Timed Out:",
+    "action_required": ":heavy_exclamation_mark: Check Action Required:",
+    "stale": ":clock3: Check Stale:",
+}
+
+
+def format_event_check_run(data: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub check_run event into a string.
+    """
+    if data['action'] == "created":
+        resp = f"Check [**{data['check_run']['name']}**]({data['check_run']['html_url']}) created on branch "
+        resp += f"[*{data['check_run']['check_suite']['head_branch']}*]({data['repository']['html_url']}/tree/{data['check_run']['check_suite']['head_branch']}) "
+        resp += f"in {format_repo(data['repository'])}."
+    elif data['action'] == "completed":
+        resp = f"{CHECK_RUN_PREFIXES[data['check_run']['conclusion']]} [**{data['check_run']['name']}**]({data['check_run']['html_url']}) "
+        resp += f"on branch [*{data['check_run']['check_suite']['head_branch']}*]({data['repository']['html_url']}/tree/{data['check_run']['check_suite']['head_branch']}) "
+        resp += f"in {format_repo(data['repository'])}."
+    else:
+        resp = None
+    return resp
+
+
+def format_event_fork(data: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub fork event into a string.
+    """
+    resp = f":fork_and_knife: {format_author(data['sender'])} forked {format_repo(data['repository'])}: "
+    resp += f"{format_repo(data['forkee'])}."
+    return resp
+
+
+def format_event_issues(data: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub issues event into a string.
+    """
+    resp = f"{format_author(data['sender'])} {data['action']} "
+    if data['action'] in ("opened", "edited"):
+        resp += f"issue {format_issue(data['issue'], False)} in {format_repo(data['repository'])}:\n\n"
+        resp += f"# {data['issue']['title']}\n{data['issue']['body']}"
+    elif data['action'] in ("deleted", "pinned", "unpinned", "closed", "reopened", "locked", "unlocked"):
+        resp += f"issue {format_issue(data['issue'])} in {format_repo(data['repository'])}."
+    elif data['action'] in ("assigned", "unassigned"):
+        resp += f"{format_author(data['assignee'])} to issue {format_issue(data['issue'])} "
+        resp += f"in {format_repo(data['repository'])}."
+    elif data['action'] in ("labeled", "unlabeled"):
+        resp += f"issue {format_issue(data['issue'])} as [**{data['label']['name']}**]"
+        resp += f"({data['repository']['html_url']}/labels/{data['label']['name']}) in {format_repo(data['repository'])}."
+    else:
+        return None
+    return resp
+
+
+def format_event_issue_comment(data: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub issue_comment event into a string.
+    """
+    if data['action'] == "deleted":
+        return None
+    resp = f"{format_author(data['sender'])} "
+    if data['action'] == "created":
+        resp += f"[commented]({data['comment']['html_url']}) on issue "
+    else:
+        resp += f"edited [their comment]({data['comment']['html_url']}) on issue "
+    resp += f"{format_issue(data['issue'])} in {format_repo(data['repository'])}:\n\n{data['comment']['body']}"
     return resp
 
 
@@ -86,13 +171,17 @@ def format_event_star(data: typing.Dict[str, typing.Any]) -> str:
     Format a GitHub star event into a string.
     """
     if data['action'] == "created":
-        return f"{format_author(data['sender'])} starred {format_repo(data['repository'])}!"
+        return f":star: {format_author(data['sender'])} starred {format_repo(data['repository'])}!"
     else:
         return None
 
 
 FORMATTERS = {
     "commit_comment": format_event_commit_comment,
+    "check_run": format_event_check_run,
+    "fork": format_event_fork,
+    "issues": format_event_issues,
+    "issue_comment": format_event_issue_comment,
     "ping": format_event_ping,
     "push": format_event_push,
     "repository": format_event_repository,
