@@ -18,15 +18,17 @@ def format_repo(data: typing.Dict[str, typing.Any]) -> str:
     return f"[**{data['full_name']}**]({data['html_url']})"
 
 
-def format_issue(data: typing.Dict[str, typing.Any], include_title: bool = True) -> str:
+def format_issue_or_pr(data: typing.Dict[str, typing.Any], include_title: bool = True) -> str:
     """
-    Format a GitHub issue JSON into a markdown message.
+    Format a GitHub issue or pull request JSON into a markdown message.
 
     If include_title is true, the title of the issue will also be included.
     """
     result = f"[**#{data['number']}**]({data['html_url']})"
     if include_title:
         result += f" (*{data['title']}*)"
+    if data.get("draft", False):
+        result += " (Draft)"
     return result
 
 
@@ -35,6 +37,21 @@ def format_commit_sha(commit: str, repo: typing.Dict[str, typing.Any]) -> str:
     Format a GitHub commit SHA into a Markdown message.
     """
     return f"[{commit[:7]}]({repo['html_url']}/commit/{commit})"
+
+
+def format_ref(ref: str, repo: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub ref into a Markdown message.
+    """
+    if ref.startswith("refs/heads/"):
+        ref = ref[len("refs/heads/"):]
+        result = "branch"
+    elif ref.startswith("refs/tags/"):
+        ref = ref[len("refs/heads/"):]
+        result = "tag"
+    elif ref.startswith("refs/"):
+        result = "ref"
+    return f"{result} [*{ref}*]({repo['html_url']}/tree/{ref})"
 
 
 ####### Begin Event Formatters #######
@@ -94,17 +111,16 @@ def format_event_issues(data: typing.Dict[str, typing.Any]) -> str:
     Format a GitHub issues event into a string.
     """
     resp = f"{format_author(data['sender'])} {data['action']} "
+    description = f"issue {format_issue_or_pr(data['issue'])} in {format_repo(data['repository'])}"
     if data['action'] in ("opened", "edited"):
-        resp += f"issue {format_issue(data['issue'], False)} in {format_repo(data['repository'])}:\n\n"
+        resp += f"issue {format_issue_or_pr(data['issue'], False)} in {format_repo(data['repository'])}:\n\n"
         resp += f"# {data['issue']['title']}\n{data['issue']['body']}"
     elif data['action'] in ("deleted", "pinned", "unpinned", "closed", "reopened", "locked", "unlocked"):
-        resp += f"issue {format_issue(data['issue'])} in {format_repo(data['repository'])}."
+        resp += f"{description}."
     elif data['action'] in ("assigned", "unassigned"):
-        resp += f"{format_author(data['assignee'])} to issue {format_issue(data['issue'])} "
-        resp += f"in {format_repo(data['repository'])}."
+        resp += f"{format_author(data['assignee'])} to {description}."
     elif data['action'] in ("labeled", "unlabeled"):
-        resp += f"issue {format_issue(data['issue'])} as [**{data['label']['name']}**]"
-        resp += f"({data['repository']['html_url']}/labels/{data['label']['name']}) in {format_repo(data['repository'])}."
+        resp += f"{description} as [**{data['label']['name']}**]({data['repository']['html_url']}/labels/{data['label']['name']})."
     else:
         return None
     return resp
@@ -121,7 +137,7 @@ def format_event_issue_comment(data: typing.Dict[str, typing.Any]) -> str:
         resp += f"[commented]({data['comment']['html_url']}) on issue "
     else:
         resp += f"edited [their comment]({data['comment']['html_url']}) on issue "
-    resp += f"{format_issue(data['issue'])} in {format_repo(data['repository'])}:\n\n{data['comment']['body']}"
+    resp += f"{format_issue_or_pr(data['issue'])} in {format_repo(data['repository'])}:\n\n{data['comment']['body']}"
     return resp
 
 
@@ -138,16 +154,78 @@ def format_event_ping(data: typing.Dict[str, typing.Any]) -> str:
     return resp
 
 
+def format_event_pull_request(data: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub pull_request event into a string.
+    """
+    resp = f"{format_author(data['sender'])} "
+    description = f"{format_issue_or_pr(data['pull_request'])} in {format_repo(data['repository'])}"
+    if data['action'] in ("opened", "edited"):
+        resp += f"{data['action']} pull request {format_issue_or_pr(data['pull_request'], False)} in "
+        resp += f"{format_repo(data['repository'])}:\n\n# {data['pull_request']['title']}\n{data['pull_request']['body']}"
+    elif data['action'] == "closed":
+        resp += f"{'merged' if data['pull_request']['merged'] else 'closed without merging'} pull request {description}."
+    elif data['action'] in ("locked", "unlocked", "reopened"):
+        resp += f"{data['action']} pull request {description}."
+    elif data['action'] == "ready_for_review":
+        resp = f"Pull request {description} is ready for review."
+    elif data['action'] == "review_requested":
+        resp += f"is requesting reviews for {description} from {format_author(data['requested_reviewer'])}."
+    elif data['action'] == "review_request_removed":
+        resp += f"is no longer requesting reviews for {description} from {format_author(data['requested_reviewer'])}."
+    elif data['action'] in ("assigned", "unassigned"):
+        resp += f"{data['action']} {format_author(data['assignee'])} to pull request {description}."
+    elif data['action'] in ("labeled", "unlabeled"):
+        resp += f"{data['action']} pull request {description} as [**{data['label']['name']}**]"
+        resp += f"({data['repository']['html_url']}/labels/{data['label']['name']})."
+    else:
+        return None
+    return resp
+
+
+def format_event_pull_request_review(data: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub pull_request_review event into a string.
+    """
+    description = f"{format_issue_or_pr(data['pull_request'])} in {format_repo(data['repository'])}"
+    resp = f"{format_author(data['sender'])} "
+    if data['action'] == "submitted":
+        resp += f"submitted [a review]({data['review']['html_url']}) for pull request {description}."
+    elif data['action'] == "edited":
+        resp += f"edited [their review]({data['review']['html_url']}) for pull request {description}."
+    elif data['action'] == "dismissed":
+        resp += f"dismissed {format_author(data['review']['user'])}'s [review]({data['review']['html_url']}) "
+        resp += f"for pull request {description}."
+    else:
+        return None
+    return resp
+
+
+def format_event_pull_request_review_comment(data: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub pull_request_review_comment event into a string.
+    """
+    if data['action'] == "deleted":
+        return None
+    resp = f"{format_author(data['sender'])} "
+    if data['action'] == "created":
+        resp += f"[commented]({data['comment']['html_url']}) on pull request "
+    else:
+        resp += f"edited [their comment]({data['comment']['html_url']}) on pull request "
+    resp += f"{format_issue_or_pr(data['pull_request'])} in {format_repo(data['repository'])}:\n\n{data['comment']['body']}"
+    return resp
+
+
 def format_event_push(data: typing.Dict[str, typing.Any]) -> str:
     """
     Format a GitHub push event into a Markdown message.
     """
     resp = format_author(data["pusher"]) + " "
     if data['deleted']:
-        resp += f"deleted ref [*{data['ref']}*]({data['repository']['html_url']}/tree/{data['ref']}) in {format_repo(data['repository'])}."
+        resp += f"deleted {format_ref(data['ref'], data['repository'])} in {format_repo(data['repository'])}."
     else:
-        resp += f"{'force ' if data['forced'] else ''}pushed {len(data['commits'])} commits to ref "
-        resp += f"[*{data['ref']}*]({data['repository']['html_url']}/tree/{data['ref']}) in {format_repo(data['repository'])}.\n"
+        resp += f"{'force ' if data['forced'] else ''}pushed {len(data['commits'])} commits to "
+        resp += f"{format_ref(data['ref'], data['repository'])} in {format_repo(data['repository'])}.\n"
         resp += f"[Compare Changes]({data['compare']})\n\nCommits pushed:\n| Commit | Author | Message |\n| --- | --- | --- |"
         for commit in data['commits']:
             commit_sha = commit.get("sha") or commit.get("id")
@@ -183,6 +261,9 @@ FORMATTERS = {
     "issues": format_event_issues,
     "issue_comment": format_event_issue_comment,
     "ping": format_event_ping,
+    "pull_request": format_event_pull_request,
+    "pull_request_review": format_event_pull_request_review,
+    "pull_request_review_comment": format_event_pull_request_review_comment,
     "push": format_event_push,
     "repository": format_event_repository,
     "star": format_event_star,

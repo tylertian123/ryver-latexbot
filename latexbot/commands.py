@@ -36,7 +36,7 @@ async def command_render(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     ---
     > `@latexbot render f(x) = \\sum_{i=0}^{n} \\frac{a_i}{1+x}`
     """
-    if len(args) > 0:
+    if args:
         try:
             img_data = await render.render(args, color="gray", transparent=True)
         except ValueError as e:
@@ -59,7 +59,7 @@ async def command_chem(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     ---
     > `@latexbot chem HCl_{(aq)} + NaOH_{(aq)} -> H2O_{(l)} + NaCl_{(aq)}`
     """
-    if len(args) > 0:
+    if args:
         try:
             img_data = await render.render(f"\\ce{{{args}}}", color="gray", transparent=True, extra_packages=["mhchem"])
         except ValueError as e:
@@ -324,7 +324,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             categories += "\n\nCustom categories can only be specified by name. Use 'all' for all regular categories (no custom), or 'custom' for all custom categories (no regular)."
         await chat.send_message(f"# Categories:\n{categories}", bot.msg_creator)
     elif cmd == "start":
-        if not (0 <= len(sub_args) <= 3):
+        if not 0 <= len(sub_args) <= 3:
             await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", bot.msg_creator)
             return
         
@@ -846,7 +846,7 @@ async def command_removeFromRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, u
             bot.roles[role].remove(username)
 
         # Delete empty roles
-        if len(bot.roles[role]) == 0:
+        if bot.roles[role]:
             bot.roles.pop(role)
     bot.save_roles()
 
@@ -973,7 +973,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         else:
             upcoming.append((event, start, end, has_time))
 
-    if len(ongoing) > 0:
+    if ongoing:
         resp = "---------- Ongoing Events ----------"
         for evt in ongoing:
             event, start, end, has_time = evt
@@ -989,7 +989,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         resp += "\n\n"
     else:
         resp = ""
-    if len(upcoming) > 0:
+    if upcoming:
         resp += "---------- Upcoming Events ----------"
         for evt in upcoming:
             event, start, end, has_time = evt

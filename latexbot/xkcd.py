@@ -6,7 +6,7 @@ async def get_comic(number: int = None) -> Union[Dict[str, Any], None]:
     Get an xkcd by number or the latest xkcd.
 
     If the comic does not exist, this function returns None.
-    All other errors will raise a requests.HTTPError.
+    All other errors will raise a aiohttp.ClientResponseError.
 
     Upon success, returns a dictionary in the following format:
     - "day", "month", "year": The date of the comic (str)
