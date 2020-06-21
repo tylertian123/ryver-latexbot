@@ -224,15 +224,32 @@ def format_event_push(data: typing.Dict[str, typing.Any]) -> str:
     if data['deleted']:
         resp += f"deleted {format_ref(data['ref'], data['repository'])} in {format_repo(data['repository'])}."
     else:
-        resp += f"{'force ' if data['forced'] else ''}pushed {len(data['commits'])} commits to "
-        resp += f"{format_ref(data['ref'], data['repository'])} in {format_repo(data['repository'])}.\n"
-        resp += f"[Compare Changes]({data['compare']})\n\nCommits pushed:\n| Commit | Author | Message |\n| --- | --- | --- |"
-        for commit in data['commits']:
-            commit_sha = commit.get("sha") or commit.get("id")
-            resp += f"\n{format_commit_sha(commit_sha, data['repository'])} | "
-            commit_title = commit['message'].split('\n')[0]
-            resp += f"{format_author(commit['author'])} | {commit_title}"
+        if data['ref'].startswith("refs/tags/"):
+            resp += f"pushed the tag {format_ref(data['ref'], data['repository'])} to {format_repo(data['repository'])}."
+        else:
+            resp += f"{'force ' if data['forced'] else ''}pushed {len(data['commits'])} commits to "
+            resp += f"{format_ref(data['ref'], data['repository'])} in {format_repo(data['repository'])}.\n"
+            resp += f"[Compare Changes]({data['compare']})\n\nCommits pushed:\n| Commit | Author | Message |\n| --- | --- | --- |"
+            for commit in data['commits']:
+                commit_sha = commit.get("sha") or commit.get("id")
+                resp += f"\n{format_commit_sha(commit_sha, data['repository'])} | "
+                commit_title = commit['message'].split('\n')[0]
+                resp += f"{format_author(commit['author'])} | {commit_title}"
     return resp
+
+
+def format_event_release(data: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub release event into a string.
+    """
+    if data["action"] == "published":
+        release_name = data['release'].get("name") or data['release'].get("tag_name")
+        resp = f"{format_author(data['sender'])} published a new "
+        resp += "pre-release" if data['release']['prerelease'] else "release"
+        resp += f", [**{release_name}**]({data['release']['html_url']}), for {format_repo(data['repository'])}!"
+        return resp
+    else:
+        return None
 
 
 def format_event_repository(data: typing.Dict[str, typing.Any]) -> str:
@@ -265,6 +282,7 @@ FORMATTERS = {
     "pull_request_review": format_event_pull_request_review,
     "pull_request_review_comment": format_event_pull_request_review_comment,
     "push": format_event_push,
+    "release": format_event_release,
     "repository": format_event_repository,
     "star": format_event_star,
 }
