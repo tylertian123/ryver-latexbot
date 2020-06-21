@@ -1,10 +1,14 @@
 import aiohttp
 import aiohttp.web
 import github
+import hashlib
+import hmac
+import json
+import os
 import util
 
 
-class Webhooks:
+class Server:
     """
     A class that starts a web server and processes webhooks.
     """
@@ -37,15 +41,32 @@ class Webhooks:
         """
         Handle a POST request coming from GitHub.
         """
-        data = await req.json()
+        text = await req.text()
+        if os.environ.get("LATEXBOT_GH_HOOK_SECRET"):
+            if "X-Hub-Signature" not in req.headers:
+                return aiohttp.web.Response(status=401, body="Missing signature")
+            secret = os.environ["LATEXBOT_GH_HOOK_SECRET"]
+            if not self.verify_signature(secret, req.headers["X-Hub-Signature"], text):
+                return aiohttp.web.Response(status=401, body="Bad signature")
+        data = json.loads(text)
         event = req.headers["X-GitHub-Event"]
         msg = github.format_gh_json(event, data)
         if msg and self.bot.gh_updates_chat is not None:
             await self.bot.gh_updates_chat.send_message(msg, self.bot.msg_creator)
-        else:
+        elif self.bot.gh_updates_chat is not None:
             util.log(f"Unhandled GitHub event: {event}")
         
         return aiohttp.web.Response(status=204)
+    
+    @classmethod
+    def verify_signature(cls, secret: str, signature: str, data: str) -> bool:
+        """
+        Verify a GitHub webhook signature.
+        """
+        if signature.startswith("sha1="):
+            signature = signature[5:]
+        digest = hmac.HMAC(secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha1).hexdigest()
+        return hmac.compare_digest(digest, signature)
 
 
 import latexbot # nopep8 # pylint: disable=unused-import

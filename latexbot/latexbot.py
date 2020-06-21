@@ -1,7 +1,7 @@
 import asyncio
 import commands
 import config
-import hooks
+import server
 import json
 import pyryver
 import trivia
@@ -54,7 +54,7 @@ class LatexBot:
        
         self.msg_creator = pyryver.Creator("LaTeX Bot " + self.version)
 
-        self.webhook_server = None # type: hooks.Webhooks
+        self.webhook_server = None # type: server.Webhooks
     
     def init_commands(self) -> None:
         """
@@ -315,7 +315,7 @@ class LatexBot:
         self.update_help()
         self.schedule_daily_message()
         # Start webhook server
-        self.webhook_server = hooks.Webhooks(self)
+        self.webhook_server = server.Server(self)
         await self.webhook_server.start()
         # Start live session
         async with self.ryver.get_live_session() as session: # type: pyryver.RyverWS

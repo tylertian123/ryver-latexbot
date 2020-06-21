@@ -19,6 +19,7 @@ services:
       - LATEXBOT_USER=${LATEXBOT_USER}
       - LATEXBOT_PASS=${LATEXBOT_PASS}
       - LATEXBOT_DEBUG=${LATEXBOT_DEBUG}
+      - LATEXBOT_GH_HOOK_SECRET=${LATEXBOT_GH_HOOK_SECRET}
 
 volumes: 
   latexbot-data:
