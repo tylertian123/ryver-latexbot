@@ -3,6 +3,7 @@ import commands
 import config
 import server
 import json
+import os
 import pyryver
 import trivia
 import typing
@@ -316,7 +317,14 @@ class LatexBot:
         self.schedule_daily_message()
         # Start webhook server
         self.webhook_server = server.Server(self)
-        await self.webhook_server.start()
+        port = os.environ.get("LATEXBOT_SERVER_PORT")
+        try:
+            if port:
+                port = int(port)
+        except ValueError as e:
+            util.log(f"Error: Invalid port: {e}")
+            port = None
+        await self.webhook_server.start(port or 80)
         # Start live session
         async with self.ryver.get_live_session() as session: # type: pyryver.RyverWS
             self.session = session

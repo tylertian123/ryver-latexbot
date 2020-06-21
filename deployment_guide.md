@@ -18,8 +18,45 @@ Separate to the main configuration file, you will probably need to do some tweak
 to a private registry, and unless you build the container on every single node in your swarm and tag it appropriately, you will need to to change the registry to your own private
 one; as the credentials for accessing Google Calendar are embedded in the container.
 
-Additionally, you will need to create a Google Cloud project and grant it access to the Google Calendar API. Then, create a service account (skip all the optional steps during creation), 
-and create JSON credentials for it. Save these in the root of this repository as `calendar_credentials.json`.
+### Setting Up Google Calendar Integration
+
+For Google Calendar Integration to work, you will need to create a Google Cloud project and grant it access to the Google Calendar API.
+Then, create a service account (skip all the optional steps during creation), and create JSON credentials for it. 
+Save these in the root of this repository as `calendar_credentials.json`.
+
+Make sure that you share the calendar to use with the service account.
+After this, go to the settings for the calendar, and copy the calendar ID at the bottom. 
+Put this calendar ID in the configuration JSON as the `"googleCalendarId"` field, and you're done!
+
+### Setting Up GitHub Integration
+
+Currently, GitHub integration uses webhooks.
+You can either use an organization webhook or a repository webhook, although an org webhook is preferred if you have an organization.
+Follow [this guide](https://developer.github.com/webhooks/creating/) to set up a webhook for LaTeX Bot.
+
+By default, LaTeX Bot will host the server on port 80.
+This can be changed using the `LATEXBOT_SERVER_PORT` env var.
+The endpoint for the webhook is at `/github`. 
+
+LaTeX Bot also supports optional webhook secrets.
+When the `LATEXBOT_GH_HOOK_SECRET` env var is set, LaTeX Bot will use it to verify the signatures on all incoming GitHub webhooks, and returning a 401 Unauthorized response if the signature is wrong or missing.
+
+When setting up the webhook, you can simply select "Send me **everything**". 
+However, only these events will be processed (in brackets is the API event type):
+- Check runs (`check_run`)
+- Commit comments (`commit_comment`)
+- Branch or tag creation (`push`)
+- Branch or tag deletion (`push`)
+- Forks (`fork`)
+- Issue comments (`issue_comment`)
+- Issues (`issues`)
+- Organizations (`organization`)
+- Visibility changes (`repository`)
+- Pull requests (`pull_request`)
+- Pull request reviews (`pull_request_review`)
+- Pull request review comments (`pull_request_review_comment`)
+- Pushes (`push`)
+- Stars (`star`)
 
 ## Building
 

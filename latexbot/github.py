@@ -141,6 +141,18 @@ def format_event_issue_comment(data: typing.Dict[str, typing.Any]) -> str:
     return resp
 
 
+def format_event_organization(data: typing.Dict[str, typing.Any]) -> str:
+    """
+    Format a GitHub organization event into a string.
+    """
+    if data['action'] == "member_added":
+        resp = f"Welcome {format_author(data['membership']['user'])} to "
+        resp += f"[**{data['organization']['login']}**](https://github.com/{data['organization']['login']})!"
+    else:
+        return None
+    return resp
+
+
 def format_event_ping(data: typing.Dict[str, typing.Any]) -> str:
     """
     Format a GitHub ping event into a string.
@@ -277,6 +289,7 @@ FORMATTERS = {
     "fork": format_event_fork,
     "issues": format_event_issues,
     "issue_comment": format_event_issue_comment,
+    "organization": format_event_organization,
     "ping": format_event_ping,
     "pull_request": format_event_pull_request,
     "pull_request_review": format_event_pull_request_review,

@@ -176,6 +176,7 @@ The JSON should have the following format:
 This section outlines commands and topics related to Google Calendar events integration in LaTeX Bot.
 
 Note: To use Google Calendar Integration, the `"googleCalendarId"` in the config must be set.
+See the deployment guide for more details.
 
 ## Checking Events
 Anyone can check the upcoming events using the `events` command. 
@@ -203,6 +204,12 @@ To delete an event, use the `deleteEvent` command and give it the name of the ev
 Note: You do not have to give the full name of the event.
 E.g. `@latexbot deleteEvent Foo` will delete an event named "Foo Bar". 
 The name is case-insensitive.
+
+# GitHub Integration
+GitHub integration was added in version 0.6.0.
+Currently, it sends a message to the configured chat for some events.
+
+Please see the deployment guide for how to set it up and a list of supported events.
 
 # Admin Usage
 This section outlines commands and topics that are designed to help forum/org admins perform administrative tasks.
@@ -394,6 +401,7 @@ Below is an illustration of the JSON config file format:
   "homeChat": "nickname=Test", // The forum/team where startup messages and other misc messages are sent, (Standard Chat Lookup Syntax)
   "announcementsChat": "nickname=Gen", // The forum/team where daily event reminders are sent (Standard Chat Lookup Syntax)
   "messagesChat": "nickname=OffTopic", // The forum/team where daily xkcds and holidays are sent (Standard Chat Lookup Syntax)
+  "ghUpdatesChat": "nickname=ProgUpdates", // The forum/team where GitHub updates are sent (Standard Chat Lookup Syntax)
   "googleCalendarId": "foo@group.calendar.google.com", // The ID of the calendar for Google Calendar Integration
   "dailyMessageTime": "00:00", // The time of day daily messages are sent, HH:MM
   "lastXKCD": 0, // The newest XKCD; used to determine if a comic is new; set automatically
