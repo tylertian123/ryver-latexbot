@@ -149,7 +149,7 @@ def format_event_ping(data: typing.Dict[str, typing.Any]) -> str:
     if "repository" in data:
         resp += f"the repository **{data['repository']['name']}**!"
     elif "organization" in data:
-        resp += f"the organization **{data['organization']['name']}**!"
+        resp += f"the organization **{data['organization']['login']}**!"
     resp += f"\n\n*{data['zen']}*"
     return resp
 
