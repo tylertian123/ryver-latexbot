@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import os
+import pyryver
 import util
 
 
@@ -59,36 +60,39 @@ class Server:
         
         # Process issues
         if self.bot.gh_issues_board:
+            async def find_or_create_category() -> pyryver.TaskCategory:
+                """
+                Find or create the category for the repository related to this event.
+                """
+                async for category in self.bot.gh_issues_board.get_categories():
+                    if category.get_name() == data["repository"]["name"]:
+                        return category
+                
+                # Create the category
+                return await self.bot.gh_issues_board.create_category(data["repository"]["name"])
+            
+            async def find_or_create_task(category: pyryver.TaskCategory) -> pyryver.Task:
+                """
+                Find or create the task for this issue.
+                """
+                async for task in category.get_tasks():
+                    if "latexbot-github" in task.get_tags() and task.get_subject().startswith(f"(#{data['issue']['number']})"):
+                        return task
+                        
+                # Create the task if it doesn't already exist
+                title = f"(#{data['issue']['number']}) {data['issue']['title']}"
+                body = data["issue"]["body"] + f"\n\n*This Task is from [GitHub]({data['issue']['html_url']}).*"
+                return await self.bot.gh_issues_board.create_task(title, body, category, tags=["latexbot-github"])
+
             if event == "issues" and data["action"] not in ("pinned", "unpinned", "milestoned", "demilestoned"):
-                # Find the category
-                category = None # type: pyryver.TaskCategory
-                async for cat in self.bot.gh_issues_board.get_categories():
-                    if cat.get_name() == data["repository"]["name"]:
-                        category = cat
-                        break
-                else:
-                    # Create the category
-                    category = await self.bot.gh_issues_board.create_category(data["repository"]["name"])
-
-                async def create_issue_task():
-                    title = f"(#{data['issue']['number']}) {data['issue']['title']}"
-                    body = data["issue"]["body"] + f"\n\n*This Task is from [GitHub]({data['issue']['html_url']}).*"
-                    return await self.bot.gh_issues_board.create_task(title, body, category, tags=["latexbot-github"])
-
+                category = await find_or_create_category()
                 # Creating a new task
                 if data["action"] == "opened":
-                    await create_issue_task()
+                    title = f"(#{data['issue']['number']}) {data['issue']['title']}"
+                    body = data["issue"]["body"] + f"\n\n*This Task is from [GitHub]({data['issue']['html_url']}).*"
+                    await self.bot.gh_issues_board.create_task(title, body, category, tags=["latexbot-github"])
                 else:
-                    # Find the task
-                    task = None
-                    async for t in category.get_tasks():
-                        if "latexbot-github" in t.get_tags() and t.get_subject().startswith(f"(#{data['issue']['number']})"):
-                            task = t
-                            break
-                    else:
-                        # Create the task if it doesn't already exist
-                        task = await create_issue_task()
-                    
+                    task = await find_or_create_task(category)
                     if data["action"] == "edited":
                         title = f"(#{data['issue']['number']}) {data['issue']['title']}"
                         body = data["issue"]["body"] + f"\n\n*This Task is from [GitHub]({data['issue']['html_url']}).*"
@@ -135,7 +139,29 @@ class Server:
                         if label in labels:
                             labels.remove(label)
                             await task.edit(tags=labels)
-                        
+            elif event == "issue_comment":
+                task = await find_or_create_task(await find_or_create_category())
+                if data["action"] == "created":
+                    body = f"({data['comment']['id']}) {github.format_author(data['comment']['user'])} commented:\n\n"
+                    body += f"{data['comment']['body']}\n\n*This comment is from [GitHub]({data['comment']['html_url']}).*"
+                    await task.comment(body)
+                else:
+                    # Find the comment
+                    comment = None
+                    async for cmt in task.get_comments():
+                        if cmt.get_body().startswith(f"({data['comment']['id']})"):
+                            comment = cmt
+                            break
+                    else:
+                        util.log(f"Cannot handle issue_comment: Comment not found: {data['comment']['body']}")
+                    
+                    if comment:
+                        if data["action"] == "deleted":
+                            await comment.delete()
+                        if data["action"] == "edited":
+                            body = f"({data['comment']['id']}) {github.format_author(data['comment']['user'])} commented:\n\n"
+                            body += f"{data['comment']['body']}\n\n*This comment is from [GitHub]({data['comment']['html_url']}).*"
+                            await comment.edit(body)
         return aiohttp.web.Response(status=204)
     
     @classmethod
