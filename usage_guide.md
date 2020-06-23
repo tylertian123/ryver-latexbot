@@ -8,38 +8,39 @@ This guide does not cover all commands, nor does it offer in-depth syntax info f
 This guide is for LaTeX Bot v0.6.0.
 
 # Table of Contents
-  - [Access Levels](#access-levels)
-  - [General Usage](#general-usage)
-    - [Rendering Math/Chemical Equations](#rendering-mathchemical-equations)
-    - [Viewing XKCDs](#viewing-xkcds)
-    - [Checkiday](#checkiday)
-    - [Playing Trivia](#playing-trivia)
-      - [Starting a Game](#starting-a-game)
-      - [Playing the Game](#playing-the-game)
-      - [Ending the Game](#ending-the-game)
-      - [Adding Custom Trivia Questions](#adding-custom-trivia-questions)
-  - [Google Calendar Integration](#google-calendar-integration)
-    - [Checking Events](#checking-events)
-    - [Managing Events](#managing-events)
-      - [Adding Events](#adding-events)
-      - [Deleting Events](#deleting-events)
-  - [Admin Usage](#admin-usage)
-    - [Chat Admin Commands](#chat-admin-commands)
-      - [`deleteMessages`](#deletemessages)
-      - [`moveMessages`](#movemessages)
-        - [The Standard Chat Lookup Syntax](#the-standard-chat-lookup-syntax)
-      - [`countMessagesSince`](#countmessagessince)
-    - [Roles](#roles)
-      - [Viewing Roles](#viewing-roles)
-      - [Managing Roles](#managing-roles)
-  - [Miscellaneous](#miscellaneous)
-    - [Daily Message](#daily-message)
-    - [Command Aliases](#command-aliases)
-      - [Managing Aliases](#managing-aliases)
-    - [Command Prefixes](#command-prefixes)
-    - [Access Rules](#access-rules)
-    - [Updating Cached Chat Data](#updating-cached-chat-data)
-  - [Configuring LaTeX Bot](#configuring-latex-bot)
+- [Access Levels](#access-levels)
+- [General Usage](#general-usage)
+  - [Rendering Math/Chemical Equations](#rendering-mathchemical-equations)
+  - [Viewing XKCDs](#viewing-xkcds)
+  - [Checkiday](#checkiday)
+  - [Playing Trivia](#playing-trivia)
+    - [Starting a Game](#starting-a-game)
+    - [Playing the Game](#playing-the-game)
+    - [Ending the Game](#ending-the-game)
+    - [Adding Custom Trivia Questions](#adding-custom-trivia-questions)
+- [Google Calendar Integration](#google-calendar-integration)
+  - [Checking Events](#checking-events)
+  - [Managing Events](#managing-events)
+    - [Adding Events](#adding-events)
+    - [Deleting Events](#deleting-events)
+- [GitHub Integration](#github-integration)
+- [Admin Usage](#admin-usage)
+  - [Chat Admin Commands](#chat-admin-commands)
+    - [`deleteMessages`](#deletemessages)
+    - [`moveMessages`](#movemessages)
+      - [The Standard Chat Lookup Syntax](#the-standard-chat-lookup-syntax)
+    - [`countMessagesSince`](#countmessagessince)
+  - [Roles](#roles)
+    - [Viewing Roles](#viewing-roles)
+    - [Managing Roles](#managing-roles)
+- [Miscellaneous](#miscellaneous)
+  - [Daily Message](#daily-message)
+  - [Command Aliases](#command-aliases)
+    - [Managing Aliases](#managing-aliases)
+  - [Command Prefixes](#command-prefixes)
+  - [Access Rules](#access-rules)
+  - [Updating Cached Chat Data](#updating-cached-chat-data)
+- [Configuring LaTeX Bot](#configuring-latex-bot)
 
 # Access Levels
 Each command in LaTeX Bot has a specific Access Level.
@@ -207,9 +208,40 @@ The name is case-insensitive.
 
 # GitHub Integration
 GitHub integration was added in version 0.6.0.
-Currently, it sends a message to the configured chat for some events.
-
 Please see the deployment guide for how to set it up and a list of supported events.
+
+The `"ghUpdatesChat"` field in the config must be set for GitHub updates, and the `"ghIssuesChat"` field must be set for integration with Ryver Tasks.
+
+## Update Messages
+Every time an event occurs on GitHub, LaTeX Bot will send a message update to the configured chat.
+For example, here's what the message for a push looks like:
+> **tylertian123** (*tylertian123@gmail.com*) pushed 2 commit(s) to branch [*master*](https://github.com/tylertian123/cuddly-palm-tree/tree/master) in [**tylertian123/cuddly-palm-tree**](https://github.com/tylertian123/cuddly-palm-tree).
+> [Compare Changes](https://github.com/tylertian123/cuddly-palm-tree/compare/b7f3d986fa6f...595fa151b26d)
+>
+> Commits pushed:
+> | Commit | Author | Message |
+> | --- | --- | --- |
+> [4e1a210](https://github.com/tylertian123/cuddly-palm-tree/commit/4e1a210ce5e4d3150588bb067e8feee776924eba) | **Tyler Tian** (*tylertian123@gmail.com*) | Update README.md
+> [595fa15](https://github.com/tylertian123/cuddly-palm-tree/commit/595fa151b26db58a2dcfd141371df79131ab9c94) | **Tyler Tian** (*tylertian123@gmail.com*) | Merge pull request #4 from tylertian123/latexbot-link
+
+## Issues/Pull Requests to Ryver Tasks
+When Issues or Pull Requests are opened, closed, assigned, reviewed etc, LaTeX Bot will automatically create or update a Ryver Task in the configured chat.
+(Note: If a task board already exists, it **must** be a task board with categories, not a task list.)
+
+The tasks will be created in a new or existing category with the same name as the repository.
+For example, if a new issue was created in the "cuddly-palm-tree" repository, a Task with the issue's name and contents will be created under the "cuddly-palm-tree" category.
+All Tasks created by LaTeX Bot will be tagged with `#latexbot-github`, and additionally `#issue` or `#pull-request`.
+**Do not add or remove the `#latexbot-github` tag manually.**
+
+Any kind of update to the GitHub issue or pull request (e.g. a new comment, being labelled or assigned) will cause the Task to be updated.
+Most of these will only result in an automatic comment to the Task, with the exception of a few things:
+- Deletion - The task will be deleted
+- Closing (or merging) - The task will be completed and archived
+- Assignment/unassignment - The corresponding Ryver user will be assigned/unassigned to the Ryver Task
+- Labelling/Unlabelling - A tag with the same name as the label will be added/removed from the Task.
+
+Note that in order for assignment/unassignment to work, the assigned GitHub user's username must be present in `"ghUsersMap"` in the config.
+If the user does not exist in the config, there is no way to find the corresponding Ryver user, so it is not possible to assign/unassign the Ryver Task.
 
 # Admin Usage
 This section outlines commands and topics that are designed to help forum/org admins perform administrative tasks.
@@ -297,6 +329,7 @@ This section covers features not covered in other sections.
 
 ## Daily Message
 The daily message is sent each day to two chats: the "announcements" chat and the "messages" chat.
+In order to specify them you must use `importConfig` and set the fields `"announcementsChat"` and `"messagesChat"`.
 
 Currently, the daily message consists of the following:
   - A list of events happening today ([Google Calendar Integration](#google-calendar-integration)), to the "announcements" chat
@@ -402,6 +435,7 @@ Below is an illustration of the JSON config file format:
   "announcementsChat": "nickname=Gen", // The forum/team where daily event reminders are sent (Standard Chat Lookup Syntax)
   "messagesChat": "nickname=OffTopic", // The forum/team where daily xkcds and holidays are sent (Standard Chat Lookup Syntax)
   "ghUpdatesChat": "nickname=ProgUpdates", // The forum/team where GitHub updates are sent (Standard Chat Lookup Syntax)
+  "ghIssuesChat": "nickname=ProgUpdates", // The forum/team where Tasks are created for GitHub issues and pull requests (Standard Chat Lookup Syntax)
   "googleCalendarId": "foo@group.calendar.google.com", // The ID of the calendar for Google Calendar Integration
   "dailyMessageTime": "00:00", // The time of day daily messages are sent, HH:MM
   "lastXKCD": 0, // The newest XKCD; used to determine if a comic is new; set automatically
@@ -434,7 +468,11 @@ Below is an illustration of the JSON config file format:
       "opinion": ["An opinion", "Another opinion"] // A list of possible responses from which the response is randomly chosen
     }
     // ...
-  ]
+  ],
+  "ghUsersMap": { // A mapping of GitHub usernames to Ryver usernames for Task assignments
+    "foobar": "foo_bar"
+    // ...
+  }
 }
 ```
 

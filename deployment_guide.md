@@ -30,7 +30,7 @@ Put this calendar ID in the configuration JSON as the `"googleCalendarId"` field
 
 ### Setting Up GitHub Integration
 
-Currently, GitHub integration uses webhooks.
+Currently, GitHub integration uses webhooks and only webhooks.
 You can either use an organization webhook or a repository webhook, although an org webhook is preferred if you have an organization.
 Follow [this guide](https://developer.github.com/webhooks/creating/) to set up a webhook for LaTeX Bot.
 
@@ -57,6 +57,11 @@ However, only these events will be processed (in brackets is the API event type)
 - Pull request review comments (`pull_request_review_comment`)
 - Pushes (`push`)
 - Stars (`star`)
+
+The `"ghUpdatesChat"` field in the config must be set for GitHub updates, and the `"ghIssuesChat"` field must be set for integration with Ryver Tasks.
+Please note that the chat for `"ghIssuesChat"` must have a board-type (that is, with categories, and not a list) task board, or no task board (in which case it will be created).
+
+Additionally, in order for assignment/unassignment to work, the assigned GitHub user's username must be present in `"ghUsersMap"` in the config.
 
 ## Building
 
