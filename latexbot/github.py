@@ -239,7 +239,7 @@ def format_event_push(data: typing.Dict[str, typing.Any]) -> str:
         if data['ref'].startswith("refs/tags/"):
             resp += f"pushed the tag {format_ref(data['ref'], data['repository'])} to {format_repo(data['repository'])}."
         else:
-            resp += f"{'force ' if data['forced'] else ''}pushed {len(data['commits'])} commits to "
+            resp += f"{'force ' if data['forced'] else ''}pushed {len(data['commits'])} commit(s) to "
             resp += f"{format_ref(data['ref'], data['repository'])} in {format_repo(data['repository'])}.\n"
             resp += f"[Compare Changes]({data['compare']})\n\nCommits pushed:\n| Commit | Author | Message |\n| --- | --- | --- |"
             for commit in data['commits']:

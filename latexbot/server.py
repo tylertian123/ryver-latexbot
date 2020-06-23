@@ -1,5 +1,6 @@
 import aiohttp
 import aiohttp.web
+import config
 import github
 import hashlib
 import hmac
@@ -56,6 +57,85 @@ class Server:
         elif self.bot.gh_updates_chat is not None:
             util.log(f"Unhandled GitHub event: {event}")
         
+        # Process issues
+        if self.bot.gh_issues_board:
+            if event == "issues" and data["action"] not in ("pinned", "unpinned", "milestoned", "demilestoned"):
+                # Find the category
+                category = None # type: pyryver.TaskCategory
+                async for cat in self.bot.gh_issues_board.get_categories():
+                    if cat.get_name() == data["repository"]["name"]:
+                        category = cat
+                        break
+                else:
+                    # Create the category
+                    category = await self.bot.gh_issues_board.create_category(data["repository"]["name"])
+
+                async def create_issue_task():
+                    title = f"(#{data['issue']['number']}) {data['issue']['title']}"
+                    body = data["issue"]["body"] + f"\n\n*This Task is from [GitHub]({data['issue']['html_url']}).*"
+                    return await self.bot.gh_issues_board.create_task(title, body, category, tags=["latexbot-github"])
+
+                # Creating a new task
+                if data["action"] == "opened":
+                    await create_issue_task()
+                else:
+                    # Find the task
+                    task = None
+                    async for t in category.get_tasks():
+                        if "latexbot-github" in t.get_tags() and t.get_subject().startswith(f"(#{data['issue']['number']})"):
+                            task = t
+                            break
+                    else:
+                        # Create the task if it doesn't already exist
+                        task = await create_issue_task()
+                    
+                    if data["action"] == "edited":
+                        title = f"(#{data['issue']['number']}) {data['issue']['title']}"
+                        body = data["issue"]["body"] + f"\n\n*This Task is from [GitHub]({data['issue']['html_url']}).*"
+                        await task.edit(title, body)
+                    elif data["action"] == "deleted" or data["action"] == "transferred":
+                        await task.delete()
+                    elif data["action"] == "closed":
+                        await task.comment(f"*Issue closed by {github.format_author(data['sender'])}.*")
+                        await task.complete()
+                        await task.archive()
+                    elif data["action"] == "reopened":
+                        await task.comment(f"*Issue reopened by {github.format_author(data['sender'])}.*")
+                        await task.uncomplete()
+                        await task.unarchive()
+                    elif data["action"] == "assigned":
+                        user = self.bot.ryver.get_user(username=config.gh_users_map.get(data["assignee"]["login"], ""))
+                        if not user:
+                            util.log(f"Issue assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
+                        else:
+                            assignees = await task.get_assignees()
+                            if user not in assignees:
+                                assignees.append(user)
+                                await task.edit(assignees=assignees)
+                    elif data["action"] == "unassigned":
+                        user = self.bot.ryver.get_user(username=config.gh_users_map.get(data["assignee"]["login"], ""))
+                        if not user:
+                            util.log(f"Issue assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
+                        else:
+                            assignees = await task.get_assignees()
+                            if user in assignees:
+                                assignees.remove(user)
+                                await task.edit(assignees=assignees)
+                    elif data["action"] == "labeled":
+                        # Ryver task labels cannot contain spaces
+                        label = data["label"]["name"].replace(" ", "-")
+                        labels = task.get_tags()
+                        if label not in labels:
+                            labels.append(label)
+                            await task.edit(tags=labels)
+                    elif data["action"] == "unlabeled":
+                        # Ryver task labels cannot contain spaces
+                        label = data["label"]["name"].replace(" ", "-")
+                        labels = task.get_tags()
+                        if label in labels:
+                            labels.remove(label)
+                            await task.edit(tags=labels)
+                        
         return aiohttp.web.Response(status=204)
     
     @classmethod

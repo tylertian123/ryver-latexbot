@@ -40,6 +40,7 @@ class LatexBot:
         self.announcements_chat = None # type: pyryver.Chat
         self.messages_chat = None # type: pyryver.Chat
         self.gh_updates_chat = None # type: pyryver.Chat
+        self.gh_issues_board = None # type: pyryver.TaskBoard
 
         self.roles_file = None # type: str
         self.roles = CaseInsensitiveDict()
@@ -126,7 +127,7 @@ class LatexBot:
 
         self.init_commands()
     
-    def reload_config(self) -> None:
+    async def reload_config(self) -> None:
         """
         This function should be called whenever the config JSON is updated.
         """
@@ -147,7 +148,17 @@ class LatexBot:
             self.gh_updates_chat = util.parse_chat_name(self.ryver, config.gh_updates_chat)
         except ValueError as e:
             util.log(f"Error looking up GitHub updates chat: {e}")
-
+        try:
+            issues_chat = util.parse_chat_name(self.ryver, config.gh_issues_chat)
+            self.gh_issues_board = await issues_chat.get_task_board()
+            if not self.gh_issues_board:
+                self.gh_issues_board = await issues_chat.create_task_board(pyryver.TaskBoard.BOARD_TYPE_BOARD)
+            if self.gh_issues_board.get_board_type() != pyryver.TaskBoard.BOARD_TYPE_BOARD:
+                self.gh_issues_board = None
+                raise ValueError("Task board must have categories!")
+        except ValueError as e:
+            util.log(f"Error looking up GitHub issues chat: {e}")
+        
     async def load_files(self, config_file: str, roles_file: str, trivia_file: str) -> None:
         """
         Load all configuration files, including the config, roles and custom trivia.
@@ -165,7 +176,7 @@ class LatexBot:
             config_data = []
         
         err = config.load(config_data, True)
-        self.reload_config()
+        await self.reload_config()
         if err:
             util.log(err)
             if self.home_chat is not None:

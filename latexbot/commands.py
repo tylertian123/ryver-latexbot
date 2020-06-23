@@ -1391,7 +1391,7 @@ async def command_importConfig(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
             chat.get_message, msg_id, timeout=5.0), args))
         if errs:
             util.log("Error loading config:", errs)
-        bot.reload_config()
+        await bot.reload_config()
         bot.update_help()
         bot.save_config()
         if errs:
