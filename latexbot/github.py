@@ -201,10 +201,19 @@ def format_event_pull_request_review(data: typing.Dict[str, typing.Any]) -> str:
     """
     description = f"{format_issue_or_pr(data['pull_request'])} in {format_repo(data['repository'])}"
     resp = f"{format_author(data['sender'])} "
+    if data["review"]["state"] == "commented":
+        state = "commenting on"
+    elif data["review"]["state"] == "approved":
+        state = "approving"
+    elif data["review"]["state"] == "changes_requested":
+        state = "requesting changes to"
+    
     if data['action'] == "submitted":
-        resp += f"submitted [a review]({data['review']['html_url']}) for pull request {description}."
+        resp += f"submitted [a review]({data['review']['html_url']}) **{state}** pull request {description}:\n\n"
+        resp += data["review"]["body"]
     elif data['action'] == "edited":
-        resp += f"edited [their review]({data['review']['html_url']}) for pull request {description}."
+        resp += f"edited [their review]({data['review']['html_url']}) **{state}** pull request {description}:\n\n"
+        resp += data["review"]["body"]
     elif data['action'] == "dismissed":
         resp += f"dismissed {format_author(data['review']['user'])}'s [review]({data['review']['html_url']}) "
         resp += f"for pull request {description}."

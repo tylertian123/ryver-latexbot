@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import pyryver
+import typing
 import util
 
 
@@ -60,6 +61,30 @@ class Server:
         
         # Process issues
         if self.bot.gh_issues_board:
+            def format_task() -> typing.Tuple[str, str]:
+                """
+                Format an issue or PR into a task.
+
+                Returns a tuple of (subject, body).
+                """
+                if "issue" in data:
+                    obj = data["issue"]
+                    obj_type = "Issue"
+                else:
+                    obj = data["pull_request"]
+                    obj_type = "Pull Request"
+                title = f"(#{obj['number']}) {obj['title']}"
+                body = obj["body"] + f"\n\n*This {obj_type} is from [GitHub]({obj['html_url']}).*"
+                return (title, body)
+            
+            def format_comment() -> str:
+                """
+                Format an issue or PR comment into a task comment body.
+                """
+                body = f"({data['comment']['id']}) {github.format_author(data['comment']['user'])} commented:\n\n"
+                body += f"{data['comment']['body']}\n\n*This comment is from [GitHub]({data['comment']['html_url']}).*"
+                return body
+
             async def find_or_create_category() -> pyryver.TaskCategory:
                 """
                 Find or create the category for the repository related to this event.
@@ -75,76 +100,90 @@ class Server:
                 """
                 Find or create the task for this issue.
                 """
+                number = (data.get("issue") or data["pull_request"])["number"]
                 async for task in category.get_tasks():
-                    if "latexbot-github" in task.get_tags() and task.get_subject().startswith(f"(#{data['issue']['number']})"):
+                    if "latexbot-github" in task.get_tags() and task.get_subject().startswith(f"(#{number})"):
                         return task
                         
                 # Create the task if it doesn't already exist
-                title = f"(#{data['issue']['number']}) {data['issue']['title']}"
-                body = data["issue"]["body"] + f"\n\n*This Task is from [GitHub]({data['issue']['html_url']}).*"
-                return await self.bot.gh_issues_board.create_task(title, body, category, tags=["latexbot-github"])
+                title, body = format_task()
+                tag = "issue" if "issue" in data else "pull-request"
+                return await self.bot.gh_issues_board.create_task(title, body, category, tags=["latexbot-github", tag])
 
-            if event == "issues" and data["action"] not in ("pinned", "unpinned", "milestoned", "demilestoned"):
+            if (event == "issues" and data["action"] not in ("pinned", "unpinned", "milestoned", "demilestoned")
+                or event == "pull_request" and data["action"] != "synchronize"):
                 category = await find_or_create_category()
-                # Creating a new task
-                if data["action"] == "opened":
-                    title = f"(#{data['issue']['number']}) {data['issue']['title']}"
-                    body = data["issue"]["body"] + f"\n\n*This Task is from [GitHub]({data['issue']['html_url']}).*"
-                    await self.bot.gh_issues_board.create_task(title, body, category, tags=["latexbot-github"])
+                if "issue" in data:
+                    obj_type = "Issue"
                 else:
-                    task = await find_or_create_task(category)
-                    if data["action"] == "edited":
-                        title = f"(#{data['issue']['number']}) {data['issue']['title']}"
-                        body = data["issue"]["body"] + f"\n\n*This Task is from [GitHub]({data['issue']['html_url']}).*"
-                        await task.edit(title, body)
-                    elif data["action"] == "deleted" or data["action"] == "transferred":
-                        await task.delete()
-                    elif data["action"] == "closed":
+                    obj_type = "Pull Request"
+                
+                # This will create the task if it doesn't already exist
+                # so no need to handle the "created" action
+                task = await find_or_create_task(category)
+                if data["action"] == "edited":
+                    title, body = format_task()
+                    await task.edit(title, body)
+                elif data["action"] == "deleted" or data["action"] == "transferred":
+                    await task.delete()
+                elif data["action"] == "closed":
+                    if "issue" in data:
                         await task.comment(f"*Issue closed by {github.format_author(data['sender'])}.*")
-                        await task.complete()
-                        await task.archive()
-                    elif data["action"] == "reopened":
-                        await task.comment(f"*Issue reopened by {github.format_author(data['sender'])}.*")
-                        await task.uncomplete()
-                        await task.unarchive()
-                    elif data["action"] == "assigned":
-                        user = self.bot.ryver.get_user(username=config.gh_users_map.get(data["assignee"]["login"], ""))
-                        if not user:
-                            util.log(f"Issue assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
+                    else:
+                        if data["pull_request"]["merged"]:
+                            await task.comment(f"*Pull Request merged by {github.format_author(data['sender'])}.*")
                         else:
-                            assignees = await task.get_assignees()
-                            if user not in assignees:
-                                assignees.append(user)
-                                await task.edit(assignees=assignees)
-                    elif data["action"] == "unassigned":
-                        user = self.bot.ryver.get_user(username=config.gh_users_map.get(data["assignee"]["login"], ""))
-                        if not user:
-                            util.log(f"Issue assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
-                        else:
-                            assignees = await task.get_assignees()
-                            if user in assignees:
-                                assignees.remove(user)
-                                await task.edit(assignees=assignees)
-                    elif data["action"] == "labeled":
-                        # Ryver task labels cannot contain spaces
-                        label = data["label"]["name"].replace(" ", "-")
-                        labels = task.get_tags()
-                        if label not in labels:
-                            labels.append(label)
-                            await task.edit(tags=labels)
-                    elif data["action"] == "unlabeled":
-                        # Ryver task labels cannot contain spaces
-                        label = data["label"]["name"].replace(" ", "-")
-                        labels = task.get_tags()
-                        if label in labels:
-                            labels.remove(label)
-                            await task.edit(tags=labels)
-            elif event == "issue_comment":
+                            await task.comment(f"*Pull Request closed with unmerged commits by {github.format_author(data['sender'])}.*")
+                    await task.complete()
+                    await task.archive()
+                elif data["action"] == "reopened":
+                    await task.comment(f"*{obj_type} reopened by {github.format_author(data['sender'])}.*")
+                    await task.uncomplete()
+                    await task.unarchive()
+                elif data["action"] == "assigned":
+                    user = self.bot.ryver.get_user(username=config.gh_users_map.get(data["assignee"]["login"], ""))
+                    if not user:
+                        util.log(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
+                    else:
+                        assignees = await task.get_assignees()
+                        if user not in assignees:
+                            assignees.append(user)
+                            await task.edit(assignees=assignees)
+                elif data["action"] == "unassigned":
+                    user = self.bot.ryver.get_user(username=config.gh_users_map.get(data["assignee"]["login"], ""))
+                    if not user:
+                        util.log(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
+                    else:
+                        assignees = await task.get_assignees()
+                        if user in assignees:
+                            assignees.remove(user)
+                            await task.edit(assignees=assignees)
+                elif data["action"] == "labeled":
+                    # Ryver task labels cannot contain spaces
+                    label = data["label"]["name"].replace(" ", "-")
+                    labels = task.get_tags()
+                    if label not in labels:
+                        labels.append(label)
+                        await task.edit(tags=labels)
+                elif data["action"] == "unlabeled":
+                    # Ryver task labels cannot contain spaces
+                    label = data["label"]["name"].replace(" ", "-")
+                    labels = task.get_tags()
+                    if label in labels:
+                        labels.remove(label)
+                        await task.edit(tags=labels)
+                elif data["action"] == "locked" or data["action"] == "unlocked":
+                    await task.comment(f"*Conversation {data['action']} by {github.format_author(data['sender'])}.*")
+                elif data["action"] == "review_requested":
+                    await task.comment(f"*{github.format_author(data['sender'])} requested a review from {github.format_author(data['requested_reviewer'])}.*")
+                elif data["action"] == "review_request_removed":
+                    await task.comment(f"*{github.format_author(data['sender'])} is no longer requesting reviews from {github.format_author(data['requested_reviewer'])}.*")
+                elif data["action"] == "ready_for_review":
+                    await task.comment(f"*Marked as ready for review by {github.format_author(data['sender'])}.*")
+            elif event == "issue_comment" or event == "pull_request_review_comment":
                 task = await find_or_create_task(await find_or_create_category())
                 if data["action"] == "created":
-                    body = f"({data['comment']['id']}) {github.format_author(data['comment']['user'])} commented:\n\n"
-                    body += f"{data['comment']['body']}\n\n*This comment is from [GitHub]({data['comment']['html_url']}).*"
-                    await task.comment(body)
+                    await task.comment(format_comment())
                 else:
                     # Find the comment
                     comment = None
@@ -153,15 +192,32 @@ class Server:
                             comment = cmt
                             break
                     else:
-                        util.log(f"Cannot handle issue_comment: Comment not found: {data['comment']['body']}")
-                    
+                        util.log(f"Cannot handle {event}: Comment not found: {data['comment']['id']}")
                     if comment:
                         if data["action"] == "deleted":
                             await comment.delete()
                         if data["action"] == "edited":
-                            body = f"({data['comment']['id']}) {github.format_author(data['comment']['user'])} commented:\n\n"
-                            body += f"{data['comment']['body']}\n\n*This comment is from [GitHub]({data['comment']['html_url']}).*"
-                            await comment.edit(body)
+                            await comment.edit(format_comment())
+            elif event == "pull_request_review":
+                task = await find_or_create_task(await find_or_create_category())
+                if data["review"]["state"] == "commented":
+                    state = "commenting"
+                elif data["review"]["state"] == "approved":
+                    state = "approving these changes"
+                elif data["review"]["state"] == "changes_requested":
+                    state = "requesting changes"
+                body = f"*{github.format_author(data['sender'])} "
+                if data["action"] == "submitted":
+                    body += f"submitted [a review]({data['review']['html_url']}) "
+                    body += f"**{state}***:\n\n{data['review']['body']}"
+                    await task.comment(body)
+                elif data["action"] == "edited":
+                    body += f"edited [their review]({data['review']['html_url']}) "
+                    body += f"**{state}***:\n\n{data['review']['body']}"
+                    await task.comment(body)
+                elif data["action"] == "dismissed":
+                    body += f"dismissed {github.format_author(data['review']['user'])}'s [review]({data['review']['html_url']}).*"
+                    await task.comment(body)
         return aiohttp.web.Response(status=204)
     
     @classmethod
