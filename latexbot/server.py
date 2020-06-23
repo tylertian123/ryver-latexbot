@@ -27,6 +27,10 @@ class Server:
         Start the server.
         """
         self.app = aiohttp.web.Application()
+        self.app.router.add_get("/", self._homepage_handler)
+        self.app.router.add_get("/config", self._config_handler)
+        self.app.router.add_get("/roles", self._roles_handler)
+        self.app.router.add_get("/trivia", self._trivia_handler)
         self.app.router.add_post("/github", self._github_handler)
         self.runner = aiohttp.web.AppRunner(self.app)
         await self.runner.setup()
@@ -219,6 +223,57 @@ class Server:
                     body += f"dismissed {github.format_author(data['review']['user'])}'s [review]({data['review']['html_url']}).*"
                     await task.comment(body)
         return aiohttp.web.Response(status=204)
+    
+    async def _homepage_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+        """
+        Handle a GET request to /.
+        """
+        GREEN_DOT = "\U0001F7E2"
+        RED_DOT = "\U0001F534"
+        msg = f"""
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+    </head>
+    <body>
+        <h1>LaTeX Bot {self.bot.version}</h1>
+        <p>
+            Server: {GREEN_DOT} OK<br/>
+            Daily Message: {f"{RED_DOT} NOT SCHEDULED" if self.bot.daily_msg_task.done() else f"{GREEN_DOT} OK"}<br/>
+            Started On: {self.bot.start_time.strftime(util.DATE_FORMAT)}<br/>
+            Uptime: {util.current_time() - self.bot.start_time}<br/>
+        </p>
+        <p>
+            <a href="/config">View Config</a><br/>
+            <a href="/roles">View Roles</a><br/>
+            <a href="/trivia">View Trivia</a><br/>
+            <a href="https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md">Usage Guide</a>
+        </p>
+    </body>
+</html>
+"""
+        return aiohttp.web.Response(text=msg, status=200, content_type="text/html")
+    
+    async def _config_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+        """
+        Handle a GET request to /config.
+        """
+        return aiohttp.web.Response(text=json.dumps(config.dump()[0]), status=200, content_type="application/json")
+    
+    async def _roles_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+        """
+        Handle a GET request to /roles.
+        """
+        with open(self.bot.roles_file, "r") as f:
+            return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
+    
+    async def _trivia_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+        """
+        Handle a GET request to /trivia.
+        """
+        with open(self.bot.trivia_file, "r") as f:
+            return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
     
     @classmethod
     def verify_signature(cls, secret: str, signature: str, data: str) -> bool:

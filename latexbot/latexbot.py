@@ -57,6 +57,8 @@ class LatexBot:
         self.msg_creator = pyryver.Creator("LaTeX Bot " + self.version)
 
         self.webhook_server = None # type: server.Webhooks
+
+        self.start_time = None # type: datetime
     
     def init_commands(self) -> None:
         """
@@ -323,6 +325,7 @@ class LatexBot:
         """
         Run LaTeX Bot.
         """
+        self.start_time = util.current_time()
         util.log(f"LaTeX Bot {self.version} has been started. Initializing...")
         self.update_help()
         self.schedule_daily_message()
