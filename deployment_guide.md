@@ -36,7 +36,8 @@ Follow [this guide](https://developer.github.com/webhooks/creating/) to set up a
 
 By default, LaTeX Bot will host the server on port 80.
 This can be changed using the `LATEXBOT_SERVER_PORT` env var.
-The endpoint for the webhook is at `/github`. 
+The endpoint for the webhook is at `/github`.
+The payload must be set as `application/json` and not `application/x-www-form-urlencoded`.
 
 LaTeX Bot also supports optional webhook secrets.
 When the `LATEXBOT_GH_HOOK_SECRET` env var is set, LaTeX Bot will use it to verify the signatures on all incoming GitHub webhooks, and returning a 401 Unauthorized response if the signature is wrong or missing.

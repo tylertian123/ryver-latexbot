@@ -66,6 +66,8 @@ class Server:
         self.app.router.add_get("/roles", self._roles_handler)
         self.app.router.add_get("/trivia", self._trivia_handler)
         self.app.router.add_post("/github", self._github_handler)
+        self.app.router.add_post("/message", self._message_handler_post)
+        self.app.router.add_get("/message", self._message_handler_get)
         self.runner = aiohttp.web.AppRunner(self.app)
         await self.runner.setup()
         self.site = aiohttp.web.TCPSite(self.runner, "0.0.0.0", port)
@@ -264,29 +266,22 @@ class Server:
         """
         GREEN_DOT = "\U0001F7E2"
         RED_DOT = "\U0001F534"
-        msg = f"""
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8"/>
-    </head>
-    <body>
-        <h1>LaTeX Bot {self.bot.version}</h1>
-        <p>
-            Server: {GREEN_DOT} OK<br/>
-            Daily Message: {f"{RED_DOT} NOT SCHEDULED" if self.bot.daily_msg_task.done() else f"{GREEN_DOT} OK"}<br/>
-            Started On: {self.bot.start_time.strftime(util.DATE_FORMAT)}<br/>
-            Uptime: {util.current_time() - self.bot.start_time}<br/>
-        </p>
-        <p>
-            <a href="/config">View Config</a><br/>
-            <a href="/roles">View Roles</a><br/>
-            <a href="/trivia">View Trivia</a><br/>
-            <a href="https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md">Usage Guide</a>
-        </p>
-    </body>
-</html>
-"""
+        msg = self.format_page(f"""
+<h1>LaTeX Bot {self.bot.version}</h1>
+<p>
+    Server: {GREEN_DOT} OK<br/>
+    Daily Message: {f"{RED_DOT} NOT SCHEDULED" if self.bot.daily_msg_task.done() else f"{GREEN_DOT} OK"}<br/>
+    Started On: {self.bot.start_time.strftime(util.DATE_FORMAT)}<br/>
+    Uptime: {util.current_time() - self.bot.start_time}<br/>
+</p>
+<p>
+    <a href="/config">View Config</a><br/>
+    <a href="/roles">View Roles</a><br/>
+    <a href="/trivia">View Trivia</a><br/>
+    <a href="https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md">Usage Guide</a><br/>
+    <a href="/message">Send a message</a><br/>
+</p>
+        """)
         return aiohttp.web.Response(text=msg, status=200, content_type="text/html")
     
     @basicauth("Configuration")
@@ -312,6 +307,46 @@ class Server:
         with open(self.bot.trivia_file, "r") as f:
             return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
     
+    @basicauth("Message Sending")
+    async def _message_handler_post(self, req: aiohttp.web.Request):
+        """
+        Handle a POST request to /message.
+        """
+        args = await req.post()
+        if "chat" not in args or "message" not in args:
+            return aiohttp.web.Response(body="Missing param", status=400)
+        try:
+            chat = util.parse_chat_name(self.bot.ryver, args["chat"])
+        except ValueError as e:
+            return aiohttp.web.Response(body=str(e), status=400)
+        
+        if not chat:
+            return aiohttp.web.Response(body="Chat not found", status=404)
+        
+        msg_id = await chat.send_message(args["message"])
+        return aiohttp.web.Response(body=msg_id, status=200)
+    
+    @basicauth("Message Sending")
+    async def _message_handler_get(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+        """
+        Handle a GET request to /message.
+        """
+        msg = self.format_page(f"""
+<h1>Send a message</h1>
+<form action="/message" method="POST" target="result_frame">
+    <label for="chat">To Chat:</label><br/>
+    <input type="text" id="chat" name="chat" placeholder="name=Test"/><br/>
+    <label for="message">Message:</label><br/>
+    <input type="text" id="message" name="message"/><br/>
+    <input type="submit" value="Send"/>
+</form>
+<p>
+    Message ID:<br/>
+    <iframe name="result_frame"/>
+</p>
+        """)
+        return aiohttp.web.Response(text=msg, status=200, content_type="text/html")
+    
     @classmethod
     def verify_signature(cls, secret: str, signature: str, data: str) -> bool:
         """
@@ -321,6 +356,24 @@ class Server:
             signature = signature[5:]
         digest = hmac.HMAC(secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha1).hexdigest()
         return hmac.compare_digest(digest, signature)
+    
+    def format_page(self, body: str, title: str = None):
+        """
+        Format the HTML for a page.
+        """
+        return f"""
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <title>{title or f"LaTeX Bot {self.bot.version}"}</title>
+        <link rel="icon" type="image/png" href="{self.bot.user_avatars.get(self.bot.user.get_id(), "")}"/>
+    </head>
+    <body>
+        {body}
+    </body>
+</html>
+        """
 
 
 import latexbot # nopep8 # pylint: disable=unused-import

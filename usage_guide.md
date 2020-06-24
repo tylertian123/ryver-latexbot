@@ -417,9 +417,10 @@ However, disabling daily messages will also disable the automatic refreshes, so 
 In order to receive inbound webhooks for GitHub integration, LaTeX Bot hosts a web server.
 By default, this is on port 80, and can be changed by specifying the `LATEXBOT_SERVER_PORT` environment variable.
 In addition to receiving inbound webhooks, you will also find some helpful diagnostic info at `/`,
-as well as access the config JSON, roles JSON and custom trivia questions JSON at `/config`, `/roles` and `/trivia` respectively.
+as well as access the config JSON, roles JSON and custom trivia questions JSON at `/config`, `/roles` and `/trivia` respectively,
+and send messages by POSTing to `/message` with a `chat` and `message`.
 
-To prevent information leakage, LaTeX Bot can ask for a username and password when attempting to access `/config`, `/roles` and `/trivia`.
+To prevent information leakage, LaTeX Bot can ask for a username and password when attempting to access `/config`, `/roles`, `/trivia` and `/message`.
 The username must be `latexbot` and the password should be the value of the `LATEXBOT_SERVER_AUTH` environment variable.
 If this variable is unset or has an empty string as the value, LaTeX Bot will not ask for auth.
 
