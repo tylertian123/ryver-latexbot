@@ -1,6 +1,7 @@
 import aiohttp
 import aiohttp.web
 import config
+import functools
 import github
 import hashlib
 import hmac
@@ -9,6 +10,39 @@ import os
 import pyryver
 import typing
 import util
+
+
+def basicauth(realm: str = None):
+    """
+    Use this decorator on web handlers to require basic auth.
+    """
+    def _basicauth_decor(func: typing.Callable[[aiohttp.web.Request], typing.Awaitable]):
+        @functools.wraps(func)
+        async def _basicauth(self, req: aiohttp.web.Request):
+            if not os.environ.get("LATEXBOT_SERVER_AUTH"):
+                return await func(self, req)
+            
+            if "authorization" not in req.headers or not verify_auth(req.headers["authorization"]):
+                auth = "Basic"
+                if realm is not None:
+                    auth += f" realm=\"{realm}\""
+                return aiohttp.web.Response(body="Invalid credentials", status=401, headers={
+                    "WWW-Authenticate": auth
+                })
+            return await func(self, req)
+        return _basicauth
+    return _basicauth_decor
+
+
+def verify_auth(auth: str) -> bool:
+    """
+    Verify basic auth.
+    """
+    try:
+        basic_auth = aiohttp.BasicAuth.decode(auth)
+        return basic_auth.login == "latexbot" and basic_auth.password == os.environ["LATEXBOT_SERVER_AUTH"]
+    except ValueError:
+        return False
 
 
 class Server:
@@ -255,12 +289,14 @@ class Server:
 """
         return aiohttp.web.Response(text=msg, status=200, content_type="text/html")
     
+    @basicauth("Configuration")
     async def _config_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /config.
         """
-        return aiohttp.web.Response(text=json.dumps(config.dump()[0]), status=200, content_type="application/json")
+        return aiohttp.web.json_response(config.dump()[0])
     
+    @basicauth("Roles")
     async def _roles_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /roles.
@@ -268,6 +304,7 @@ class Server:
         with open(self.bot.roles_file, "r") as f:
             return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
     
+    @basicauth("Custom Trivia Questions")
     async def _trivia_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /trivia.

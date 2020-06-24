@@ -413,6 +413,16 @@ If this ever happens, run the `updateChats` command to update the cache.
 This usually should not be necessary, as the chat cache is updated automatically as part of the daily message routine.
 However, disabling daily messages will also disable the automatic refreshes, so this command may be necessary.
 
+## Server
+In order to receive inbound webhooks for GitHub integration, LaTeX Bot hosts a web server.
+By default, this is on port 80, and can be changed by specifying the `LATEXBOT_SERVER_PORT` environment variable.
+In addition to receiving inbound webhooks, you will also find some helpful diagnostic info at `/`,
+as well as access the config JSON, roles JSON and custom trivia questions JSON at `/config`, `/roles` and `/trivia` respectively.
+
+To prevent information leakage, LaTeX Bot can ask for a username and password when attempting to access `/config`, `/roles` and `/trivia`.
+The username must be `latexbot` and the password should be the value of the `LATEXBOT_SERVER_AUTH` environment variable.
+If this variable is unset or has an empty string as the value, LaTeX Bot will not ask for auth.
+
 # Configuring LaTeX Bot
 This section outlines the usage of the config file.
 
