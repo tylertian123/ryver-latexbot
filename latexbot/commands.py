@@ -20,6 +20,7 @@ from caseinsensitivedict import CaseInsensitiveDict
 from datetime import datetime
 from gcalendar import Calendar
 from markdownify import markdownify
+from tba import TheBlueAlliance
 from traceback import format_exc
 
 
@@ -217,6 +218,69 @@ async def command_checkiday(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
         msg = f"Here is a list of all the holidays on {data['date']}:\n"
         msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
         await chat.send_message(msg, bot.msg_creator)
+
+
+async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Query TheBlueAlliance.
+
+    This command has several sub-commands. Here are each one of them:
+    - `team <team>` - Get basic info about a team.
+    - `teamEvents <team> <year>` - Get info about a team's events in a year.
+    ---
+    group: General Commands
+    syntax: <sub-command> [args]
+    ---
+    > `@latexbot tba team 6135` - Get basic info about team 6135.
+    > `@latexbot tba teamEvents 6135 2020` - Get info about team 6135's events in 2020.
+    """
+    args = shlex.split(args)
+    if args[0] == "team":
+        if len(args) != 2:
+            await chat.send_message("Invalid syntax.", bot.msg_creator)
+            return
+        try:
+            team = int(args[1])
+        except ValueError:
+            await chat.send_message("Invalid team number.", bot.msg_creator)
+        try:
+            await chat.send_message(TheBlueAlliance.format_team(await bot.tba.get_team(team)), bot.msg_creator)
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                await chat.send_message("Team does not exist.", bot.msg_creator)
+            else:
+                await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
+    elif args[0] == "teamEvents":
+        if len(args) != 3:
+            await chat.send_message("Invalid syntax.", bot.msg_creator)
+            return
+        try:
+            team = int(args[1])
+        except ValueError:
+            await chat.send_message("Invalid team number.", bot.msg_creator)
+        try:
+            year = int(args[2])
+        except ValueError:
+            await chat.send_message("Invalid year number.", bot.msg_creator)
+        try:
+            events = await bot.tba.get_team_events(team, year)
+            results = await bot.tba.get_team_events_statuses(team, year)
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                await chat.send_message("Team or year does not exist.", bot.msg_creator)
+            else:
+                await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
+        formatted_events = []
+        for event in events:
+            desc = TheBlueAlliance.format_event(event)
+            if results.get(event["key"]):
+                desc += "\n\n" + markdownify(results[event["key"]]["overall_status_str"])
+            else:
+                desc += "\n\n**Could not obtain info for this team's performance during this event.**"
+            formatted_events.append(desc)
+        await chat.send_message("\n\n".join(formatted_events), bot.msg_creator)
+    else:
+        await chat.send_message("Invalid sub-command. Check `@latexbot help tba` to see valid commands.", bot.msg_creator)
 
 
 async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument

@@ -12,6 +12,7 @@ from caseinsensitivedict import CaseInsensitiveDict
 from command import Command, CommandSet
 from datetime import datetime, timedelta
 from gcalendar import Calendar
+from tba import TheBlueAlliance
 from traceback import format_exc
 
 
@@ -36,6 +37,7 @@ class LatexBot:
 
         self.config_file = None # type: str
         self.calendar = None # type: Calendar
+        self.tba = None # type: TheBlueAlliance
         self.home_chat = None # type: pyryver.Chat
         self.announcements_chat = None # type: pyryver.Chat
         self.messages_chat = None # type: pyryver.Chat
@@ -72,6 +74,7 @@ class LatexBot:
         self.commands.add_command(Command("whatDoYouThink", commands.command_whatDoYouThink, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("xkcd", commands.command_xkcd, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("checkiday", commands.command_checkiday, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("tba", commands.command_tba, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("trivia", commands.command_trivia, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("trivia importCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("trivia exportCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
@@ -126,6 +129,9 @@ class LatexBot:
         info = await self.ryver.get_info()
         users_json = info["users"]
         self.user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
+
+        if os.environ.get("LATEXBOT_TBA_KEY"):
+            self.tba = TheBlueAlliance(os.environ.get("LATEXBOT_TBA_KEY"))
 
         self.init_commands()
     
