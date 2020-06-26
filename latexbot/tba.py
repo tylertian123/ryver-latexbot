@@ -2,13 +2,16 @@ import aiohttp
 import typing
 
 
-JSONDict = typing.Dict[str, typing.Any]
+JSONObj = typing.Dict[str, typing.Any]
+JSONObjList = typing.List[JSONObj]
 
 
 class TheBlueAlliance:
     """
     A class for accessing The Blue Alliance's API with aiohttp.
     """
+
+    TEAM_URL = "https://www.thebluealliance.com/team/"
     
     def __init__(self, read_key: str):
         """
@@ -27,33 +30,55 @@ class TheBlueAlliance:
         Close this session.
         """
         await self._session.close()
+
+    async def _get_json(self, endpoint: str) -> typing.Union[JSONObj, JSONObjList]:
+        """
+        Get JSON data from an endpoint.
+        """
+        async with self._session.get(self._url_prefix + endpoint) as resp:
+            return await resp.json()
     
-    async def get_team(self, num: int) -> JSONDict:
+    async def get_team(self, num: int) -> JSONObj:
         """
         Get basic team info.
         """
-        async with self._session.get(f"{self._url_prefix}team/frc{num}") as resp:
-            return await resp.json()
+        return await self._get_json("team/frc" + str(num))
     
-    async def get_team_events(self, num: int, year: int = None) -> typing.List[JSONDict]:
+    async def get_team_events(self, num: int, year: int = None) -> typing.List[JSONObj]:
         """
         Get a team's events for a year or all years.
         """
-        url = f"{self._url_prefix}team/frc{num}/events"
+        endpoint = f"team/frc{num}/events"
         if year is not None:
-            url += f"/{year}"
-        async with self._session.get(url) as resp:
-            return await resp.json()
+            endpoint += f"/{year}"
+        return await self._get_json(endpoint)
     
-    async def get_team_events_statuses(self, num: int, year: int) -> JSONDict:
+    async def get_team_events_statuses(self, num: int, year: int) -> JSONObj:
         """
         Get a team's events statuses for a year.
         """
-        async with self._session.get(f"{self._url_prefix}team/frc{num}/events/{year}/statuses") as resp:
-            return await resp.json()
+        return await self._get_json(f"team/frc{num}/events/{year}/statuses")
     
+    async def get_districts(self, year: int) -> JSONObjList:
+        """
+        Get the districts for a given year.
+        """
+        return await self._get_json(f"districts/{year}")
+    
+    async def get_district_rankings(self, district: str) -> JSONObjList:
+        """
+        Get the rankings for a district for a given year.
+        """
+        return await self._get_json(f"district/{district}/rankings")
+    
+    async def get_district_teams(self, district: str) -> JSONObjList:
+        """
+        Get the teams for a district for a given year.
+        """
+        return await self._get_json(f"district/{district}/teams")
+        
     @classmethod
-    def format_addr(cls, addr: JSONDict) -> str:
+    def format_addr(cls, addr: JSONObj) -> str:
         """
         Format an address.
         """
@@ -73,22 +98,22 @@ class TheBlueAlliance:
         return addr_str
 
     @classmethod
-    def format_team(cls, team: JSONDict) -> str:
+    def format_team(cls, team: JSONObj) -> str:
         """
         Format basic info about a team into a Markdown message.
         """
-        msg = f"# Team {team['team_number']} ({team['nickname']})\nAka *{team['name']}*  \n"
-        msg += f"From {cls.format_addr(team)}  \nSchool: {team['school_name']}"
+        msg = f"# [Team {team['team_number']}]({cls.TEAM_URL}{team['team_number']}) ({team['nickname']})\n"
+        msg += f"Aka *{team['name']}*  \nFrom {cls.format_addr(team)}  \nSchool: {team['school_name']}"
         if team["website"]:
             msg += f"  \nWebsite: {team['website']}"
         return msg
     
     @classmethod
-    def format_event(cls, event: JSONDict) -> str:
+    def format_event(cls, event: JSONObj) -> str:
         """
         Format info about an event into a Markdown message.
         """
-        msg = f"# {event['name']} ({event['short_name']}, Code: {event['first_event_code']})\n"
+        msg = f"# {event['name']} ({event['short_name']}/{event['first_event_code']}/{event['key']})\n"
         week = f"Week {event['week'] + 1}" if event["week"] is not None else "Offseason"
         msg += f"At {TheBlueAlliance.format_addr(event)} on **{event['start_date']} ({week})**.  \n"
         msg += f"This is a(n) **{event['event_type_string']}** event"
