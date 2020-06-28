@@ -229,9 +229,18 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
     - `teamEvents <team> <year>` - Get info about a team's events in a year.
     - `districts [year]` - Get a list of districts for a given year, or the current year if unspecified.
     - `districtRankings <district> [year] [range]` - Get the rankings for a district for a given year, or
-    the current year if unspecified. The range can be a single number, e.g. `10`, to display the top teams,
-    or two numbers separated by a dash, e.g. `10-20`, to display a range (inclusive) of teams, or a number
-    followed by a plus, e.g. `50+`, to display the teams with that rank or lower.
+    the current year if unspecified. An optional range of results can be specified. See below.
+    - `districtEvents <district> [year] [week(s)]` - Get the events for a district for a given year, or the
+    current year if unspecified. The syntax for the weeks is identical to the range syntax (see below),
+    *except if only a single number is given, only events for that week will be retrieved*.
+
+    Note that for all commands, the word "team" can be abbreviated as "t", and "district(s)" can be abbreviated
+    as "d". E.g. `districtEvents` can be abbreviated as `dEvents`.
+
+    Some of these commands make use of *ranges*. A range can be one of the following:
+    - A single number, e.g. "10" for the top 10 results.
+    - Two numbers separated by a dash, e.g. "10-20" for the 10th result to the 20th result (inclusive).
+    - A number followed by a plus, e.g. `10+`, for everything after and including the 10th result.
     ---
     group: General Commands
     syntax: <sub-command> [args]
@@ -240,9 +249,15 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
     > `@latexbot tba teamEvents 6135 2020` - Get info about team 6135's events in 2020.
     > `@latexbot tba districts` - Get the districts for the current year.
     > `@latexbot tba districtRankings ONT 2020 30` - Get the top 30 ranked teams in the ONT district in 2020.
+    > `@latexbot tba districtEvents ONT` - Get the events in the ONT district for the current year.
+    > `@latexbot tba districtEvents ONT 2020 2` - Get all week 2 events in the ONT district in 2020. 
     """
     args = shlex.split(args)
-    if args[0] == "team":
+    if not args:
+        await chat.send_message("Please specify a sub-command! See `@latexbot help tba` for details.", bot.msg_creator)
+        return
+    args[0] = args[0].replace("team", "t").replace("district", "d")
+    if args[0] == "t":
         if len(args) != 2:
             await chat.send_message("Invalid syntax.", bot.msg_creator)
             return
@@ -259,7 +274,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
             else:
                 await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
             return
-    elif args[0] == "teamEvents":
+    elif args[0] == "tEvents":
         if len(args) != 3:
             await chat.send_message("Invalid syntax.", bot.msg_creator)
             return
@@ -291,7 +306,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                 desc += "\n\n**Could not obtain info for this team's performance during this event.**"
             formatted_events.append(desc)
         await chat.send_message("\n\n".join(formatted_events), bot.msg_creator)
-    elif args[0] == "districts":
+    elif args[0] == "ds" or args[0] == "d":
         if len(args) > 2:
             await chat.send_message("Invalid syntax.", bot.msg_creator)
             return
@@ -313,7 +328,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
         resp = f"# Districts for year {year}\n"
         resp += "\n".join(f"- {district['display_name']} (**{district['abbreviation'].upper()}**)" for district in districts)
         await chat.send_message(resp, bot.msg_creator)
-    elif args[0] == "districtRankings":
+    elif args[0] == "dRankings":
         if not 2 <= len(args) <= 4:
             await chat.send_message("Invalid syntax.", bot.msg_creator)
             return
@@ -335,19 +350,19 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
             else:
                 await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
             return
+        if not rankings:
+            await chat.send_message("No results.", bot.msg_creator)
+            return
         # Parse the range
         if len(args) >= 4:
             try:
-                if args[3].endswith("+"):
-                    rankings = rankings[int(args[3][:-1]) - 1:]
-                elif "-" in args[3]:
-                    start, end = args[3].split("-")
-                    rankings = rankings[int(start) - 1:int(end)]
-                else:
-                    rankings = rankings[:int(args[3])]
+                rankings = util.slice_range(rankings, args[3])
             except ValueError:
                 await chat.send_message("Invalid range.", bot.msg_creator)
                 return
+        if not rankings:
+            await chat.send_message("No results.", bot.msg_creator)
+            return
         resp = f"# Rankings for district {args[1]} in {year}:\n"
         resp += "Rank|Total Points|Event 1|Event 2|District Championship|Rookie Bonus|Team Number|Team Name\n---|---|---|---|---|---|---|---"
         for r in rankings:
@@ -360,6 +375,49 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
             resp += f"\n{r['rank']}|{r['point_total']}|{event1}|{event2}|{dcmp}|{r['rookie_bonus']}|"
             resp += f"{team['team_number']}|[{team['nickname']}]({TheBlueAlliance.TEAM_URL}{team['team_number']})"
         await chat.send_message(resp, bot.msg_creator)
+    elif args[0] == "dEvents":
+        if not 2 <= len(args) <= 4:
+            await chat.send_message("Invalid syntax.", bot.msg_creator)
+            return
+        try:
+            if len(args) >= 3:
+                year = int(args[2])
+            else:
+                year = util.current_time().year
+            key = str(year) + args[1].lower()
+            # Order by week
+            events = sorted(await bot.tba.get_district_events(key), key=lambda x: x["week"])
+        except ValueError:
+            await chat.send_message("Invalid year.", bot.msg_creator)
+            return
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                await chat.send_message("District or year does not exist.", bot.msg_creator)
+            else:
+                await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
+            return
+        if not events:
+            await chat.send_message("No results.", bot.msg_creator)
+            return
+        # Parse the range
+        if len(args) >= 4:
+            try:
+                try:
+                    # See if the input can be parsed as a single int
+                    # since it has a different behavior as the usual slicing
+                    weeks = [int(args[3])]
+                except ValueError:
+                    # Slice to get the weeks that we want
+                    # Account for 1-based indexing
+                    weeks = util.slice_range(range(1, events[-1]["week"] + 2), args[3])
+                events = [event for event in events if (event["week"] + 1) in weeks]
+            except ValueError:
+                await chat.send_message("Invalid range.", bot.msg_creator)
+                return
+        if not events:
+            await chat.send_message("No results.", bot.msg_creator)
+            return
+        await chat.send_message("\n\n".join(TheBlueAlliance.format_event(event) for event in events), bot.msg_creator)
     else:
         await chat.send_message("Invalid sub-command. Check `@latexbot help tba` to see valid commands.", bot.msg_creator)
 

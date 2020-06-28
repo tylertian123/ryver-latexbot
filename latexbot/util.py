@@ -283,3 +283,21 @@ async def get_attached_json_data(msg: pyryver.ChatMessage, msg_contents: str) ->
         return json.loads(data)
     except json.JSONDecodeError as e:
         raise ValueError(f"Error decoding JSON: {e}")
+
+
+def slice_range(l: typing.List[_T], r: str) -> typing.List[_T]:
+    """
+    Slice a list based on a range specified in string form.
+
+    A range can be one of the following:
+    - A single number, e.g. "10" for the top 10 results.
+    - Two numbers separated by a dash, e.g. "10-20" for the 10th result to the 20th result (inclusive).
+    - A number followed by a plus, e.g. `10+`, for everything after and including the 10th result.
+    """
+    if r.endswith("+"):
+        return l[int(r[:-1]) - 1:]
+    elif "-" in r:
+        start, end = r.split("-")
+        return l[int(start) - 1:int(end)]
+    else:
+        return l[:int(r)]

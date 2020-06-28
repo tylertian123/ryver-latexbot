@@ -12,6 +12,7 @@ class TheBlueAlliance:
     """
 
     TEAM_URL = "https://www.thebluealliance.com/team/"
+    EVENT_URL = "https://www.thebluealliance.com/event/"
     
     def __init__(self, read_key: str):
         """
@@ -68,14 +69,26 @@ class TheBlueAlliance:
     async def get_district_rankings(self, district: str) -> JSONObjList:
         """
         Get the rankings for a district for a given year.
+
+        The district is provided as a district code.
         """
         return await self._get_json(f"district/{district}/rankings")
     
     async def get_district_teams(self, district: str) -> JSONObjList:
         """
         Get the teams for a district for a given year.
+
+        The district is provided as a district code.
         """
         return await self._get_json(f"district/{district}/teams")
+    
+    async def get_district_events(self, district: str) -> JSONObjList:
+        """
+        Get the events for a district for a given year.
+
+        The district is provided as a district code.
+        """
+        return await self._get_json(f"district/{district}/events")
         
     @classmethod
     def format_addr(cls, addr: JSONObj) -> str:
@@ -113,9 +126,9 @@ class TheBlueAlliance:
         """
         Format info about an event into a Markdown message.
         """
-        msg = f"# {event['name']} ({event['short_name']}/{event['first_event_code']}/{event['key']})\n"
         week = f"Week {event['week'] + 1}" if event["week"] is not None else "Offseason"
-        msg += f"At {TheBlueAlliance.format_addr(event)} on **{event['start_date']} ({week})**.  \n"
+        msg = f"# {week}: [{event['name']}]({cls.EVENT_URL}{event['key']}) ({event['short_name']}/{event['first_event_code']})\n"
+        msg += f"At {TheBlueAlliance.format_addr(event)} on **{event['start_date']}**.  \n"
         msg += f"This is a(n) **{event['event_type_string']}** event"
         if event.get("district"):
             msg += f" in the {event['district']['display_name']} district."
