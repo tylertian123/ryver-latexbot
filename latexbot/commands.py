@@ -226,16 +226,23 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
 
     This command has several sub-commands. Here are each one of them:
     - `team <team>` - Get basic info about a team.
-    - `teamEvents <team> <year>` - Get info about a team's events in a year.
+    - `teamEvents <team> [year]` - Get info about a team's events in a year, or the current year if unspecified.
     - `districts [year]` - Get a list of districts for a given year, or the current year if unspecified.
     - `districtRankings <district> [year] [range]` - Get the rankings for a district for a given year, or
     the current year if unspecified. An optional range of results can be specified. See below.
     - `districtEvents <district> [year] [week(s)]` - Get the events for a district for a given year, or the
     current year if unspecified. The syntax for the weeks is identical to the range syntax (see below),
     *except if only a single number is given, only events for that week will be retrieved*.
+    - `event <event> [year]` - Get info about an event for a given year, or the current year if unspecified.
+    - `eventRankings <event> [year] [range]` - Get the rankings for an event for a given year, or the current
+    year if unspecified. An optional range of results can be specified. See below.
 
-    Note that for all commands, the word "team" can be abbreviated as "t", and "district(s)" can be abbreviated
-    as "d". E.g. `districtEvents` can be abbreviated as `dEvents`.
+    Note that districts and events are specified by code and not name, e.g. "ONT", "ONOSH" (case-insensitive).
+
+    For all commands, the word "team" can be abbreviated as "t", "district(s)" can be abbreviated as "d",
+    "event(s)" can be abbreviated as "e", and "ranking(s)" can be abbreviated as "r". They are also 
+    case-insensitive.
+    E.g. `districtEvents` can be abbreviated as `dEvents`, `districtE` or `dE`. 
 
     Some of these commands make use of *ranges*. A range can be one of the following:
     - A single number, e.g. "10" for the top 10 results.
@@ -251,175 +258,187 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
     > `@latexbot tba districtRankings ONT 2020 30` - Get the top 30 ranked teams in the ONT district in 2020.
     > `@latexbot tba districtEvents ONT` - Get the events in the ONT district for the current year.
     > `@latexbot tba districtEvents ONT 2020 2` - Get all week 2 events in the ONT district in 2020. 
+    > `@latexbot tba event ONOSH 2020` - Get info about the ONOSH event in 2020.
+    > `@latexbot tba eventRankings ONOSH` - Get the rankings for the ONOSH event for the current year.
     """
     args = shlex.split(args)
     if not args:
         await chat.send_message("Please specify a sub-command! See `@latexbot help tba` for details.", bot.msg_creator)
         return
-    args[0] = args[0].replace("team", "t").replace("district", "d")
-    if args[0] == "t":
-        if len(args) != 2:
-            await chat.send_message("Invalid syntax.", bot.msg_creator)
-            return
-        try:
-            team = int(args[1])
-        except ValueError:
-            await chat.send_message("Invalid team number.", bot.msg_creator)
-            return
-        try:
+    # Abbreviations
+    args[0] = args[0].lower().replace("team", "t").replace("district", "d").replace("event", "e").replace("ranking", "r")
+
+    try:
+        if args[0] == "t":
+            try:
+                # pylint: disable=unbalanced-tuple-unpacking
+                team, = util.parse_args(args[1:], ("team number", int))
+            except ValueError as e:
+                await chat.send_message(str(e), bot.msg_creator)
+                return
             await chat.send_message(TheBlueAlliance.format_team(await bot.tba.get_team(team)), bot.msg_creator)
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                await chat.send_message("Team does not exist.", bot.msg_creator)
-            else:
-                await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
-            return
-    elif args[0] == "tEvents":
-        if len(args) != 3:
-            await chat.send_message("Invalid syntax.", bot.msg_creator)
-            return
-        try:
-            team = int(args[1])
-        except ValueError:
-            await chat.send_message("Invalid team number.", bot.msg_creator)
-            return
-        try:
-            year = int(args[2])
-        except ValueError:
-            await chat.send_message("Invalid year number.", bot.msg_creator)
-            return
-        try:
+        elif args[0] == "te" or args[0] == "tes":
+            try:
+                # pylint: disable=unbalanced-tuple-unpacking
+                team, year = util.parse_args(args[1:], ("team number", int), ("year", int, util.current_time().year))
+            except ValueError as e:
+                await chat.send_message(str(e), bot.msg_creator)
+                return
             events = await bot.tba.get_team_events(team, year)
             results = await bot.tba.get_team_events_statuses(team, year)
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                await chat.send_message("Team or year does not exist.", bot.msg_creator)
-            else:
-                await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
+            formatted_events = []
+            for event in events:
+                desc = TheBlueAlliance.format_event(event)
+                if results.get(event["key"]):
+                    desc += "\n\n" + markdownify(results[event["key"]]["overall_status_str"])
+                else:
+                    desc += "\n\n**Could not obtain info for this team's performance during this event.**"
+                formatted_events.append(desc)
+            await chat.send_message("\n\n".join(formatted_events), bot.msg_creator)
+        elif args[0] == "ds" or args[0] == "d":
+            try:
+                # pylint: disable=unbalanced-tuple-unpacking
+                year, = util.parse_args(args[1:], ("year", int))
+            except ValueError as e:
+                await chat.send_message(str(e), bot.msg_creator)
                 return
-        formatted_events = []
-        for event in events:
-            desc = TheBlueAlliance.format_event(event)
-            if results.get(event["key"]):
-                desc += "\n\n" + markdownify(results[event["key"]]["overall_status_str"])
-            else:
-                desc += "\n\n**Could not obtain info for this team's performance during this event.**"
-            formatted_events.append(desc)
-        await chat.send_message("\n\n".join(formatted_events), bot.msg_creator)
-    elif args[0] == "ds" or args[0] == "d":
-        if len(args) > 2:
-            await chat.send_message("Invalid syntax.", bot.msg_creator)
-            return
-        try:
-            if len(args) == 2:
-                year = int(args[1])
-            else:
-                year = util.current_time().year
             districts = await bot.tba.get_districts(year)
-        except ValueError:
-            await chat.send_message("Invalid year.", bot.msg_creator)
-            return
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                await chat.send_message("Year does not exist.", bot.msg_creator)
-            else:
-                await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
-            return
-        resp = f"# Districts for year {year}\n"
-        resp += "\n".join(f"- {district['display_name']} (**{district['abbreviation'].upper()}**)" for district in districts)
-        await chat.send_message(resp, bot.msg_creator)
-    elif args[0] == "dRankings":
-        if not 2 <= len(args) <= 4:
-            await chat.send_message("Invalid syntax.", bot.msg_creator)
-            return
-        try:
-            if len(args) >= 3:
-                year = int(args[2])
-            else:
-                year = util.current_time().year
-            key = str(year) + args[1].lower()
+            resp = f"# Districts for year {year}\n"
+            resp += "\n".join(f"- {district['display_name']} (**{district['abbreviation'].upper()}**)" for district in districts)
+            await chat.send_message(resp, bot.msg_creator)
+        elif args[0] == "dr" or args[0] == "drs":
+            try:
+                # pylint: disable=unbalanced-tuple-unpacking
+                dist, year, rng = util.parse_args(args[1:], ("district code", None), ("year", int, util.current_time().year), ("range", None, None))
+            except ValueError as e:
+                await chat.send_message(str(e), bot.msg_creator)
+                return
+            key = str(year) + dist.lower()
             rankings = await bot.tba.get_district_rankings(key)
             dis_teams = await bot.tba.get_district_teams(key)
             teams = {team["key"]: team for team in dis_teams}
-        except ValueError:
-            await chat.send_message("Invalid year.", bot.msg_creator)
-            return
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                await chat.send_message("District or year does not exist.", bot.msg_creator)
-            else:
-                await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
-            return
-        if not rankings:
-            await chat.send_message("No results.", bot.msg_creator)
-            return
-        # Parse the range
-        if len(args) >= 4:
-            try:
-                rankings = util.slice_range(rankings, args[3])
-            except ValueError:
-                await chat.send_message("Invalid range.", bot.msg_creator)
+            if not rankings:
+                await chat.send_message("No results.", bot.msg_creator)
                 return
-        if not rankings:
-            await chat.send_message("No results.", bot.msg_creator)
-            return
-        resp = f"# Rankings for district {args[1]} in {year}:\n"
-        resp += "Rank|Total Points|Event 1|Event 2|District Championship|Rookie Bonus|Team Number|Team Name\n---|---|---|---|---|---|---|---"
-        for r in rankings:
-            team = teams[r["team_key"]]
-            event1 = r["event_points"][0]["total"] if r["event_points"] else "Not Played"
-            event2 = r["event_points"][1]["total"] if len(r["event_points"]) >= 2 else "Not Played"
-            dcmp = r["event_points"][2]["total"] if len(r["event_points"]) >= 3 else "Not Played"
-            if len(r["event_points"]) >= 4:
-                dcmp += r["event_points"][3]["total"]
-            resp += f"\n{r['rank']}|{r['point_total']}|{event1}|{event2}|{dcmp}|{r['rookie_bonus']}|"
-            resp += f"{team['team_number']}|[{team['nickname']}]({TheBlueAlliance.TEAM_URL}{team['team_number']})"
-        await chat.send_message(resp, bot.msg_creator)
-    elif args[0] == "dEvents":
-        if not 2 <= len(args) <= 4:
-            await chat.send_message("Invalid syntax.", bot.msg_creator)
-            return
-        try:
-            if len(args) >= 3:
-                year = int(args[2])
-            else:
-                year = util.current_time().year
-            key = str(year) + args[1].lower()
+            # Parse the range
+            if rng:
+                try:
+                    rankings = util.slice_range(rankings, rng)
+                except ValueError:
+                    await chat.send_message("Invalid range.", bot.msg_creator)
+                    return
+            if not rankings:
+                await chat.send_message("No results.", bot.msg_creator)
+                return
+            title = f"# Rankings for district {args[1]} in {year}:\n"
+            header = "Rank|Total Points|Event 1|Event 2|District Championship|Rookie Bonus|Team Number|Team Name\n---|---|---|---|---|---|---|---\n"
+            def rankings_gen():
+                for r in rankings:
+                    team = teams[r["team_key"]]
+                    event1 = r["event_points"][0]["total"] if r["event_points"] else "Not Played"
+                    event2 = r["event_points"][1]["total"] if len(r["event_points"]) >= 2 else "Not Played"
+                    dcmp = r["event_points"][2]["total"] if len(r["event_points"]) >= 3 else "Not Played"
+                    if len(r["event_points"]) >= 4:
+                        dcmp += r["event_points"][3]["total"]
+                    row = f"{r['rank']}|{r['point_total']}|{event1}|{event2}|{dcmp}|{r['rookie_bonus']}|"
+                    row += f"{team['team_number']}|[{team['nickname']}]({TheBlueAlliance.TEAM_URL}{team['team_number']})"
+                    if team["team_number"] == config.frc_team:
+                        row = "|".join(f"=={val}==" for val in row.split("|"))
+                    yield row
+            for page in util.paginate(rankings_gen(), title, header):
+                await chat.send_message(page, bot.msg_creator)
+        elif args[0] == "de" or args[0] == "des":
+            try:
+                # pylint: disable=unbalanced-tuple-unpacking
+                dist, year, rng = util.parse_args(args[1:], ("district code", None), ("year", int, util.current_time().year), ("range", None, None))
+            except ValueError as e:
+                await chat.send_message(str(e), bot.msg_creator)
+                return
+            key = str(year) + dist.lower()
             # Order by week
             events = sorted(await bot.tba.get_district_events(key), key=lambda x: x["week"])
-        except ValueError:
-            await chat.send_message("Invalid year.", bot.msg_creator)
-            return
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                await chat.send_message("District or year does not exist.", bot.msg_creator)
-            else:
-                await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
-            return
-        if not events:
-            await chat.send_message("No results.", bot.msg_creator)
-            return
-        # Parse the range
-        if len(args) >= 4:
-            try:
-                try:
-                    # See if the input can be parsed as a single int
-                    # since it has a different behavior as the usual slicing
-                    weeks = [int(args[3])]
-                except ValueError:
-                    # Slice to get the weeks that we want
-                    # Account for 1-based indexing
-                    weeks = util.slice_range(range(1, events[-1]["week"] + 2), args[3])
-                events = [event for event in events if (event["week"] + 1) in weeks]
-            except ValueError:
-                await chat.send_message("Invalid range.", bot.msg_creator)
+            if not events:
+                await chat.send_message("No results.", bot.msg_creator)
                 return
-        if not events:
-            await chat.send_message("No results.", bot.msg_creator)
-            return
-        await chat.send_message("\n\n".join(TheBlueAlliance.format_event(event) for event in events), bot.msg_creator)
-    else:
-        await chat.send_message("Invalid sub-command. Check `@latexbot help tba` to see valid commands.", bot.msg_creator)
+            # Parse the range
+            if rng:
+                try:
+                    try:
+                        # See if the input can be parsed as a single int
+                        # since it has a different behavior as the usual slicing
+                        weeks = [int(rng)]
+                    except ValueError:
+                        # Slice to get the weeks that we want
+                        # Account for 1-based indexing
+                        weeks = util.slice_range(range(1, events[-1]["week"] + 2), rng)
+                    events = [event for event in events if event["week"] + 1 in weeks]
+                except ValueError:
+                    await chat.send_message("Invalid range.", bot.msg_creator)
+                    return
+            if not events:
+                await chat.send_message("No results.", bot.msg_creator)
+                return
+            def events_gen():
+                for event in events:
+                    yield TheBlueAlliance.format_event(event)
+            for page in util.paginate(events_gen(), "", ""):
+                await chat.send_message(page, bot.msg_creator)
+        elif args[0] == "e":
+            try:
+                # pylint: disable=unbalanced-tuple-unpacking
+                event_code, year = util.parse_args(args[1:], ("event code", None), ("year", int, util.current_time().year))
+            except ValueError as e:
+                await chat.send_message(str(e), bot.msg_creator)
+                return
+            event = await bot.tba.get_event(str(year) + event_code.lower())
+            await chat.send_message(TheBlueAlliance.format_event(event), bot.msg_creator)
+        elif args[0] == "er" or args[0] == "ers":
+            try:
+                # pylint: disable=unbalanced-tuple-unpacking
+                event_code, year, rng = util.parse_args(args[1:], ("event code", None), ("year", int, util.current_time().year), ("range", None, None))
+            except ValueError as e:
+                await chat.send_message(str(e), bot.msg_creator)
+                return
+            key = str(year) + event_code.lower()
+            rankings = await bot.tba.get_event_rankings(key)
+            if not rankings:
+                await chat.send_message("No results.", bot.msg_creator)
+                return
+            if rng:
+                try:
+                    team_rankings = util.slice_range(rankings["rankings"], rng)
+                except ValueError:
+                    await chat.send_message("Invalid range.", bot.msg_creator)
+                    return
+            else:
+                team_rankings = rankings["rankings"]
+            if not rankings:
+                await chat.send_message("No results.", bot.msg_creator)
+                return
+            title = f"# Rankings for event [{args[1]}]({TheBlueAlliance.EVENT_URL}{key}#rankings) in {year}:\n"
+            header = "Rank|Team|" + "|".join(i["name"] for i in rankings["sort_order_info"])
+            header += "|Record (W-L-T)|DQ|Matches Played|" + "|".join(i["name"] for i in rankings["extra_stats_info"]) + "\n"
+            header += "|".join("---" for i in range(len(rankings["extra_stats_info"]) + len(rankings["sort_order_info"]) + 5))
+            header += "\n"
+            def rankings_gen():
+                for r in team_rankings:
+                    # The zip is used because sometimes sort_orders contain more values than names in sort_order_info
+                    row = f"{r['rank']}|[{r['team_key'][3:]}]({TheBlueAlliance.TEAM_URL}{r['team_key'][3:]})|"
+                    row += "|".join(str(stat) for stat, _ in zip(r["sort_orders"], rankings["sort_order_info"]))
+                    row += f"|{r['record']['wins']}-{r['record']['losses']}-{r['record']['ties']}|{r['dq']}|{r['matches_played']}|"
+                    row += "|".join(str(stat) for stat in r["extra_stats"])
+                    if int(r["team_key"][3:]) == config.frc_team:
+                        row = "|".join(f"=={val}==" for val in row.split("|"))
+                    yield row
+            for page in util.paginate(rankings_gen(), title, header):
+                await chat.send_message(page, bot.msg_creator)
+        else:
+            await chat.send_message("Invalid sub-command. Check `@latexbot help tba` to see valid commands.", bot.msg_creator)
+    except aiohttp.ClientResponseError as e:
+        if e.status == 404:
+            await chat.send_message("The requested info does not exist.", bot.msg_creator)
+        else:
+            await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
 
 
 async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument

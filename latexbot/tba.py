@@ -89,6 +89,30 @@ class TheBlueAlliance:
         The district is provided as a district code.
         """
         return await self._get_json(f"district/{district}/events")
+    
+    async def get_event(self, event: str) -> JSONObj:
+        """
+        Get info about an event.
+
+        The event is provided as a event code.
+        """
+        return await self._get_json(f"event/{event}")
+    
+    async def get_event_rankings(self, event: str) -> JSONObj:
+        """
+        Get info about an event's rankings.
+
+        The event is provided as a event code.
+        """
+        return await self._get_json(f"event/{event}/rankings")
+    
+    async def get_event_teams(self, event: str) -> JSONObjList:
+        """
+        Get info about the teams in an event.
+
+        The event is provided as a event code.
+        """
+        return await self._get_json(f"event/{event}/teams")
         
     @classmethod
     def format_addr(cls, addr: JSONObj) -> str:
@@ -134,4 +158,8 @@ class TheBlueAlliance:
             msg += f" in the {event['district']['display_name']} district."
         else:
             msg += "."
+        msg += f" [Event Website]({event['website']})"
+        if event.get("division_keys"):
+            msg += f"  \nThis event has **{len(event['division_keys'])} divisions**: " + ", ".join(f"[{div[4:].upper()}]({cls.EVENT_URL}{div})" for div in event["division_keys"])
+        msg += "  \nWebcasts: " + ", ".join(f"[{cast['channel']}](https://twitch.tv/{cast['channel']})" if cast["type"] == "twitch" else cast["channel"] for cast in event["webcasts"])
         return msg

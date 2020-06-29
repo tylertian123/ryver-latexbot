@@ -301,3 +301,59 @@ def slice_range(l: typing.List[_T], r: str) -> typing.List[_T]:
         return l[int(start) - 1:int(end)]
     else:
         return l[:int(r)]
+
+
+def parse_args(args: typing.Iterable[str], *syntax: typing.Union[typing.Tuple[str, typing.Callable[[str], typing.Any]], typing.Tuple[str, typing.Callable[[str], typing.Any], typing.Any]]) -> typing.List[typing.Any]:
+    """
+    Parse arguments. 
+
+    The args should be an iterable of strings representing the values of the args.
+    The syntax should each be tuples of either 2 or 3 elements, containing
+    (name, func, default), where func will be used to evaluate the value of the
+    argument, and default is an optional default value for the argument if not supplied.
+    If the func is None, then the string value will be used directly.
+    """
+    if len(args) > len(syntax):
+        raise ValueError("Too many arguments!")
+    results = []
+    for i, s in enumerate(syntax):
+        if i >= len(args):
+            if len(s) == 3:
+                results.append(s[2])
+            else:
+                raise ValueError(f"Not enough arguments! Please supply a value for '{s[0]}'.")
+        else:
+            try:
+                results.append(s[1](args[i]) if s[1] else args[i])
+            except ValueError as e:
+                raise ValueError(f"{args[i]} is not a valid value for '{s[0]}': {e}")
+    return results
+
+
+def paginate(text: typing.Iterable[str], title: str = "", header: str = "", limit: int = 3900) -> typing.Generator[str, str, None]: 
+    r""" 
+    Break up rows of text into pages. 
+ 
+    Only the first page will have the title, while the header is added to every page. 
+    The length of each page will not exceed the limit, excluding the page number message 
+    at the end. Page numbers will not be added if there is only one page.
+    """ 
+    pages = [] 
+    page = None
+    for row in text:
+        if page is None:
+            page = title + header
+            new_page = page + row
+        else:
+            new_page = page + "\n" + row
+        if len(new_page) < limit: 
+            page = new_page 
+        else: 
+            pages.append(page) 
+            page = header + row 
+    pages.append(page) 
+    for i, page in enumerate(pages):
+        if len(pages) == 1:
+            yield page
+        else:
+            yield page + f"\n\n*Page {i + 1} of {len(pages)}*"
