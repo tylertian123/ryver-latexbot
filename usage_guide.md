@@ -18,12 +18,15 @@ This guide is for LaTeX Bot v0.6.0.
     - [Playing the Game](#playing-the-game)
     - [Ending the Game](#ending-the-game)
     - [Adding Custom Trivia Questions](#adding-custom-trivia-questions)
+- [The Blue Alliance (TBA) Integration](#the-blue-alliance-tba-integration)
 - [Google Calendar Integration](#google-calendar-integration)
   - [Checking Events](#checking-events)
   - [Managing Events](#managing-events)
     - [Adding Events](#adding-events)
     - [Deleting Events](#deleting-events)
 - [GitHub Integration](#github-integration)
+  - [Update Messages](#update-messages)
+  - [Issues/Pull Requests to Ryver Tasks](#issuespull-requests-to-ryver-tasks)
 - [Admin Usage](#admin-usage)
   - [Chat Admin Commands](#chat-admin-commands)
     - [`deleteMessages`](#deletemessages)
@@ -40,6 +43,7 @@ This guide is for LaTeX Bot v0.6.0.
   - [Command Prefixes](#command-prefixes)
   - [Access Rules](#access-rules)
   - [Updating Cached Chat Data](#updating-cached-chat-data)
+  - [Server](#server)
 - [Configuring LaTeX Bot](#configuring-latex-bot)
 
 # Access Levels
@@ -172,6 +176,38 @@ The JSON should have the following format:
   // ...
 }
 ```
+
+# The Blue Alliance (TBA) Integration
+The Blue Alliance (TBA) integration was added in version 0.6.0.
+It allows users to query info about FRC teams, districts and events using the `tba <sub-command> [args]` command.
+
+For more details, see the output of `@latexbot help tba`.
+
+Here is a list of supported actions:
+- `team <team>` - Get basic team info.
+- `teamEvents <team> [year]` - Get info about a team's events.
+- `districts [year]` - Get a list of all the districts.
+- `districtRankings <district> [year] [range]` - Get the team rankings for a district.
+- `districtEvents <district> [year] [week(s)]` - Get the events in a district.
+- `event <event> [year]` - Get info about an event.
+- `eventRankings <event> [year] [range]` - Get the rankings for an event.
+
+Note that districts and events are specified by code and not name, e.g. "ONT", "ONOSH" (case-insensitive).
+
+For all commands, the word "team" can be abbreviated as "t", "district(s)" can be abbreviated as "d",
+"event(s)" can be abbreviated as "e", and "ranking(s)" can be abbreviated as "r". They are also 
+case-insensitive.
+E.g. `districtEvents` can be abbreviated as `dEvents`, `districtE` or `dE`. 
+
+Some of these commands make use of *ranges*. A range can be one of the following:
+- A single number, e.g. "10" for the top 10 results.
+- Two numbers separated by a dash, e.g. "10-20" for the 10th result to the 20th result (inclusive).
+- A number followed by a plus, e.g. "10+", for everything after and including the 10th result.
+
+Additionally, if configured, LaTeX Bot will highlight the rows containing information about the team when displaying ranking tables.
+This requires the `"frcTeam"` field to be set in the JSON config.
+
+Please see the deployment guide for how to set it up.
 
 # Google Calendar Integration
 This section outlines commands and topics related to Google Calendar events integration in LaTeX Bot.
@@ -450,6 +486,7 @@ Below is an illustration of the JSON config file format:
   "googleCalendarId": "foo@group.calendar.google.com", // The ID of the calendar for Google Calendar Integration
   "dailyMessageTime": "00:00", // The time of day daily messages are sent, HH:MM
   "lastXKCD": 0, // The newest XKCD; used to determine if a comic is new; set automatically
+  "frcTeam": 6135, // The FRC team of the organization. Used to highlight info in tba.
   "commandPrefixes": [ // A list of command prefixes; see the Command Prefixes section for details
     "@latexbot ", // Note the space is required, otherwise @latexbotping would be parsed as a valid command
     "!l "

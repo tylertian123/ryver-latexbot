@@ -247,7 +247,10 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
     Some of these commands make use of *ranges*. A range can be one of the following:
     - A single number, e.g. "10" for the top 10 results.
     - Two numbers separated by a dash, e.g. "10-20" for the 10th result to the 20th result (inclusive).
-    - A number followed by a plus, e.g. `10+`, for everything after and including the 10th result.
+    - A number followed by a plus, e.g. "10+", for everything after and including the 10th result.
+
+    Additionally, if configured, LaTeX Bot will highlight the rows containing information about the team
+    when displaying ranking tables.
     ---
     group: General Commands
     syntax: <sub-command> [args]
@@ -298,7 +301,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
         elif args[0] == "ds" or args[0] == "d":
             try:
                 # pylint: disable=unbalanced-tuple-unpacking
-                year, = util.parse_args(args[1:], ("year", int))
+                year, = util.parse_args(args[1:], ("year", int, util.current_time().year))
             except ValueError as e:
                 await chat.send_message(str(e), bot.msg_creator)
                 return

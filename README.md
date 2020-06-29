@@ -8,6 +8,7 @@ It also comes with a lot of other neat features:
 - A Roles system allowing you to mention a group of users at a time
 - Google Calendar events integration
 - GitHub integration (updates and creating Ryver tasks for Issues and Pull Requests!)
+- The Blue Alliance integration (get FRC team/district/event info)
 - XKCDs and checkiday.com integration
 - Toggleable daily events reminders, new xkcd and holidays checks
 - Built-in singleplayer or multiplayer trivia game
@@ -34,6 +35,26 @@ Use `docker-compose build` to build LaTeX Bot's container, and then use `docker-
 Alternatively, you can also run LaTeX Bot directly using `python3 latexbot.py`.
 
 For more information on setting up LaTeX bot for your own organization, see `deployment_guide.md`.
+
+# Acknowledgements & Attribution
+This project is powered by:
+- XeTeX/LaTeX/TeX
+- Ryver (https://ryver.com/)
+- Checkiday (https://www.checkiday.com)
+- The Blue Alliance (https://www.thebluealliance.com)
+- Open Trivia Database (https://opentdb.com)
+- ~~QuickLaTeX (https://quicklatex.com/)~~ (Before v0.5.0)
+- Google Calendar
+- GitHub
+
+And uses the following open-source libraries:
+- [`aiohttp`](https://pypi.org/project/aiohttp/)
+- [`markdownify`](https://pypi.org/project/markdownify/)
+- [`python-dateutil`](https://pypi.org/project/python-dateutil/)
+- [`google-api-python-client` (+Friends)](https://pypi.org/project/google-api-python-client/)
+- [`pyryver`](https://pypi.org/project/pyryver/)
+
+Many thanks to the developers of these services and APIs for making LaTeX Bot possible.
 
 # Commands
 Here is a list of commands supported by LaTeX Bot (auto generated, as of c02100e):

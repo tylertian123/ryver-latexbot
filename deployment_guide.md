@@ -18,6 +18,15 @@ Separate to the main configuration file, you will probably need to do some tweak
 to a private registry, and unless you build the container on every single node in your swarm and tag it appropriately, you will need to to change the registry to your own private
 one; as the credentials for accessing Google Calendar are embedded in the container.
 
+### Setting Up The Blue Alliance (TBA) Integration
+To set up TBA integration, you will need to supply LaTeX Bot with a read token.
+Without this token, LaTeX Bot will not be able to query TBA.
+You can generate a Read API Key in your [Account Dashboard](https://www.thebluealliance.com/account).
+Copy the value of the key, and set it as the `LATEXBOT_TBA_KEY` env var.
+
+Additionally, if you wish to see your team number highlighted in the generated ranking tables, you need to set the `"frcTeam"` field in the JSON config.
+When this is set, LaTeX Bot will highlight rows containing info about your team in the output of `districtRankings` and `eventRankings`.
+
 ### Setting Up Google Calendar Integration
 
 For Google Calendar Integration to work, you will need to create a Google Cloud project and grant it access to the Google Calendar API.
