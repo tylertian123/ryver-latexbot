@@ -323,6 +323,14 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
             if not rankings:
                 await chat.send_message("No results.", bot.msg_creator)
                 return
+            # Get the ranking for the organization team
+            team_rank = None
+            if config.frc_team is not None:
+                team_key = "frc" + str(config.frc_team)
+                for r in rankings:
+                    if team_key == r["team_key"]:
+                        team_rank = r
+                        break
             # Parse the range
             if rng:
                 try:
@@ -334,6 +342,12 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                 await chat.send_message("No results.", bot.msg_creator)
                 return
             title = f"# Rankings for district {args[1]} in {year}:\n"
+            if team_rank is not None:
+                title += f"++Team {config.frc_team} ({teams[team_rank['team_key']]['nickname']}) ranked "
+                title += f"**{util.ordinal(team_rank['rank'])}** out of {len(teams)} teams"
+                if not rankings[0]["rank"] <= team_rank["rank"] <= rankings[-1]["rank"]:
+                    title += " (not included in the table below)"
+                title += ".++\n"
             header = "Rank|Total Points|Event 1|Event 2|District Championship|Rookie Bonus|Team Number|Team Name\n---|---|---|---|---|---|---|---\n"
             def rankings_gen():
                 for r in rankings:
@@ -407,6 +421,14 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
             if not rankings:
                 await chat.send_message("No results.", bot.msg_creator)
                 return
+            # Get the ranking for the organization team
+            team_rank = None
+            if config.frc_team is not None:
+                team_key = "frc" + str(config.frc_team)
+                for r in rankings["rankings"]:
+                    if team_key == r["team_key"]:
+                        team_rank = r
+                        break
             if rng:
                 try:
                     team_rankings = util.slice_range(rankings["rankings"], rng)
@@ -419,6 +441,11 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                 await chat.send_message("No results.", bot.msg_creator)
                 return
             title = f"# Rankings for event [{args[1]}]({TheBlueAlliance.EVENT_URL}{key}#rankings) in {year}:\n"
+            if team_rank is not None:
+                title += f"++Team {config.frc_team} ranked **{util.ordinal(team_rank['rank'])}** out of {len(rankings['rankings'])} teams"
+                if not team_rankings[0]["rank"] <= team_rank["rank"] <= team_rankings[-1]["rank"]:
+                    title += " (not included in the table below)"
+                title += ".++\n"
             header = "Rank|Team|" + "|".join(i["name"] for i in rankings["sort_order_info"])
             header += "|Record (W-L-T)|DQ|Matches Played|" + "|".join(i["name"] for i in rankings["extra_stats_info"]) + "\n"
             header += "|".join("---" for i in range(len(rankings["extra_stats_info"]) + len(rankings["sort_order_info"]) + 5))

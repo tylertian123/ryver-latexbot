@@ -331,7 +331,7 @@ def parse_args(args: typing.Iterable[str], *syntax: typing.Union[typing.Tuple[st
 
 
 def paginate(text: typing.Iterable[str], title: str = "", header: str = "", limit: int = 3900) -> typing.Generator[str, str, None]: 
-    r""" 
+    """ 
     Break up rows of text into pages. 
  
     Only the first page will have the title, while the header is added to every page. 
@@ -357,3 +357,15 @@ def paginate(text: typing.Iterable[str], title: str = "", header: str = "", limi
             yield page
         else:
             yield page + f"\n\n*Page {i + 1} of {len(pages)}*"
+
+
+def ordinal(n: int) -> str:
+    """
+    Return the ordinal representation of the given number, e.g. 1st, 2nd, etc.
+    """
+    if 10 <= n <= 20:
+        return str(n) + "th"
+    d = n % 10
+    if 1 <= d <= 3:
+        return str(n) + ["st", "nd", "rd"][d - 1]
+    return str(n) + "th"
