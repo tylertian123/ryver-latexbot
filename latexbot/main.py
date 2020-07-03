@@ -11,7 +11,7 @@ import os
 import util
 
 
-__version__ = "v0.6.0-dev"
+__version__ = "v0.6.0"
 
 DATA_DIR = "data/"
 CONFIG_FILE = DATA_DIR + "config.json"
