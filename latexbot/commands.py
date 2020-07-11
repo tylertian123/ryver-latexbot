@@ -6,11 +6,13 @@ import asyncio
 import config
 import io
 import json
+import lark
 import pyryver
 import random
 import re
 import render
 import shlex
+import simplelatex
 import sys
 import trivia
 import typing
@@ -41,7 +43,7 @@ async def command_render(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         try:
             img_data = await render.render(args, color="gray", transparent=True)
         except ValueError as e:
-            await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```")
+            await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```", bot.msg_creator)
             return
         file = (await chat.get_ryver().upload_file("formula.png", img_data, "image/png")).get_file()
         await chat.send_message(f"Formula: `{args}`\n![{args}]({file.get_url()})", bot.msg_creator)
@@ -64,12 +66,100 @@ async def command_chem(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
         try:
             img_data = await render.render(f"\\ce{{{args}}}", color="gray", transparent=True, extra_packages=["mhchem"])
         except ValueError as e:
-            await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```\n\nDid you forget to put spaces on both sides of the reaction arrow?")
+            await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```\n\nDid you forget to put spaces on both sides of the reaction arrow?". bot.msg_creator)
             return
         file = (await chat.get_ryver().upload_file("formula.png", img_data, "image/png")).get_file()
         await chat.send_message(f"Formula: `{args}`\n![{args}]({file.get_url()})", bot.msg_creator)
     else:
         await chat.send_message("Formula can't be empty.", bot.msg_creator)
+
+
+async def command_renderSimple(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    r"""
+    Render a "simple" mathematical expression.
+
+    Simple math expressions are designed to be easy to read and type, especially when compared to the
+    verbosity of LaTeX. For example, the expression `sin(sqrt(e^x + a) / 2)` is much easier to read than
+    `\sin\left(\frac{\sqrt{e^{x}+a}}{2}\right)`. Most of the supported operations are pretty intuitive,
+    such as entering a basic expression with brackets and arithmetic operations. Some things that may not 
+    be immediately obvious are outlined below.
+
+    Divisions are automatically converted into fractions and will follow order of operations.
+    Use brackets if you wish to make a large fraction, e.g. `(sinx+cos^2x)^2/(y+1)`.
+    
+    In expressions where brackets are unnecessary, such as fractions, powers, subscripts, etc, the outermost
+    brackets will be stripped away if there is a pair. This means that in many cases you can add brackets to 
+    clarify exactly what you mean, without having those brackets clutter up the final output. 
+
+    The `%` operator is a modulo. The `**` operator can be used for exponentiation in place of `^`.
+    There are also comparison operators, including `=`, `!=` (not equal), `>`, `<`, `>=` (greater than or
+    equal to) and `<=` (less than or equal to).
+
+    To do a function call, simply write out the function name and argument(s). Brackets are not necessary; e.g.
+    both `sin x`, and `sin(x)` are valid. Common functions will be automatically recognized, e.g. sin, cos, log,
+    etc. To use a custom function name, surround it with double quotes like `"func"(x)`. Function names will be
+    rendered with a different font (`\operatorname` in LaTeX) compared to variables. You can also put powers and
+    subscripts on them, e.g. `sin^2x`. Note that here because of order of operations only the 2 is in the power,
+    and the x is left as the argument to sin.
+
+    When implicitly multiplying a variable and a function, there needs to be a space between them. E.g. `x sinx`
+    and not `xsinx`, as the latter will get parsed as a single variable. There does not need to be a space 
+    between the function name and its argument, even when not using brackets.
+
+    To do a square root, cube root, or nth root use `sqrt x`, `cbrt x`, and `root[n] x` respectively.
+    Note that these operations only take a single value! Use brackets if you want to take the root
+    of an entire expression, e.g. `sqrt(1+1)`.
+
+    To do an integral, limit, summation or product, use one of the following:
+    - `int`, `iint`, `iiint`, `iiiint` - Integral, double integral, triple integral and quadruple integral
+    - `oint` - Contour integral
+    - `sum` - Summation
+    - `prod` - Product
+    The bounds can be specified with `_lower^upper`, e.g. `int_0^(x+1)` is an integral from 0 to x+1.
+
+    There is also a list of various single- and double-length arrows, such as `->`, `==>`, and two-directional
+    arrows such as `<->`. Note that the fat left arrow is `<<=` and not `<=`, because the latter is the
+    less-than-or-equal-to sign.
+
+    You can insert subscripts explicitly with `_`, e.g. `x_i`, or automatically by putting a number right
+    after a letter, e.g. `x1`.
+
+    You can use `inf` or `oo` for an infinity symbol and `...` for an ellipsis. 
+
+    Factorials (`!`), primes (`'`, `''`, ...) are also supported, along with square braces, curly braces and
+    absolute values.
+
+    To insert LaTeX directly into the output, surround it with $, e.g. `$\vec{v}$`.
+    To insert a single LaTeX command directly into the output, enter it directly with the backslash,
+    e.g. `sin\theta`.
+
+    *It should be noted that because of grammar ambiguities, expression parsing can take a long time for large
+    expressions or expressions with many possible interpretations. For this reason, if the conversion from 
+    simple expression to LaTeX expression does not finish in 20 seconds, it will time out.*
+    ---
+    group: General Commands
+    syntax: <expression>
+    ---
+    > `@latexbot renderSimple sin(sqrt(e^x + a) / 2)`
+    > `@latexbot renderSimple 5x^2/sinx`
+    > `@latexbot renderSimple d/(dx) f(x) = lim_(h->0) ((f(x+h)-f(x))/h)`
+    > `@latexbot renderSimple $\mathcal{L}${f(t)} = F(s) = int_0^inf f(t)e^(-st) dt`
+    """
+    def convert():
+        return simplelatex.str_to_latex(args)
+    try:
+        latex = await asyncio.wait_for(asyncio.get_event_loop().run_in_executor(None, convert), 20.0)
+        try:
+            img_data = await render.render(latex, color="gray", transparent=True)
+        except ValueError as e:
+            await chat.send_message(f"Internal Error: Invalid LaTeX generated! Error:\n```\n{e}\n```", bot.msg_creator)
+            return
+        file = (await chat.get_ryver().upload_file("expression.png", img_data, "image/png")).get_file()
+        await chat.send_message(f"Simple expression: `{args}`  \nLaTeX: `{latex}`\n![{args}]({file.get_url()})", bot.msg_creator)
+    except lark.LarkError as e:
+        await chat.send_message(f"Error during expression parsing:\n```\n{e}\n```", bot.msg_creator)
+    except asyncio.TimeoutError:
+        await chat.send_message("Error: Operation timed out! Try entering a smaller expression or using LaTeX directly.", bot.msg_creator)
 
 
 async def command_help(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
@@ -1577,7 +1667,7 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         else:
             resp = "All aliases:"
             for alias in config.aliases:
-                resp += f"\n* `{alias['from']}` \u2192 `{alias['to']}"
+                resp += f"\n* `{alias['from']}` \u2192 `{alias['to']}`"
         await chat.send_message(resp, bot.msg_creator)
         return
 

@@ -69,6 +69,7 @@ class LatexBot:
         self.commands = CommandSet()
         self.commands.add_command(Command("render", commands.command_render, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("chem", commands.command_chem, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("renderSimple", commands.command_renderSimple, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("help", commands.command_help, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("ping", commands.command_ping, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("whatDoYouThink", commands.command_whatDoYouThink, Command.ACCESS_LEVEL_EVERYONE))
