@@ -65,6 +65,7 @@ class Server:
         self.app.router.add_get("/config", self._config_handler)
         self.app.router.add_get("/roles", self._roles_handler)
         self.app.router.add_get("/trivia", self._trivia_handler)
+        self.app.router.add_get("/analytics", self._analytics_handler)
         self.app.router.add_post("/github", self._github_handler)
         self.app.router.add_post("/message", self._message_handler_post)
         self.app.router.add_get("/message", self._message_handler_get)
@@ -278,6 +279,7 @@ class Server:
     <a href="/config">View Config</a><br/>
     <a href="/roles">View Roles</a><br/>
     <a href="/trivia">View Trivia</a><br/>
+    <a href="/analytics">View Analytics (JSON)</a><br/>
     <a href="https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md">Usage Guide</a><br/>
     <a href="/message">Send a message</a><br/>
 </p>
@@ -306,6 +308,17 @@ class Server:
         """
         with open(self.bot.trivia_file, "r") as f:
             return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
+    
+    @basicauth("Analytics")
+    async def _analytics_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+        """
+        Handle a GET request to /analytics.
+        """
+        if self.bot.analytics is None:
+            return aiohttp.web.Response(status=404)
+        else:
+            with open(self.bot.analytics.file, "r") as f:
+                return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
     
     @basicauth("Message Sending")
     async def _message_handler_post(self, req: aiohttp.web.Request):

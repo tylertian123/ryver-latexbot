@@ -1,3 +1,4 @@
+import analytics
 import asyncio
 import commands
 import config
@@ -21,7 +22,7 @@ class LatexBot:
     An instance of LaTeX Bot.
     """
 
-    def __init__(self, version: str, debug: bool = False):
+    def __init__(self, version: str, analytics_file: str = None, debug: bool = False):
         self.debug = debug
         if debug:
             self.version = version + f" (DEBUG: pyryver v{pyryver.__version__})"
@@ -49,6 +50,8 @@ class LatexBot:
 
         self.trivia_file = None # type: str
         self.trivia_games = {} # type: typing.Dict[int, trivia.LatexBotTriviaGame]
+
+        self.analytics = analytics.Analytics(analytics_file) if analytics_file is not None else None
 
         self.daily_msg_task = None # type: typing.Awaitable
 
@@ -391,6 +394,8 @@ class LatexBot:
                 
                 if preprocessed:
                     command, args = preprocessed
+                    if self.analytics:
+                        self.analytics.command(command, args, from_user, to)
                     # Processing for re-enabling after disable
                     if (command == "setEnabled" and args == "true") or command == "wakeUp":
                         # Send the presence change anyways in case it gets messed up
