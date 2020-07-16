@@ -456,9 +456,11 @@ In addition to receiving inbound webhooks, you will also find some helpful diagn
 as well as access the config JSON, roles JSON and custom trivia questions JSON at `/config`, `/roles` and `/trivia` respectively,
 and send messages by POSTing to `/message` with a `chat` and `message`.
 
-To prevent information leakage, LaTeX Bot can ask for a username and password when attempting to access `/config`, `/roles`, `/trivia` and `/message`.
-The username must be `latexbot` and the password should be the value of the `LATEXBOT_SERVER_AUTH` environment variable.
-If this variable is unset or has an empty string as the value, LaTeX Bot will not ask for auth.
+To prevent information leakage, LaTeX Bot will ask for credentials when accessing some pages such as `/config` or `/message`.
+There are 3 usernames you can login with, `read`, `write` and `admin`, each with a different level of access.
+For example, `/config` requires `read` or higher, but `/message` requires `/write` or higher.
+The passwords for each of these logins can be set with the environment variables `LATEXBOT_SERVER_AUTH_READ`, `LATEXBOT_SERVER_AUTH_WRITE`, and `LATEXBOT_SERVER_AUTH_ADMIN` respectively.
+If the password for a login is not set, it will be disabled.
 
 # Configuring LaTeX Bot
 This section outlines the usage of the config file.
