@@ -265,26 +265,14 @@ class Server:
         """
         Handle a GET request to /.
         """
-        GREEN_DOT = "\U0001F7E2"
-        RED_DOT = "\U0001F534"
-        msg = self.format_page(f"""
-<h1>LaTeX Bot {self.bot.version}</h1>
-<p>
-    Server: {GREEN_DOT} OK<br/>
-    Daily Message: {f"{RED_DOT} NOT SCHEDULED" if self.bot.daily_msg_task.done() else f"{GREEN_DOT} OK"}<br/>
-    Started On: {self.bot.start_time.strftime(util.DATE_FORMAT)}<br/>
-    Uptime: {util.current_time() - self.bot.start_time}<br/>
-</p>
-<p>
-    <a href="/config">View Config</a><br/>
-    <a href="/roles">View Roles</a><br/>
-    <a href="/trivia">View Trivia</a><br/>
-    <a href="/analytics">View Analytics (JSON)</a><br/>
-    <a href="https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md">Usage Guide</a><br/>
-    <a href="/message">Send a message</a><br/>
-</p>
-        """)
-        return aiohttp.web.Response(text=msg, status=200, content_type="text/html")
+        daily_msg_status = "\U0001F534 NOT SCHEDULED" if self.bot.daily_msg_task.done() else f"\U0001F7E2 OK"
+        start_time = self.bot.start_time.strftime(util.DATE_FORMAT)
+        uptime = util.current_time() - self.bot.start_time
+        with open("latexbot/html/home.html", "r") as f:
+            html = self.format_page(f.read().format(
+                version=self.bot.version, server_status="\U0001F7E2 OK", daily_msg_status=daily_msg_status,
+                start_time=start_time, uptime=uptime))
+        return aiohttp.web.Response(text=html, status=200, content_type="text/html")
     
     @basicauth("Configuration")
     async def _config_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
@@ -344,21 +332,9 @@ class Server:
         """
         Handle a GET request to /message.
         """
-        msg = self.format_page(f"""
-<h1>Send a message</h1>
-<form action="/message" method="POST" target="result_frame">
-    <label for="chat">To Chat:</label><br/>
-    <input type="text" id="chat" name="chat" placeholder="name=Test"/><br/>
-    <label for="message">Message:</label><br/>
-    <input type="text" id="message" name="message"/><br/>
-    <input type="submit" value="Send"/>
-</form>
-<p>
-    Message ID:<br/>
-    <iframe name="result_frame"/>
-</p>
-        """)
-        return aiohttp.web.Response(text=msg, status=200, content_type="text/html")
+        with open("latexbot/html/message.html", "r") as f:
+            html = self.format_page(f.read())
+        return aiohttp.web.Response(text=html, status=200, content_type="text/html")
     
     @classmethod
     def verify_signature(cls, secret: str, signature: str, data: str) -> bool:
@@ -374,19 +350,10 @@ class Server:
         """
         Format the HTML for a page.
         """
-        return f"""
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8"/>
-        <title>{title or f"LaTeX Bot {self.bot.version}"}</title>
-        <link rel="icon" type="image/png" href="{self.bot.user_avatars.get(self.bot.user.get_id(), "")}"/>
-    </head>
-    <body>
-        {body}
-    </body>
-</html>
-        """
+        title = title or f"LaTeX Bot " + self.bot.version
+        icon_href = self.bot.user_avatars.get(self.bot.user.get_id(), "")
+        with open("latexbot/html/template.html", "r") as f:
+            return f.read().format(title=title, icon_href=icon_href, body=body)
 
 
 import latexbot # nopep8 # pylint: disable=unused-import

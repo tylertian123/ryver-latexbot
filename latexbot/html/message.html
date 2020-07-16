@@ -1,0 +1,12 @@
+<h1>Send a message</h1>
+<form action="/message" method="POST" target="result_frame">
+    <label for="chat">To Chat:</label><br/>
+    <input type="text" id="chat" name="chat" placeholder="name=Test"/><br/>
+    <label for="message">Message:</label><br/>
+    <input type="text" id="message" name="message"/><br/>
+    <input type="submit" value="Send"/>
+</form>
+<p>
+    Message ID:<br/>
+    <iframe name="result_frame">
+</p>
