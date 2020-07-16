@@ -394,10 +394,10 @@ class LatexBot:
                 
                 if preprocessed:
                     command, args = preprocessed
-                    if self.analytics:
-                        self.analytics.command(command, args, from_user, to)
                     # Processing for re-enabling after disable
                     if (command == "setEnabled" and args == "true") or command == "wakeUp":
+                        if self.analytics:
+                            self.analytics.command(command, args, from_user, to)
                         # Send the presence change anyways in case it gets messed up
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
                         if not self.enabled:
@@ -408,6 +408,8 @@ class LatexBot:
                             await to.send_message("I'm already enabled.", self.msg_creator)
                         return
                     elif command == "setEnabled" and args == "false" and self.enabled:
+                        if self.analytics:
+                            self.analytics.command(command, args, from_user, to)
                         self.enabled = False
                         util.log(f"Disabled by user {from_user.get_name()}.")
                         await to.send_message("I have been disabled.", self.msg_creator)
@@ -428,6 +430,8 @@ class LatexBot:
                                     await to.send_message(Command.get_access_denied_message(), self.msg_creator)
                                     util.log("Access Denied")
                                 else:
+                                    if self.analytics:
+                                        self.analytics.command(command, args, from_user, to)
                                     util.log("Command processed.")
                             except Exception as e: # pylint: disable=broad-except
                                 util.log(f"Exception raised:\n{format_exc()}")

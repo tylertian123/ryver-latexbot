@@ -68,6 +68,8 @@ class Server:
         self.app = None # type: aiohttp.web.Application()
         self.runner = None # type: aiohttp.web.AppRunner
         self.site = None # type: aiohttp.web.TCPSite
+
+        self.icon_href = self.bot.user_avatars.get(self.bot.user.get_id(), "")
     
     async def start(self, port: int = 80):
         """
@@ -79,6 +81,7 @@ class Server:
         self.app.router.add_get("/roles", self._roles_handler)
         self.app.router.add_get("/trivia", self._trivia_handler)
         self.app.router.add_get("/analytics", self._analytics_handler)
+        self.app.router.add_get("/analytics-ui", self._analytics_ui_handler)
         self.app.router.add_post("/github", self._github_handler)
         self.app.router.add_post("/message", self._message_handler_post)
         self.app.router.add_get("/message", self._message_handler_get)
@@ -316,7 +319,7 @@ class Server:
         Handle a GET request to /analytics.
         """
         if self.bot.analytics is None:
-            return aiohttp.web.Response(status=404)
+            return aiohttp.web.Response(text="Analytics are not enabled.", status=404)
         else:
             with open(self.bot.analytics.file, "r") as f:
                 return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
@@ -346,7 +349,21 @@ class Server:
         Handle a GET request to /message.
         """
         with open("latexbot/html/message.html", "r") as f:
-            html = self.format_page(f.read())
+            html = self.format_page(f.read(), "Send a message")
+        return aiohttp.web.Response(text=html, status=200, content_type="text/html")
+    
+    @basicauth("read", "Analytics UI")
+    async def _analytics_ui_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+        """
+        Handle a GET request to /analytics-ui.
+        """
+        if self.bot.analytics is None:
+            return aiohttp.web.Response(text="Analytics are not enabled.", status=404)
+        cmd_usage_data = {cmd: sum(usage.values()) for cmd, usage in self.bot.analytics.command_usage.items()}
+        with open("latexbot/html/analytics-ui.html", "r") as f:
+            with open("latexbot/html/analytics-ui-script.js") as s:
+                html = self.format_page(f.read().format(usage_chart_data=list(cmd_usage_data.values()),
+                    usage_chart_labels=list(cmd_usage_data.keys()), script=s.read()), "Analytics")
         return aiohttp.web.Response(text=html, status=200, content_type="text/html")
     
     @classmethod
@@ -363,10 +380,12 @@ class Server:
         """
         Format the HTML for a page.
         """
-        title = title or f"LaTeX Bot " + self.bot.version
-        icon_href = self.bot.user_avatars.get(self.bot.user.get_id(), "")
+        if title is not None:
+            title = title + " | LaTeX Bot " + self.bot.version
+        else:
+            title = "LaTeX Bot " + self.bot.version
         with open("latexbot/html/template.html", "r") as f:
-            return f.read().format(title=title, icon_href=icon_href, body=body)
+            return f.read().format(title=title, icon_href=self.icon_href, body=body)
 
 
 import latexbot # nopep8 # pylint: disable=unused-import

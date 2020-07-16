@@ -11,7 +11,7 @@ class Analytics:
 
     def __init__(self, file: str):
         self.file = file
-        self.command_usage = {} # typing.Dict[int, typing.Dict[str, str]]
+        self.command_usage = {} # typing.Dict[int, typing.Dict[str, int]]
         self.shutdowns = [] # typing.List[int]
         try:
             with open(file, "r") as f:
