@@ -359,11 +359,17 @@ class Server:
         """
         if self.bot.analytics is None:
             return aiohttp.web.Response(text="Analytics are not enabled.", status=404)
-        cmd_usage_data = {cmd: sum(usage.values()) for cmd, usage in self.bot.analytics.command_usage.items()}
+        cmd_usage = {
+            cmd: {
+                self.bot.ryver.get_user(id=int(user)).get_username(): count
+                for user, count in usage.items()}
+            for cmd, usage in self.bot.analytics.command_usage.items()}
         with open("latexbot/html/analytics-ui.html", "r") as f:
             with open("latexbot/html/analytics-ui-script.js") as s:
-                html = self.format_page(f.read().format(usage_chart_data=list(cmd_usage_data.values()),
-                    usage_chart_labels=list(cmd_usage_data.keys()), script=s.read()), "Analytics")
+                html = self.format_page(f.read().format(data={
+                    "commandUsage": cmd_usage,
+                    "shutdowns": self.bot.analytics.shutdowns,
+                }, script=s.read()), "Analytics")
         return aiohttp.web.Response(text=html, status=200, content_type="text/html")
     
     @classmethod
