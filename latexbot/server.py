@@ -365,11 +365,14 @@ class Server:
                 self.bot.ryver.get_user(id=int(user)).get_username(): count
                 for user, count in usage.items()}
             for cmd, usage in self.bot.analytics.command_usage.items()}
+        msg_activity = {self.bot.ryver.get_user(id=int(user)).get_username(): size
+            for user, size in self.bot.analytics.message_activity.items()}
         with open("latexbot/html/analytics-ui.html", "r") as f:
             with open("latexbot/html/analytics-ui-script.js") as s:
                 html = self.format_page(f.read().format(data={
                     "commandUsage": cmd_usage,
                     "shutdowns": self.bot.analytics.shutdowns,
+                    "messageActivity": msg_activity,
                     "timestamp": int(time.time())
                 }, script=s.read()), "Analytics")
         return aiohttp.web.Response(text=html, status=200, content_type="text/html")

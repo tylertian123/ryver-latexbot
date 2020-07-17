@@ -67,6 +67,33 @@ window.onload = function() {
         }
     });
 
+    var messageActivity = [];
+    for (const user in data.messageActivity) {
+        messageActivity.push([user, data.messageActivity[user]]);
+    }
+    messageActivity = messageActivity.sort((a, b) => b[1] - a[1]).slice(0, 20);
+    var messageActivityChart = new Chart(document.getElementById("msg-activity"), {
+        type: "bar",
+        data: {
+            datasets: [{
+                label: "Total message size (characters)",
+                data: messageActivity.map(x => x[1]),
+                backgroundColor: genColors(messageActivity.length, 0.5),
+            }],
+            labels: messageActivity.map(x => x[0]),
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true,
+                        precision: 0
+                    }
+                }]
+            }
+        }
+    });
+
     var uptime = 0;
     var reboots = 0;
     var firstUp;

@@ -13,12 +13,14 @@ class Analytics:
     def __init__(self, file: str):
         self.file = file
         self.command_usage = {} # typing.Dict[int, typing.Dict[str, int]]
+        self.message_activity = {} # typing.Dict[int, int]
         self.shutdowns = [] # typing.List[int]
         try:
             with open(file, "r") as f:
                 data = json.load(f)
             self.command_usage = data.get("commandUsage") or self.command_usage
             self.shutdowns = data.get("shutdowns") or self.shutdowns
+            self.message_activity = data.get("messageActivity") or self.message_activity
         except (IOError, json.JSONDecodeError):
             pass
         self.shutdowns.append(int(time.time()) << 1 | 0x1)
@@ -42,6 +44,16 @@ class Analytics:
         else:
             self.command_usage[cmd][uid] = 1
     
+    def message(self, body: str, user: pyryver.User) -> None:
+        """
+        Record a message.
+        """
+        uid = str(user.get_id())
+        if uid in self.message_activity:
+            self.message_activity[uid] += len(body)
+        else:
+            self.message_activity[uid] = len(body)
+    
     def save(self) -> None:
         """
         Save data to the file.
@@ -53,6 +65,7 @@ class Analytics:
         data = {
             "commandUsage": self.command_usage,
             "shutdowns": self.shutdowns + [now << 1],
+            "messageActivity": self.message_activity,
         }
         with open(self.file, "w") as f:
             json.dump(data, f)

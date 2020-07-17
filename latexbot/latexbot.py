@@ -383,6 +383,9 @@ class LatexBot:
                     is_dm = True
                 else:
                     is_dm = False
+                
+                if self.analytics is not None:
+                    self.analytics.message(msg.text, from_user)
 
                 try:
                     preprocessed = self.preprocess_command(msg.text, is_dm)
