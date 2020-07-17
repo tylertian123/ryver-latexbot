@@ -449,12 +449,22 @@ If this ever happens, run the `updateChats` command to update the cache.
 This usually should not be necessary, as the chat cache is updated automatically as part of the daily message routine.
 However, disabling daily messages will also disable the automatic refreshes, so this command may be necessary.
 
+## Analytics
+You can enable analytics to collect data about usage of LaTeX Bot commands, member message activity, etc.
+Enable it by setting the `LATEXBOT_ANALYTICS` env var to a value of `1`.
+When enabled, the data is accessible through the web server (see below).
+You can access the raw JSON of the data at `/analytics` and the Analytics Dashboard at `/analytics-ui`.
+
 ## Server
 In order to receive inbound webhooks for GitHub integration, LaTeX Bot hosts a web server.
 By default, this is on port 80, and can be changed by specifying the `LATEXBOT_SERVER_PORT` environment variable.
-In addition to receiving inbound webhooks, you will also find some helpful diagnostic info at `/`,
-as well as access the config JSON, roles JSON and custom trivia questions JSON at `/config`, `/roles` and `/trivia` respectively,
-and send messages by POSTing to `/message` with a `chat` and `message`.
+In addition to receiving inbound webhooks, there are also these pages:
+  - `/config` - Config JSON (read).
+  - `/roles` - Roles JSON (read).
+  - `/trivia` - Custom Trivia Questions JSON (read).
+  - `/analytics` - Analytics Data JSON (if enabled) (read).
+  - `/analytics-ui` - Analytics Dashboard (if enabled) (read).
+  - `/message` - UI or POST endpoint for sending messages (write).
 
 To prevent information leakage, LaTeX Bot will ask for credentials when accessing some pages such as `/config` or `/message`.
 There are 3 usernames you can login with, `read`, `write` and `admin`, each with a different level of access.

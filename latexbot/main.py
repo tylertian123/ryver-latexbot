@@ -20,9 +20,11 @@ TRIVIA_FILE = DATA_DIR + "trivia.json"
 ANALY_FILE = DATA_DIR + "analytics.json"
 
 async def main():
-    debug = os.environ.get("LATEXBOT_DEBUG", "0") != "0"
-    
-    bot = latexbot.LatexBot(__version__, ANALY_FILE, debug)
+    debug = os.environ.get("LATEXBOT_DEBUG") == "1"
+    if os.environ.get("LATEXBOT_ANALYTICS") == "1":
+        bot = latexbot.LatexBot(__version__, ANALY_FILE, debug)
+    else:
+        bot = latexbot.LatexBot(__version__, debug=debug)
     await bot.init(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"], 
                    DATA_DIR, "latexbot-")
     await bot.load_files(CONFIG_FILE, ROLES_FILE, TRIVIA_FILE)
