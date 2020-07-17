@@ -8,6 +8,7 @@ import hmac
 import json
 import os
 import pyryver
+import time
 import typing
 import util
 
@@ -369,6 +370,7 @@ class Server:
                 html = self.format_page(f.read().format(data={
                     "commandUsage": cmd_usage,
                     "shutdowns": self.bot.analytics.shutdowns,
+                    "timestamp": int(time.time())
                 }, script=s.read()), "Analytics")
         return aiohttp.web.Response(text=html, status=200, content_type="text/html")
     

@@ -1,6 +1,7 @@
 import atexit
 import json
 import pyryver
+import signal
 import time
 
 
@@ -16,11 +17,18 @@ class Analytics:
         try:
             with open(file, "r") as f:
                 data = json.load(f)
-            self.command_usage = data["commandUsage"]
-            self.shutdowns = data["shutdowns"]
-        except (IOError, json.JSONDecodeError, KeyError):
+            self.command_usage = data.get("commandUsage") or self.command_usage
+            self.shutdowns = data.get("shutdowns") or self.shutdowns
+        except (IOError, json.JSONDecodeError):
             pass
-        atexit.register(self.save, True)
+        self.shutdowns.append(int(time.time()) << 1 | 0x1)
+
+        atexit.register(self.save)
+        def sig_handler(num, frame): # pylint: disable=unused-argument
+            self.save()
+            exit()
+        signal.signal(signal.SIGABRT, sig_handler)
+        signal.signal(signal.SIGTERM, sig_handler)
     
     def command(self, cmd: str, args: str, user: pyryver.User, chat: pyryver.Chat) -> None: # pylint: disable=unused-argument
         """
@@ -34,18 +42,17 @@ class Analytics:
         else:
             self.command_usage[cmd][uid] = 1
     
-    def save(self, shutdown: bool = False) -> None:
+    def save(self) -> None:
         """
         Save data to the file.
         """
-        if shutdown:
-            # Get rid of all shutdowns that are 30 days old or more
-            now = int(time.time())
-            self.shutdowns = [t for t in self.shutdowns if now - t < 2592000]
-            self.shutdowns.append(now)
+        # Get rid of all shutdowns/reboots that are 10 days or older
+        now = int(time.time())
+        self.shutdowns = [t for t in self.shutdowns if now - (t >> 1) < 86400]
+
         data = {
             "commandUsage": self.command_usage,
-            "shutdowns": self.shutdowns,
+            "shutdowns": self.shutdowns + [now << 1],
         }
         with open(self.file, "w") as f:
             json.dump(data, f)

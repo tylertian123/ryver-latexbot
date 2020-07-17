@@ -18,10 +18,10 @@ window.onload = function() {
     var cmdUsageCount = [];
     var cmdNames = [];
     var userCmdUsage = new Map();
-    for (cmd in data.commandUsage) {
+    for (const cmd in data.commandUsage) {
         cmdNames.push(cmd);
         let uses = 0;
-        for (user in data.commandUsage[cmd]) {
+        for (const user in data.commandUsage[cmd]) {
             const count = data.commandUsage[cmd][user];
             uses += count;
             if (userCmdUsage.has(user)) {
@@ -66,4 +66,56 @@ window.onload = function() {
             }
         }
     });
+
+    var uptime = 0;
+    var reboots = 0;
+    var firstUp;
+    var lastUp;
+    var lastDown;
+    for (let time of data.shutdowns) {
+        if (time & 0x1) {
+            reboots ++;
+            lastUp = time >>> 1;
+            if (firstUp === undefined) {
+                firstUp = lastUp;
+            }
+        }
+        else {
+            lastDown = time >>> 1;
+            if (lastUp !== undefined) {
+                uptime += lastDown - lastUp;
+            }
+        }
+    }
+    if (lastUp !== undefined) {
+        uptime += data.timestamp - lastUp;
+    }
+
+    var uptimeStats = (reboots - 1) + " reboots in the last 10 days.<br>";
+    if (data.shutdowns.length > 0) {
+        if (lastDown === undefined) {
+            uptimeStats += "No shutdowns recorded so far.<br>";
+        }
+        else {
+            uptimeStats += "Last recorded shutdown was at " + new String(new Date(lastDown * 1000)) + ".<br>";
+        }
+        if (firstUp !== undefined) {
+            let total = data.timestamp - firstUp;
+            uptimeStats += "LaTeX Bot was up " + (uptime / total * 100).toFixed(3) + "% of the time."
+            var uptimeChart = new Chart(document.getElementById("uptime-stats-chart"), {
+                type: "doughnut",
+                data: {
+                    datasets: [{
+                        data: [uptime, total - uptime],
+                        backgroundColor: ["hsl(124, 82%, 52%)", "hsl(347, 91%, 54%)"]
+                    }],
+                    labels: ["Up", "Down"]
+                }
+            });
+        }
+        else {
+            uptimeStats += "Not enough data to determine uptime percentage."
+        }
+    }
+    document.getElementById("uptime-stats-text").innerHTML = uptimeStats;
 }
