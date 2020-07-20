@@ -9,6 +9,7 @@ import json
 import os
 import pyryver
 import time
+import trivia
 import typing
 import util
 
@@ -303,16 +304,24 @@ class Server:
         """
         Handle a GET request to /roles.
         """
-        with open(self.bot.roles_file, "r") as f:
-            return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
+        try:
+            with open(self.bot.roles_file, "r") as f:
+                data = f.read()
+        except FileNotFoundError:
+            data = json.dumps(self.bot.roles.to_dict())
+        return aiohttp.web.Response(text=data, status=200, content_type="application/json")
     
     @basicauth("read", "Custom Trivia Questions")
     async def _trivia_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /trivia.
         """
-        with open(self.bot.trivia_file, "r") as f:
-            return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
+        try:
+            with open(self.bot.trivia_file, "r") as f:
+                data = f.read()
+        except FileNotFoundError:
+            data = json.dumps(trivia.CUSTOM_TRIVIA_QUESTIONS)
+        return aiohttp.web.Response(text=data, status=200, content_type="application/json")
     
     @basicauth("read", "Analytics")
     async def _analytics_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
@@ -321,9 +330,16 @@ class Server:
         """
         if self.bot.analytics is None:
             return aiohttp.web.Response(text="Analytics are not enabled.", status=404)
-        else:
+        try:
             with open(self.bot.analytics.file, "r") as f:
-                return aiohttp.web.Response(text=f.read(), status=200, content_type="application/json")
+                data = f.read()
+        except FileNotFoundError:
+            data = json.dumps({
+                "commandUsage": self.bot.analytics.command_usage,
+                "shutdowns": self.bot.analytics.shutdowns,
+                "messageActivity": self.bot.analytics.message_activity,
+            })
+        return aiohttp.web.Response(text=data, status=200, content_type="application/json")
     
     @basicauth("write", "Message Sending")
     async def _message_handler_post(self, req: aiohttp.web.Request):
@@ -367,14 +383,13 @@ class Server:
             for cmd, usage in self.bot.analytics.command_usage.items()}
         msg_activity = {self.bot.ryver.get_user(id=int(user)).get_username(): size
             for user, size in self.bot.analytics.message_activity.items()}
-        with open("latexbot/html/analytics-ui.html", "r") as f:
-            with open("latexbot/html/analytics-ui-script.js") as s:
-                html = self.format_page(f.read().format(data={
-                    "commandUsage": cmd_usage,
-                    "shutdowns": self.bot.analytics.shutdowns,
-                    "messageActivity": msg_activity,
-                    "timestamp": int(time.time())
-                }, script=s.read()), "Analytics")
+        with open("latexbot/html/analytics-ui.html", "r") as f, open("latexbot/html/analytics-ui-script.js") as s:
+            html = self.format_page(f.read().format(data={
+                "commandUsage": cmd_usage,
+                "shutdowns": self.bot.analytics.shutdowns,
+                "messageActivity": msg_activity,
+                "timestamp": int(time.time())
+            }, script=s.read()), "Analytics")
         return aiohttp.web.Response(text=html, status=200, content_type="text/html")
     
     @classmethod
