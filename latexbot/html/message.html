@@ -1,6 +1,13 @@
 <h1>Send a message</h1>
 <form action="/message" method="POST" target="result_frame">
-    <label for="chat">To Chat:</label><br/>
+    <label for="chat">
+        To Chat:<br/>
+        <small>
+            Chat can be specified using the syntax 
+            <code>[(name|nickname|username|email|id|jid)=][+|@]&lt;forum|team|user&gt;</code>.<br/>
+            For more information, see the <a href="https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md#the-standard-chat-lookup-syntax">Usage Guide</a>.
+        </small>
+    </label><br/>
     <input type="text" id="chat" name="chat" placeholder="name=Test"/><br/>
     <label for="message">Message:</label><br/>
     <input type="text" id="message" name="message"/><br/>

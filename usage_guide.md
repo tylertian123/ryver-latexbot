@@ -310,14 +310,16 @@ This is done using the Standard Chat Lookup Syntax (see below section).
 #### The Standard Chat Lookup Syntax
 The Standard Chat Lookup Syntax is specified by the following:
 ```
-[(name|nickname|email|id|jid)=][+]<forum|team|user>
+[(name|nickname|username|email|id|jid)=][+|@]<forum|team|user>
 ```
 Essentially, this means that you have several ways of specifying a chat (includes users too!):
   - Specify by name directly (e.g. "Programming"), without any additional specifiers.
-  - Specify by name, nickname, email, ID or JID (e.g. "nickname=Prog", "id=1303314").
+  - Specify by name, nickname, username, email, ID or JID (e.g. "nickname=Prog", "id=1303314").
     You can do this by putting the type of the query parameter before the value, with a = in between, as demonstrated in the examples. 
-    Note that if you're specifying by chat nickname (and *only* chat nickname), it is ok to have the chat nickname start with a + (e.g. "nickname=+Prog").
+    Note that if you're specifying by chat nickname, it is ok to have the chat nickname start with a + (e.g. "nickname=+Prog").
+    This also applies to specifying by username and using an @.
   - Specify using the Ryver nickname linking syntax, putting a + before the nickname (e.g. "+Prog").
+  - Specify using a user mention, putting a @ before the username (e.g. "@tylertian").
 
 Note: When specifying by name directly, queries are *case-sensitive* and must match *exactly* (including any leading/trailing whitespace).
 However, when specifying a username, email, or chat nickname, queries are case-insensitive (since these things are case-insensitive in the official app).
