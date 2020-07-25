@@ -60,7 +60,7 @@ class Analytics:
         """
         # Get rid of all shutdowns/reboots that are 10 days or older
         now = int(time.time())
-        self.shutdowns = [t for t in self.shutdowns if now - (t >> 1) < 86400]
+        self.shutdowns = [t for t in self.shutdowns if now - (t >> 1) < 864000]
 
         data = {
             "commandUsage": self.command_usage,

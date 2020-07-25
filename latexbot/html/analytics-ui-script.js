@@ -118,7 +118,13 @@ window.onload = function() {
         uptime += data.timestamp - lastUp;
     }
 
-    var uptimeStats = (reboots - 1) + " reboots in the last 10 days.<br>";
+    var uptimeStats;
+    if (reboots <= 1) {
+        uptimeStats = "No recorded reboots over a max period of 10 days.<br>"
+    }
+    else {
+        uptimeStats = (reboots - 1) + " recorded reboots over a max period of 10 days.<br>";
+    }
     if (data.shutdowns.length > 0) {
         if (lastDown === undefined) {
             uptimeStats += "No shutdowns recorded so far.<br>";
