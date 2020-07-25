@@ -939,7 +939,7 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     Note that reactions cannot be moved perfectly, and are instead shown with text.
     ---
     group: Administrative Commands
-    syntax: [<start>-]<end|count> [(name|nickname|id|jid)=][+]<forum|team>
+    syntax: [<start>-]<end|count> [(name|nickname|email|id|jid)=][+]<forum|team|user>
     ---
     > `@latexbot moveMessages 10 Off-Topic` - Move the last 10 messages to Off-Topic.
     > `@latexbot moveMessages 10-20 nickname=OffTopic` - Move the 10th last to 20th last messages (inclusive) to a forum/team with the nickname +OffTopic.

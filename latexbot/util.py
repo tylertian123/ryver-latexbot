@@ -64,13 +64,14 @@ async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing
 
 def parse_chat_name(ryver: pyryver.Ryver, name: str) -> pyryver.Chat:
     """
-    Parse a chat name expression in the form [(name|nickname|id|jid)=][+]<forum|team> and return the correct chat.
+    Parse a chat name expression in the form [(name|nickname|email|id|jid)=][+]<forum|team|user>
+    and return the correct chat.
     """
     match = CHAT_LOOKUP_REGEX.match(name) # type: re.Match
     if match:
         key = match.group(1)
         val = match.group(2)
-        if key not in ("name", "nickname", "id", "jid"):
+        if key not in ("name", "nickname", "id", "jid", "email"):
             raise ValueError(f"Invalid query param type: {key}")
         if key == "id":
             val = int(val)
@@ -83,6 +84,8 @@ def parse_chat_name(ryver: pyryver.Ryver, name: str) -> pyryver.Chat:
         # IDs and JIDs can be used to look up anything
         if key == "id" or key == "jid":
             return ryver.get_chat(**{key: val})
+        if key == "email":
+            return ryver.get_user(**{key: val})
         # Names are ambiguous, so try both
         return ryver.get_groupchat(**{key: val}) or ryver.get_user(**{key: val})
             
@@ -90,7 +93,7 @@ def parse_chat_name(ryver: pyryver.Ryver, name: str) -> pyryver.Chat:
     elif name.startswith("+"):
         name = name[1:]
         return ryver.get_groupchat(nickname=name)
-    return ryver.get_groupchat(name=name)
+    return ryver.get_groupchat(name=name) or ryver.get_user(name=name)
 
 
 def sanitize(msg: str) -> str:
