@@ -357,11 +357,6 @@ class LatexBot:
                 util.log("Error: Connection lost!")
                 await self.shutdown()
             
-            @session.on_error
-            async def _on_error(err: typing.Union[TypeError, ValueError]):
-                util.log(f"pyryver realtime error: {err}")
-                await self.shutdown()
-            
             @session.on_chat
             async def _on_chat(msg: pyryver.WSChatMessageData):
                 # Ignore non-chat messages
