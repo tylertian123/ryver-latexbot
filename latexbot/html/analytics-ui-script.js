@@ -1,3 +1,4 @@
+// Function for generation graph colours
 function genColors(count, alpha) {
     var h = 347;
     var s = 91;
@@ -15,11 +16,11 @@ function genColors(count, alpha) {
 }
 
 window.onload = function() {
-    var cmdUsageCount = [];
-    var cmdNames = [];
+    var cmdUsage = [];
     var userCmdUsage = new Map();
+    // Tally up various stats
     for (const cmd in data.commandUsage) {
-        cmdNames.push(cmd);
+        // Count each user's command usage and usage for every command
         let uses = 0;
         for (const user in data.commandUsage[cmd]) {
             const count = data.commandUsage[cmd][user];
@@ -31,20 +32,39 @@ window.onload = function() {
                 userCmdUsage.set(user, count);
             }
         }
-        cmdUsageCount.push(uses);
+        cmdUsage.push([cmd, uses]);
     }
+    // Sort the command usage data to only take the top 10
+    var usageChartColors;
+    cmdUsage = cmdUsage.sort((a, b) => b[1] - a[1])
+    if (cmdUsage.length > 10) {
+        // Sum up the usage of all commands past 10
+        var otherCount = cmdUsage.slice(11).reduce((a, b) => a + b[1], 0);
+        cmdUsage = cmdUsage.slice(0, 10);
+        cmdUsage.push(["Other", otherCount]);
+        // Special fixed colour for Other
+        usageChartColors = genColors(cmdUsage.length - 1);
+        usageChartColors.push("hsl(0, 0, 54)");
+    }
+    else {
+        usageChartColors = genColors(cmdUsage.length);
+    }
+    // Sort the user command usage map in descending order and only take the top 20 elements
+    userCmdUsage = new Map([...userCmdUsage.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20));
 
+    // Command usage doughnut chart
     var usageChartCmd = new Chart(document.getElementById("cmd-usage-cmd"), {
         type: "doughnut",
         data: {
             datasets: [{
-                data: cmdUsageCount,
-                backgroundColor: genColors(cmdNames.length)
+                data: cmdUsage.map((x) => x[1]),
+                backgroundColor: usageChartColors
             }],
-            labels: cmdNames
+            labels: cmdUsage.map((x) => x[0])
         }
     });
 
+    // Command usage by user bar chart
     var usageChartUserBar = new Chart(document.getElementById("cmd-usage-user"), {
         type: "bar",
         data: {
@@ -55,6 +75,7 @@ window.onload = function() {
             }],
             labels: Array.from(userCmdUsage.keys())
         },
+        // Start y axis at 0
         options: {
             scales: {
                 yAxes: [{
@@ -67,11 +88,14 @@ window.onload = function() {
         }
     });
 
+    // Count user message activity and take top 20
     var messageActivity = [];
     for (const user in data.messageActivity) {
         messageActivity.push([user, data.messageActivity[user]]);
     }
     messageActivity = messageActivity.sort((a, b) => b[1] - a[1]).slice(0, 20);
+
+    // Message activity bar chart
     var messageActivityChart = new Chart(document.getElementById("msg-activity"), {
         type: "bar",
         data: {
@@ -94,6 +118,7 @@ window.onload = function() {
         }
     });
 
+    // Calculate uptime stats
     var uptime = 0;
     var reboots = 0;
     var firstUp;
@@ -135,6 +160,8 @@ window.onload = function() {
         if (firstUp !== undefined) {
             let total = data.timestamp - firstUp;
             uptimeStats += "LaTeX Bot was up " + (uptime / total * 100).toFixed(3) + "% of the time."
+            // Uptime stats doughnut chart
+            // Only shown if data actually exists
             var uptimeChart = new Chart(document.getElementById("uptime-stats-chart"), {
                 type: "doughnut",
                 data: {
