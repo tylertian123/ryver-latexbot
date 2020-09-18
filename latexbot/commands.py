@@ -901,6 +901,8 @@ async def command_deleteMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, u
     > `@latexbot deleteMessages 10` - Delete the last 10 messages.
     > `@latexbot deleteMessages 10-20` - Delete the 10th last to 20th last messages, inclusive.
     """
+    if isinstance(chat, pyryver.User):
+        await chat.send_message("This command cannot be used in private messages.", bot.msg_creator)
     try:
         # Try and parse the range
         if "-" in args:
@@ -944,6 +946,8 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     > `@latexbot moveMessages 10 Off-Topic` - Move the last 10 messages to Off-Topic.
     > `@latexbot moveMessages 10-20 nickname=OffTopic` - Move the 10th last to 20th last messages (inclusive) to a forum/team with the nickname +OffTopic.
     """
+    if isinstance(chat, pyryver.User):
+        await chat.send_message("This command cannot be used in private messages.", bot.msg_creator)
     try:
         i = args.index(" ")
         msg_range = args[:i]
@@ -965,7 +969,7 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
         return
 
     try:
-        to = util.parse_chat_name(chat.get_ryver(), to_chat)
+        to = util.parse_chat_name(chat.get_ryver(), to_chat) # type: pyryver.Chat
         if not to:
             await chat.send_message("Chat not found.", bot.msg_creator)
             return
@@ -980,7 +984,7 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
         # Subtract 1 for 1-based indexing
         msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
 
-    await to.send_message(f"# Begin Moved Message\n\n---", bot.msg_creator)
+    await to.send_message(f"# Begin Moved Message from {chat.get_name()}\n\n---", bot.msg_creator)
 
     for msg in msgs:
         # Get the creator
@@ -1001,14 +1005,24 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
             for emoji, people in msg.get_reactions().items():
                 # Instead for each reaction, append a line at the bottom with the emoji
                 # and every user's display name who reacted with the reaction
-                u = [chat.get_ryver().get_user(id=person.get_id()) for person in people]
+                u = [chat.get_ryver().get_user(id=person) for person in people]
                 msg_body += f"\n:{emoji}:: {', '.join([user.get_display_name() if user else 'unknown' for user in u])}"
 
-        await to.send_message(msg_body, msg_creator)
+        # Handle file attachments
+        if msg.get_attached_file() is not None:
+            # Normally if there is a file attachment the message will end with \n\n[filename]
+            # It is added automatically by the Ryver client and pyryver; without it the embed doesn't show up
+            # But here we should get rid of it to avoid repeating it twice
+            index = msg_body.rfind("\n\n")
+            if index != -1:
+                msg_body = msg_body[:index]
+            await to.send_message(msg_body, msg_creator, msg.get_attached_file())
+        else:
+            await to.send_message(msg_body, msg_creator)
         await msg.delete()
-    await msgs[-1].delete()
 
-    await to.send_message("---\n\n# End Moved Message", bot.msg_creator)
+    await to.send_message(f"---\n\n# End Moved Message from {chat.get_name()}", bot.msg_creator)
+    await chat.send_message(f"{len(msgs)} messages has been moved to {to.get_name()} from this forum/team.", bot.msg_creator)
 
 
 async def command_countMessagesSince(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
