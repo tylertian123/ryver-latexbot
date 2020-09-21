@@ -929,15 +929,19 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
                 await chat.send_message("Invalid argument for whole word option. See `@latexbot help watch` for help.")
         else:
             whole_word = False
+        if not args[1]:
+            await chat.send_message("Error: Empty keywords are not allowed.", bot.msg_creator)
+            return
         if user_id not in bot.keyword_watches:
             bot.keyword_watches[user_id] = []
         bot.keyword_watches[user_id].append({
-            "keyword": args[1],
+            "keyword": args[1].lower(),
             "wholeWord": whole_word,
         })
         bot.save_watches()
+        bot.rebuild_automaton() # Could be optimized
         await chat.send_message(f"Added watch for keyword \"{args[1]}\" (whole word: {whole_word}).", bot.msg_creator)
-    if args[0] == "delete":
+    elif args[0] == "delete":
         if len(args) != 2:
             await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
             return
@@ -958,6 +962,7 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
             watch = bot.keyword_watches[user_id].pop(n)
             bot.save_watches()
             await chat.send_message(f"Removed watch #{n + 1} for keyword \"{watch['keyword']}\" (whole word: {watch['wholeWord']}).", bot.msg_creator)
+        bot.rebuild_automaton() # Could be optimized
     else:
         await chat.send_message("Invalid sub-command. See `@latexbot help watch` for help.")
 

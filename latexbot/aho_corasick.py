@@ -103,16 +103,19 @@ class Automaton:
             for n in node.next.values():
                 d.append(n)
     
-    def find_all(self, s: str) -> typing.Iterable[typing.Any]:
+    def find_all(self, s: str) -> typing.Iterable[typing.Tuple[int, typing.Any]]:
         """
         Iterate over all matches for a given string.
 
-        Gives values.
+        Gives (index, value). Note the index returned is of the rightmost character in the match.
         """
         node = self.trie_root
-        for c in s:
+        for i, c in enumerate(s):
             while c not in node.next:
+                if node is self.trie_root:
+                    break
                 node = node.fail
-            node = node.next[c]
-            if node.leaf_value is not None:
-                yield node.leaf_value
+            else:
+                node = node.next[c]
+                if node.leaf_value is not None:
+                    yield (i, node.leaf_value)

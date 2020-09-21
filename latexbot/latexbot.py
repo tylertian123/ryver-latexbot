@@ -9,6 +9,7 @@ import pyryver
 import trivia
 import typing # pylint: disable=unused-import
 import util
+from aho_corasick import Automaton
 from caseinsensitivedict import CaseInsensitiveDict
 from command import Command, CommandSet
 from datetime import datetime, timedelta
@@ -55,6 +56,7 @@ class LatexBot:
 
         self.watch_file = None # type: str
         self.keyword_watches = None # type: typing.Dict[int, typing.List[typing.Dict[str, typing.Any]]]
+        self.keyword_watches_automaton = None # type: Automaton
 
         self.daily_msg_task = None # type: typing.Awaitable
 
@@ -227,6 +229,7 @@ class LatexBot:
             if self.home_chat is not None:
                 await self.home_chat.send_message(f"Error while keyword watches: {e}. Defaulting to {{}}.", self.msg_creator)
             self.keyword_watches = dict()
+        self.rebuild_automaton()
 
     def save_roles(self) -> None:
         """
@@ -293,7 +296,26 @@ class LatexBot:
         self.daily_msg_task = asyncio.ensure_future(self._daily_msg(init_delay))
         util.log(f"Daily message re-scheduled, starting after {init_delay} seconds.")
     
-    def preprocess_command(self, command: str, is_dm: bool):
+    def rebuild_automaton(self) -> None:
+        """
+        Rebuild the DFA used for keyword searching in messages using Aho-Corasick.
+        """
+        dfa = Automaton()
+        keywords = {}
+        # Gather up all the keywords
+        for user, watches in self.keyword_watches.items():
+            user = int(user)
+            for watch in watches:
+                if watch["keyword"] not in keywords:
+                    keywords[watch["keyword"]] = []
+                # Each keyword has a list of users and whether it should match only whole words
+                keywords[watch["keyword"]].append((user, watch["wholeWord"]))
+        for k, v in keywords.items():
+            dfa.add_str(k.casefold(), (k, v))
+        dfa.build_automaton()
+        self.keyword_watches_automaton = dfa
+    
+    def preprocess_command(self, command: str, is_dm: bool) -> typing.Tuple[str, str]:
         """
         Preprocess a command.
 
@@ -482,6 +504,30 @@ class LatexBot:
                             # Can't delete the other person's messages in DMs, so skip
                             if not is_dm:
                                 await (await pyryver.retry_until_available(to.get_message, msg.message_id)).delete()
+                    # Search for keyword matches
+                    notify_users = set()
+                    for i, (keyword, users) in self.keyword_watches_automaton.find_all(msg.text.lower()):
+                        for user, whole_word in users:
+                            # Verify whole words
+                            if whole_word:
+                                # Check right boundary (Aho-Corasick returns rightmost char index)
+                                if i != len(msg.text) - 1 and msg.text[i].isalnum() == msg.text[i + 1].isalnum():
+                                    continue
+                                # Check left boundary
+                                l = i - len(keyword)
+                                if l >= 0 and msg.text[l].isalnum() == msg.text[l + 1].isalnum():
+                                    continue
+                            notify_users.add(user)
+                    # Notify the users
+                    if notify_users:
+                        resp = f"> *{from_user.get_name()}* said:"
+                        for line in msg.text.splitlines():
+                            resp += "\n> " + line
+                        for uid in notify_users:
+                            if from_user.get_id() == uid:
+                                continue
+                            user = self.ryver.get_user(id=uid)
+                            await user.send_message("The following message matched one or more of your keyword watches:\n" + resp, self.msg_creator)
             
             @session.on_chat_updated
             async def _on_chat_updated(msg: pyryver.WSChatUpdatedData):
