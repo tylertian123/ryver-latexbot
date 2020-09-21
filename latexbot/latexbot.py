@@ -7,7 +7,7 @@ import json
 import os
 import pyryver
 import trivia
-import typing
+import typing # pylint: disable=unused-import
 import util
 from caseinsensitivedict import CaseInsensitiveDict
 from command import Command, CommandSet
@@ -52,6 +52,9 @@ class LatexBot:
         self.trivia_games = {} # type: typing.Dict[int, trivia.LatexBotTriviaGame]
 
         self.analytics = analytics.Analytics(analytics_file) if analytics_file is not None else None
+
+        self.watch_file = None # type: str
+        self.keyword_watches = None # type: typing.Dict[int, typing.List[typing.Dict[str, typing.Any]]]
 
         self.daily_msg_task = None # type: typing.Awaitable
 
@@ -171,13 +174,14 @@ class LatexBot:
         except ValueError as e:
             util.log(f"Error looking up GitHub issues chat: {e}")
         
-    async def load_files(self, config_file: str, roles_file: str, trivia_file: str) -> None:
+    async def load_files(self, config_file: str, roles_file: str, trivia_file: str, watch_file: str) -> None:
         """
         Load all configuration files, including the config, roles and custom trivia.
         """
         self.config_file = config_file
         self.roles_file = roles_file
         self.trivia_file = trivia_file
+        self.watch_file = watch_file
 
         # Load config
         try:
@@ -212,6 +216,16 @@ class LatexBot:
             util.log(f"Error while loading custom trivia questions: {e}.")
             if self.home_chat is not None:
                 await self.home_chat.send_message(f"Error while loading custom trivia questions: {e}.", self.msg_creator)
+
+        # Load keyword watches
+        try:
+            with open(watch_file, "r") as f:
+                self.keyword_watches = json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            util.log(f"Error while loading keyword watches: {e}.")
+            if self.home_chat is not None:
+                await self.home_chat.send_message(f"Error while keyword watches: {e}. Defaulting to {{}}.", self.msg_creator)
+            self.keyword_watches = dict()
 
     def save_roles(self) -> None:
         """

@@ -78,15 +78,17 @@ class Server:
         Start the server.
         """
         self.app = aiohttp.web.Application()
-        self.app.router.add_get("/", self._homepage_handler)
-        self.app.router.add_get("/config", self._config_handler)
-        self.app.router.add_get("/roles", self._roles_handler)
-        self.app.router.add_get("/trivia", self._trivia_handler)
-        self.app.router.add_get("/analytics", self._analytics_handler)
-        self.app.router.add_get("/analytics-ui", self._analytics_ui_handler)
-        self.app.router.add_post("/github", self._github_handler)
-        self.app.router.add_post("/message", self._message_handler_post)
-        self.app.router.add_get("/message", self._message_handler_get)
+        router = self.app.router
+        router.add_get("/", self._homepage_handler)
+        router.add_get("/config", self._config_handler)
+        router.add_get("/roles", self._roles_handler)
+        router.add_get("/trivia", self._trivia_handler)
+        router.add_get("/keyword_watches", self._keyword_watches_handler)
+        router.add_get("/analytics", self._analytics_handler)
+        router.add_get("/analytics-ui", self._analytics_ui_handler)
+        router.add_post("/github", self._github_handler)
+        router.add_post("/message", self._message_handler_post)
+        router.add_get("/message", self._message_handler_get)
         self.runner = aiohttp.web.AppRunner(self.app)
         await self.runner.setup()
         self.site = aiohttp.web.TCPSite(self.runner, "0.0.0.0", port)
@@ -321,6 +323,18 @@ class Server:
                 data = f.read()
         except FileNotFoundError:
             data = json.dumps(trivia.CUSTOM_TRIVIA_QUESTIONS)
+        return aiohttp.web.Response(text=data, status=200, content_type="application/json")
+    
+    @basicauth("read", "Keyword Watches")
+    async def _keyword_watches_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+        """
+        Handle a GET request to /keyword_watches.
+        """
+        try:
+            with open(self.bot.watch_file, "r") as f:
+                data = f.read()
+        except FileNotFoundError:
+            data = json.dumps(self.bot.keyword_watches)
         return aiohttp.web.Response(text=data, status=200, content_type="application/json")
     
     @basicauth("read", "Analytics")
