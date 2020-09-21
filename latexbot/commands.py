@@ -1022,6 +1022,7 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
         await msg.delete()
 
     await to.send_message(f"---\n\n# End Moved Message from {chat.get_name()}", bot.msg_creator)
+    await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
     await chat.send_message(f"{len(msgs)} messages has been moved to {to.get_name()} from this forum/team.", bot.msg_creator)
 
 
