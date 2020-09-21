@@ -86,6 +86,7 @@ class LatexBot:
         self.commands.add_command(Command("trivia importCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("trivia exportCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("trivia end", None, Command.ACCESS_LEVEL_FORUM_ADMIN))
+        self.commands.add_command(Command("watch", commands.command_watch, Command.ACCESS_LEVEL_EVERYONE))
         
         self.commands.add_command(Command("deleteMessages", commands.command_deleteMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))
         self.commands.add_command(Command("moveMessages", commands.command_moveMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))
@@ -240,6 +241,13 @@ class LatexBot:
         """
         with open(self.config_file, "w") as f:
             json.dump(config.dump()[0], f)
+    
+    def save_watches(self) -> None:
+        """
+        Save the current keyword watches to the watches JSON.
+        """
+        with open(self.watch_file, "w") as f:
+            json.dump(self.keyword_watches, f)
     
     def update_help(self) -> None:
         """

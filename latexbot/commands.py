@@ -654,7 +654,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             await chat.send_message("No games are ongoing.", bot.msg_creator)
             return
         resp = "Current games:\n"
-        resp += "\n".join(f"- Game started by {game.get_user_name(game.game.host)} in {bot.ryver.get_chat(id=chat).get_name()}." for chat, game in bot.trivia_games.items())
+        resp += "\n".join(f"- Game started by {game.get_user_name(game.game.host)} in {bot.ryver.get_chat(id=chat).get_name()}." for chat, game in bot.trivia_games.items()) # pylint: disable=no-member
         await chat.send_message(resp, bot.msg_creator)
     elif cmd == "categories":
         # Note: The reason we're not starting from 0 here is because of markdown forcing you to start a list at 1
@@ -884,6 +884,82 @@ async def reaction_trivia(bot: "latexbot.LatexBot", ryver: pyryver.Ryver, sessio
             
             await game.answer(answer, data["userId"])
             break
+
+
+async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Configure your keyword watches.
+
+    TODO
+    ---
+    group: General Commands
+    syntax: <sub-command> [args]
+    ---
+    > `@latexbot watch` - View your keyword watches.
+    > `@latexbot watch add "programming"` - Add a watch for the keyword "programming".
+    > `@latexbot watch add "cad" whole` - Add a watch for the keyword "cad" (whole words only).
+    > `@latexbot watch add "3d printer"` - Add a watch for the keyword "3d printer" - note the use of quotes.
+    > `@latexbot watch delete 1` - Delete the watch with number 1.
+    > `@latexbot watch delete all` - Delete all your watches.
+    """
+    args = shlex.split(args)
+    user_id = str(user.get_id())
+    if not args:
+        if user_id in bot.keyword_watches and bot.keyword_watches[user_id]:
+            resp = "Your keyword watches are:"
+            for i, watch in enumerate(bot.keyword_watches[user_id]):
+                resp += f"\n{i + 1}. \"{watch['keyword']}\""
+                if watch["wholeWord"]:
+                    resp += " (whole word only)"
+            await chat.send_message(resp, bot.msg_creator)
+        else:
+            await chat.send_message("You have not configured any keyword watches.", bot.msg_creator)
+        return
+
+    if args[0] == "add":
+        if not (2 <= len(args) <= 3):
+            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
+            return
+        if len(args) == 3:
+            if args[2].lower() == "whole":
+                whole_word = True
+            elif args[2].lower() == "partial":
+                whole_word = False
+            else:
+                await chat.send_message("Invalid argument for whole word option. See `@latexbot help watch` for help.")
+        else:
+            whole_word = False
+        if user_id not in bot.keyword_watches:
+            bot.keyword_watches[user_id] = []
+        bot.keyword_watches[user_id].append({
+            "keyword": args[1],
+            "wholeWord": whole_word,
+        })
+        bot.save_watches()
+        await chat.send_message(f"Added watch for keyword \"{args[1]}\" (whole word: {whole_word}).", bot.msg_creator)
+    if args[0] == "delete":
+        if len(args) != 2:
+            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
+            return
+        if user_id not in bot.keyword_watches:
+            await chat.send_message("You have no watches configured.", bot.msg_creator)
+            return
+        if args[1].lower() == "all":
+            bot.keyword_watches[user_id] = []
+            bot.save_watches()
+            await chat.send_message("Cleared all your keyword watches.", bot.msg_creator)
+        else:
+            try:
+                n = int(args[1]) - 1
+                if n < 0 or n >= len(bot.keyword_watches[user_id]):
+                    raise ValueError
+            except ValueError:
+                await chat.send_message("Invalid number.", bot.msg_creator)
+            watch = bot.keyword_watches[user_id].pop(n)
+            bot.save_watches()
+            await chat.send_message(f"Removed watch #{n + 1} for keyword \"{watch['keyword']}\" (whole word: {watch['wholeWord']}).", bot.msg_creator)
+    else:
+        await chat.send_message("Invalid sub-command. See `@latexbot help watch` for help.")
 
 
 async def command_deleteMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
