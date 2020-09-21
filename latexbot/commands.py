@@ -896,9 +896,9 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     syntax: <sub-command> [args]
     ---
     > `@latexbot watch` - View your keyword watches.
-    > `@latexbot watch add "programming"` - Add a watch for the keyword "programming".
-    > `@latexbot watch add "cad" whole` - Add a watch for the keyword "cad" (whole words only).
-    > `@latexbot watch add "3d printer"` - Add a watch for the keyword "3d printer" - note the use of quotes.
+    > `@latexbot watch add "programming"` - Add a watch for the keyword "programming" (case insensitive).
+    > `@latexbot watch add "3d printer" false true` - Add a watch for the keyword "3d printer" (case insensitive, whole words only).
+    > `@latexbot watch add "CAD" yes yes` - Add a watch for the keyword "cad" (case sensitive, whole words only).
     > `@latexbot watch delete 1` - Delete the watch with number 1.
     > `@latexbot watch delete all` - Delete all your watches.
     """
@@ -908,39 +908,53 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         if user_id in bot.keyword_watches and bot.keyword_watches[user_id]:
             resp = "Your keyword watches are:"
             for i, watch in enumerate(bot.keyword_watches[user_id]):
-                resp += f"\n{i + 1}. \"{watch['keyword']}\""
-                if watch["wholeWord"]:
-                    resp += " (whole word only)"
+                resp += f"\n{i + 1}. \"{watch['keyword']}\" (match case: {watch['matchCase']}, whole word: {watch['wholeWord']})"
             await chat.send_message(resp, bot.msg_creator)
         else:
             await chat.send_message("You have not configured any keyword watches.", bot.msg_creator)
         return
 
     if args[0] == "add":
-        if not (2 <= len(args) <= 3):
+        if not (2 <= len(args) <= 4):
             await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
             return
-        if len(args) == 3:
-            if args[2].lower() == "whole":
+        
+        if len(args) >= 3:
+            arg = args[2].lower()
+            if arg == "true" or arg == "yes":
+                match_case = True
+            elif arg == "false" or arg == "no":
+                match_case = False
+            else:
+                await chat.send_message("Invalid argument for match case option. See `@latexbot help watch` for help.")
+                return
+        else:
+            match_case = False
+        if len(args) >= 4:
+            arg = args[3].lower()
+            if arg == "true" or arg == "yes":
                 whole_word = True
-            elif args[2].lower() == "partial":
+            elif arg == "false" or arg == "no":
                 whole_word = False
             else:
                 await chat.send_message("Invalid argument for whole word option. See `@latexbot help watch` for help.")
+                return
         else:
             whole_word = False
+        
         if not args[1]:
             await chat.send_message("Error: Empty keywords are not allowed.", bot.msg_creator)
             return
         if user_id not in bot.keyword_watches:
             bot.keyword_watches[user_id] = []
         bot.keyword_watches[user_id].append({
-            "keyword": args[1].lower(),
+            "keyword": args[1],
             "wholeWord": whole_word,
+            "matchCase": match_case,
         })
         bot.save_watches()
         bot.rebuild_automaton() # Could be optimized
-        await chat.send_message(f"Added watch for keyword \"{args[1]}\" (whole word: {whole_word}).", bot.msg_creator)
+        await chat.send_message(f"Added watch for keyword \"{args[1]}\" (match case: {match_case}, whole word: {whole_word}).", bot.msg_creator)
     elif args[0] == "delete":
         if len(args) != 2:
             await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
@@ -961,7 +975,7 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
                 await chat.send_message("Invalid number.", bot.msg_creator)
             watch = bot.keyword_watches[user_id].pop(n)
             bot.save_watches()
-            await chat.send_message(f"Removed watch #{n + 1} for keyword \"{watch['keyword']}\" (whole word: {watch['wholeWord']}).", bot.msg_creator)
+            await chat.send_message(f"Removed watch #{n + 1} for keyword \"{watch['keyword']}\" (match case: {watch['matchCase']}, whole word: {watch['wholeWord']}).", bot.msg_creator)
         bot.rebuild_automaton() # Could be optimized
     else:
         await chat.send_message("Invalid sub-command. See `@latexbot help watch` for help.")

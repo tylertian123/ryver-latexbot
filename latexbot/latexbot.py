@@ -308,10 +308,10 @@ class LatexBot:
             for watch in watches:
                 if watch["keyword"] not in keywords:
                     keywords[watch["keyword"]] = []
-                # Each keyword has a list of users and whether it should match only whole words
-                keywords[watch["keyword"]].append((user, watch["wholeWord"]))
+                # Each keyword has a list of users and whether it should match case and whole words
+                keywords[watch["keyword"]].append((user, watch["matchCase"], watch["wholeWord"]))
         for k, v in keywords.items():
-            dfa.add_str(k.casefold(), (k, v))
+            dfa.add_str(k.lower(), (k, v))
         dfa.build_automaton()
         self.keyword_watches_automaton = dfa
     
@@ -507,10 +507,20 @@ class LatexBot:
                     # Search for keyword matches
                     notify_users = set()
                     for i, (keyword, users) in self.keyword_watches_automaton.find_all(msg.text.lower()):
-                        for user, whole_word in users:
+                        for user, match_case, whole_word in users:
+                            # Verify case matching
+                            if match_case:
+                                err = False
+                                for j, c in enumerate(keyword):
+                                    # Aho-Corasick returns rightmost char index
+                                    if msg.text[i - len(keyword) + 1 + j] != c:
+                                        err = True
+                                        break
+                                if err:
+                                    continue
                             # Verify whole words
                             if whole_word:
-                                # Check right boundary (Aho-Corasick returns rightmost char index)
+                                # Check right boundary
                                 if i != len(msg.text) - 1 and msg.text[i].isalnum() == msg.text[i + 1].isalnum():
                                     continue
                                 # Check left boundary
