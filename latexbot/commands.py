@@ -890,15 +890,35 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     """
     Configure your keyword watches.
 
-    TODO
+    Keyword watches are unique for each user. When you set up a keyword watch, LaTeX Bot will
+    search every message sent for the string you specified. When a message containing your keyword
+    is sent, you will be notified through a private message. With this system, you could mute a
+    forum/team but still receive notifications when a topic you're interested in is being
+    discussed.
+
+    Keywords could contain any number characters and could be of any length. You can configure them
+    to be case-sensitive and/or match whole words only (by default they're neither). **You will
+    not receive notifications if your status is Available, or for messages sent to forums/teams
+    that you left or never joined.** (You can set your status in Ryver by clicking on your profile
+    picture in the top-left corner.)
+
+    To manage your keyword watches, use the following sub-commands (see examples below):
+    - (No arguments) - List all your keyword watches.
+    - `add <keyword> [match-case] [match-whole-word]` - Add a keyword watch. **The keyword must be
+    in quotes if it contains a space, e.g. "3d printer".** `match-case` and `match-whole-word`
+    specify whether the keyword is case-sensitive and should match whole words only, and can be
+    "true"/"false" or "yes"/"no". Both are false by default.
+    - `delete <keyword-number>` - Delete a keyword *by number*. Keyword numbers can be obtained by
+    listing them through `@latexbot watch`. 
+    - `delete all` - Delete *all* of your keyword watches.
     ---
     group: General Commands
-    syntax: <sub-command> [args]
+    syntax: [sub-command] [args]
     ---
     > `@latexbot watch` - View your keyword watches.
     > `@latexbot watch add "programming"` - Add a watch for the keyword "programming" (case insensitive).
     > `@latexbot watch add "3d printer" false true` - Add a watch for the keyword "3d printer" (case insensitive, whole words only).
-    > `@latexbot watch add "CAD" yes yes` - Add a watch for the keyword "cad" (case sensitive, whole words only).
+    > `@latexbot watch add "CAD" yes yes` - Add a watch for the keyword "CAD" (case sensitive, whole words only).
     > `@latexbot watch delete 1` - Delete the watch with number 1.
     > `@latexbot watch delete all` - Delete all your watches.
     """

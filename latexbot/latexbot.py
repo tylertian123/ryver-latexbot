@@ -36,6 +36,7 @@ class LatexBot:
         self.username = None # type: str
         self.user = None # type: pyryver.User
         self.user_avatars = None # type: typing.Dict[str, str]
+        self.user_presences = dict() # type: typing.Dict[int, str]
 
         self.config_file = None # type: str
         self.calendar = None # type: Calendar
@@ -505,7 +506,7 @@ class LatexBot:
                             if not is_dm:
                                 await (await pyryver.retry_until_available(to.get_message, msg.message_id)).delete()
                     # Search for keyword matches
-                    notify_users = set()
+                    notify_users = dict() # type: typing.Dict[int, typing.Set[str]]
                     for i, (keyword, users) in self.keyword_watches_automaton.find_all(msg.text.lower()):
                         for user, match_case, whole_word in users:
                             # Verify case matching
@@ -527,17 +528,25 @@ class LatexBot:
                                 l = i - len(keyword)
                                 if l >= 0 and msg.text[l].isalnum() == msg.text[l + 1].isalnum():
                                     continue
-                            notify_users.add(user)
+                            # Record match
+                            if user not in notify_users:
+                                notify_users[user] = set()
+                            notify_users[user].add(keyword)
                     # Notify the users
                     if notify_users:
-                        resp = f"> *{from_user.get_name()}* said:"
+                        quoted_msg = f"> *{from_user.get_name()}* said in *{to.get_name()}*:"
                         for line in msg.text.splitlines():
-                            resp += "\n> " + line
-                        for uid in notify_users:
-                            if from_user.get_id() == uid:
+                            quoted_msg += "\n> " + line
+                        for uid, keywords in notify_users.items():
+                            if from_user.get_id() == uid or self.user_presences.get(uid) == pyryver.RyverWS.PRESENCE_AVAILABLE:
                                 continue
+                            # Verify that the user is a member of this chat
+                            if isinstance(to, pyryver.GroupChat):
+                                if to.get_member(from_user) is None:
+                                    continue
                             user = self.ryver.get_user(id=uid)
-                            await user.send_message("The following message matched one or more of your keyword watches:\n" + resp, self.msg_creator)
+                            resp = "The following message matched your watches for the keyword(s) " + ", ".join(f"\"**{w}**\"""" for w in keywords) + ":"
+                            await user.send_message(resp + "\n" + quoted_msg, self.msg_creator)
             
             @session.on_chat_updated
             async def _on_chat_updated(msg: pyryver.WSChatUpdatedData):
@@ -550,9 +559,16 @@ class LatexBot:
             async def _on_reaction_added(msg: pyryver.WSEventData):
                 # Extra processing for interfacing trivia with reactions
                 await commands.reaction_trivia(self, self.ryver, session, msg.event_data)
+            
+            @session.on_presence_changed
+            async def _on_presence_changed(msg: pyryver.WSPresenceChangedData):
+                # Keep track of user presences
+                user = self.ryver.get_user(jid=msg.from_jid)
+                self.user_presences[user.get_id()] = msg.presence
 
             util.log("LaTeX Bot is running!")
             if not self.debug and self.home_chat is not None:
+                await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
                 await self.home_chat.send_message(f"LaTeX Bot {self.version} is online! **I now respond to messages in real time!**\n\n{self.help}", self.msg_creator)
 
             await session.run_forever()
