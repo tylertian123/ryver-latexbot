@@ -56,7 +56,7 @@ class LatexBot:
         self.analytics = analytics.Analytics(analytics_file) if analytics_file is not None else None
 
         self.watch_file = None # type: str
-        self.keyword_watches = None # type: typing.Dict[int, typing.List[typing.Dict[str, typing.Any]]]
+        self.keyword_watches = None # type: typing.Dict[int, typing.Dict[str, typing.Union[typing.List[typing.Dict[str, typing.Any]], typing.Any]]]
         self.keyword_watches_automaton = None # type: Automaton
 
         self.daily_msg_task = None # type: typing.Awaitable
@@ -304,9 +304,11 @@ class LatexBot:
         dfa = Automaton()
         keywords = {}
         # Gather up all the keywords
-        for user, watches in self.keyword_watches.items():
+        for user, watch_config in self.keyword_watches.items():
+            if not watch_config["on"]:
+                continue
             user = int(user)
-            for watch in watches:
+            for watch in watch_config["keywords"]:
                 if watch["keyword"] not in keywords:
                     keywords[watch["keyword"]] = []
                 # Each keyword has a list of users and whether it should match case and whole words
