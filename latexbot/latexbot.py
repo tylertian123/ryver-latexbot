@@ -6,6 +6,7 @@ import server
 import json
 import os
 import pyryver
+import time
 import trivia
 import typing # pylint: disable=unused-import
 import util
@@ -37,6 +38,7 @@ class LatexBot:
         self.user = None # type: pyryver.User
         self.user_avatars = None # type: typing.Dict[str, str]
         self.user_presences = dict() # type: typing.Dict[int, str]
+        self.user_last_activity = dict() # type: typing.Dict[int, float]
 
         self.config_file = None # type: str
         self.calendar = None # type: Calendar
@@ -416,6 +418,9 @@ class LatexBot:
                 if from_user.get_username() == self.username:
                     return
                 
+                # Record activity
+                self.user_last_activity[from_user.get_id()] = time.time()
+                
                 # Check if this is a DM
                 to = self.ryver.get_chat(jid=msg.to_jid)
                 if isinstance(to, pyryver.User):
@@ -539,8 +544,16 @@ class LatexBot:
                         quoted_msg = f"> *{from_user.get_name()}* said in *{to.get_name()}*:"
                         for line in msg.text.splitlines():
                             quoted_msg += "\n> " + line
+                        t = time.time()
                         for uid, keywords in notify_users.items():
-                            if from_user.get_id() == uid or self.user_presences.get(uid) == pyryver.RyverWS.PRESENCE_AVAILABLE:
+                            # Check if it's from the same user
+                            if from_user.get_id() == uid:
+                                continue
+                            # Check user presence
+                            if self.user_presences.get(uid) == pyryver.RyverWS.PRESENCE_AVAILABLE:
+                                continue
+                            # Check user last activity
+                            if t - self.user_last_activity.get(uid) < self.keyword_watches[str(uid)]["activityTimeout"]:
                                 continue
                             # Verify that the user is a member of this chat
                             if isinstance(to, pyryver.GroupChat):
