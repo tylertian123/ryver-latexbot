@@ -18,6 +18,7 @@ This guide is for LaTeX Bot v0.6.0.
     - [Playing the Game](#playing-the-game)
     - [Ending the Game](#ending-the-game)
     - [Adding Custom Trivia Questions](#adding-custom-trivia-questions)
+- [Keyword Watches](#keyword-watches)
 - [The Blue Alliance (TBA) Integration](#the-blue-alliance-tba-integration)
 - [Google Calendar Integration](#google-calendar-integration)
   - [Checking Events](#checking-events)
@@ -43,6 +44,7 @@ This guide is for LaTeX Bot v0.6.0.
   - [Command Prefixes](#command-prefixes)
   - [Access Rules](#access-rules)
   - [Updating Cached Chat Data](#updating-cached-chat-data)
+  - [Analytics](#analytics)
   - [Server](#server)
 - [Configuring LaTeX Bot](#configuring-latex-bot)
 
@@ -173,6 +175,73 @@ The JSON should have the following format:
     ]
     // ...
   }
+  // ...
+}
+```
+
+# Keyword Watches
+Keyword watches allow you to set up one or more keywords (which can be multiple words, parts of a word or even symbols)
+that you're interested in, so that you're notified each time someone sends a message with your keyword in it.
+This allows you to never miss out on conversations of interest.
+Keyword watches can be configured through the `@latexbot watch [sub-command] [args]` command.
+
+You can configure keywords to be case-sensitive and/or match whole words only (by default they're neither).
+**However, you will not be notified if any of the following are true:**
+ - Your status is Available (indicated by a green dot; you can change this by clicking on your
+ profile in the top left corner)
+ - The message was sent to a forum or team you are not in
+ - You turned keyword notifications off using `@latexbot watch off`
+ - You are considered "active" by LaTeX Bot, i.e. you sent a message recently (by default in the
+ last 3 minutes, configurable via `@latexbot watch activityTimeout <seconds>`).
+
+Keyword matching is done using a DFA constructed using the Aho-Corasick algorithm to match a large number of keywords at once.
+
+## Managing Your Keyword Watches
+
+### Viewing Your Keywords and Configurations
+To view your list of keywords and configuration options, use the command with no arguments (`@latexbot watch`).
+This will list all the keywords you have defined as well as any relevant configuration options.
+
+### Adding Keywords
+To add a keyword, use the `add <keyword> [match-case] [match-whole-word]` sub-command.
+Surround your keyword in quotes if it contains a space.
+To make the search case-sensitive or match whole words only, provide `true` or `yes` for `[match-case]` or `[match-whole-word]`.
+Likewise, use `false` or `no` to turn these options off. The options are separate for each keyword.
+By default, both options are false.
+
+For example, the command `@latexbot watch add "3d printer" false true` will add a watch for the keyword "3d printer", which is case-insensitive and matches whole words only.
+
+### Removing Keywords
+To remove a keyword, first list all your keywords with `@latexbot watch`, and then find the number of the keyword you wish to delete.
+Then, use `@latexbot watch delete <number>` to delete that keyword.
+Alternatively, use `@latexbot watch delete all` to delete *all* keywords.
+
+### Turning Keyword Watches Off
+You can turn keyword watches off entirely so you don't receive any notifications by using `@latexbot watch off`.
+To turn it back on, use `@latexbot watch on`.
+
+### Setting Your Activity Timeout
+Your activity timeout is how long you're considered "active" for after you send a message.
+When you're considered "active", you will not receive keyword watch notifications, even if your status is not Available.
+By default, your activity timeout is 3 minutes long, i.e. after sending a message, you will not receive keyword notifications in the next 3 minutes.
+You can change this by using `@latexbot watch activityTimeout <seconds>`. Set it to 0 to turn this feature off.
+
+## Keyword Watch JSON Format
+By default, keyword watches are stored in `data/keyword_watches.json`. The format of this file is as follows:
+```json5
+{
+  "1234567": { // User ID
+    "on": true, // Whether keyword notifications are on
+    "activityTimeout": 180.0, // Activity timeout in seconds
+    "keywords": [ // A list of keyword objects
+      {
+        "keyword": "foo", // The keyword
+        "wholeWord": true, // Whether to only match whole words
+        "matchCase": false // Whether the keyword is case-sensitive
+      },
+      // ...
+    ]
+  },
   // ...
 }
 ```
@@ -459,6 +528,28 @@ You can enable analytics to collect data about usage of LaTeX Bot commands, memb
 Enable it by setting the `LATEXBOT_ANALYTICS` env var to a value of `1`.
 When enabled, the data is accessible through the web server (see below).
 You can access the raw JSON of the data at `/analytics` and the Analytics Dashboard at `/analytics-ui`.
+
+### Analytics JSON Format
+By default, the analytics data is stored in a JSON at `data/analytics.json`. The format of this file is as follows:
+```json5
+{
+  "commandUsage": { // Each command's usage by each user
+    "ping": { // The name of a command
+      "1234567": 1, // How many times the user with that ID has used this command
+      // ...
+    },
+    // ...
+  },
+  "shutdowns": [ // A list of shutdown and startup times in the last 10 days
+    3199892446, // (unix timestamp << 1) + 1 if startup, + 0 if shutdown
+    3199893117, // E.g. this one represents a startup event at 1599946558 unix time
+    // ...
+  ],
+  "messageActivity": { // Total message character count for each user
+    "1234567": 100, // Total character count of all the messages sent by the user with that ID
+  }
+}
+```
 
 ## Server
 In order to receive inbound webhooks for GitHub integration, LaTeX Bot hosts a web server.

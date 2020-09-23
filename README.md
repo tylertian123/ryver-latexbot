@@ -1,11 +1,12 @@
-# The LaTeX Bot Project
+# LaTeX Bot
 
-LaTeX Bot is a bot for [Ryver](https://ryver.com/), built for [Team Arctos 6135](https://www.arctos6135.com/)'s organization.
+LaTeX Bot is a chat bot for [Ryver](https://ryver.com/), built for [Team Arctos 6135](https://www.arctos6135.com/)'s organization.
 
-As the name implies, LaTeX Bot's primary function is to render LaTeX (including chemical equations with mhchem).
-It also comes with a lot of other neat features:
-- Mass-deleting and mass-moving messages for chat moderation
-- A Roles system allowing you to mention a group of users at a time
+LaTeX Bot introduces many useful features for your organization that Ryver by itself lacks, such as a Roles system and Discord-style Role mentions,
+Keyword Watches (like Slack's keyword notifications, but more customizable), mass-deleting and moving messages across forums and teams,
+and of course, rendering LaTeX (and chemical equations with `mhchem`).
+
+There are a lot of other neat features:
 - Google Calendar events integration
 - GitHub integration (updates and creating Ryver tasks for Issues and Pull Requests!)
 - The Blue Alliance integration (get FRC team/district/event info)
@@ -57,7 +58,7 @@ And uses the following open-source libraries:
 Many thanks to the developers of these services and APIs for making LaTeX Bot possible.
 
 # Commands
-Here is a list of commands supported by LaTeX Bot (auto generated, as of c02100e):
+Here is a list of commands supported by LaTeX Bot (auto generated, as of commit `35f1c5f`):
 
 General Commands:
   - `@latexbot render <formula>` - Render a LaTeX formula. 
@@ -70,6 +71,7 @@ General Commands:
   - `@latexbot checkiday [date]` - Get a list of today's holidays or holidays for any date. 
   - `@latexbot tba <sub-command> [args]` - Query TheBlueAlliance. 
   - `@latexbot trivia <sub-command> [args]` - Play a game of trivia. See extended description for details. 
+  - `@latexbot watch [sub-command] [args]` - Configure your keyword watches. 
 
 Administrative Commands:
   - `@latexbot deleteMessages [<start>-]<end|count>` - Delete messages. **Accessible to Forum, Org and Bot Admins only.**
@@ -99,12 +101,11 @@ Developer Commands:
 
 Miscellaneous Commands:
   - `@latexbot alias [create|delete] [args]` - Manage aliases. **Accessible to Org and Bot Admins only.**
-  - `@latexbot exportConfig` - Export config as a JSON. **Accessible to Org and Bot Admins only.**
+  - `@latexbot exportConfig` - Export config as a JSON. 
   - `@latexbot importConfig <data>` - Import config from JSON. **Accessible to Org and Bot Admins only.**
   - `@latexbot accessRule [command] [action] [ruletype] [args]` - View or modify access rules. **Accessible to Org and Bot Admins only.**
   - `@latexbot setDailyMessageTime [time]` - Set the time daily messages are sent each day or turn them on/off. **Accessible to Org and Bot Admins only.**
   - `@latexbot dailyMessage` - Send the daily message. **Accessible to Forum, Org and Bot Admins only.**
-
 
 For more details, see `usage_guide.md`.
 
@@ -118,6 +119,14 @@ Moving messages between forums:
 Mass-deletion of messages:  
 ![Before deleting messages](https://user-images.githubusercontent.com/32781310/92657715-49449f80-f2c3-11ea-9eee-2454df4a9d28.png)
 ![After deleting messages](https://user-images.githubusercontent.com/32781310/92657775-61b4ba00-f2c3-11ea-8033-65b93eec6480.png)
+
+Role management and mentioning:  
+![Viewing and mentioning roles](https://user-images.githubusercontent.com/32781310/92657351-ad1a9880-f2c2-11ea-8a27-95c8a3266516.png)  
+The above mention is automatically replaced with the following:  
+![Role mentions are replaced automatically](https://user-images.githubusercontent.com/32781310/92657418-ca4f6700-f2c2-11ea-9c1e-3729bd6b1495.png)
+
+Keyword watches:
+![Get notified whenever someone mentions a keyword](https://user-images.githubusercontent.com/32781310/93953201-ce46a480-fd18-11ea-802f-eda24c17b83b.png)
 
 GitHub integration with chat messages:  
 ![Push & PR notification](https://user-images.githubusercontent.com/32781310/92654629-19df6400-f2be-11ea-9fb7-f53f92c8baf6.png)
@@ -145,8 +154,3 @@ Daily Checkiday holidays and new XKCDs:
 
 Fully configurable and customizable via a config JSON:  
 ![Config JSON](https://user-images.githubusercontent.com/32781310/92656742-9162c280-f2c1-11ea-952a-00b0536d60e8.png)
-
-Role management and mentioning:  
-![Viewing and mentioning roles](https://user-images.githubusercontent.com/32781310/92657351-ad1a9880-f2c2-11ea-8a27-95c8a3266516.png)  
-The above mention is automatically replaced with the following:  
-![Role mentions are replaced automatically](https://user-images.githubusercontent.com/32781310/92657418-ca4f6700-f2c2-11ea-9c1e-3729bd6b1495.png)
