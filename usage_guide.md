@@ -5,7 +5,7 @@ It covers many important topics that you might find helpful.
 For more information about a particular command, do `@latexbot help <command>`. 
 This guide does not cover all commands, nor does it offer in-depth syntax info for most commands.
 
-This guide is for LaTeX Bot v0.6.0.
+This guide is for LaTeX Bot v0.8.1.
 
 # Table of Contents
 - [Access Levels](#access-levels)
