@@ -24,6 +24,19 @@ class LatexBot:
     An instance of LaTeX Bot.
     """
 
+    MACROS = {
+        ".shrug": "\u00af\\\\_(\u30c4)\\_/\u00af",
+        ".tableflip": "(\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b",
+        ".unflip": "\u252c\u2500\u252c\u30ce( \xba _ \xba\u30ce)",
+        ".lenny": "( \u0361\xb0 \u035c\u0296 \u0361\xb0)",
+        ".disapproval": "\u0ca0_\u0ca0",
+        "/shrug": "\u00af\\\\_(\u30c4)\\_/\u00af",
+        "/tableflip": "(\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b",
+        "/unflip": "\u252c\u2500\u252c\u30ce( \xba _ \xba\u30ce)",
+        "/lenny": "( \u0361\xb0 \u035c\u0296 \u0361\xb0)",
+        "/disapproval": "\u0ca0_\u0ca0",
+    }
+
     def __init__(self, version: str, analytics_file: str = None, debug: bool = False):
         self.debug = debug
         if debug:
@@ -321,6 +334,20 @@ class LatexBot:
         dfa.build_automaton()
         self.keyword_watches_automaton = dfa
     
+    async def get_replace_message_creator(self, msg: pyryver.Message) -> pyryver.Creator:
+        """
+        Get the Creator object that can be used for replacing a message.
+        """
+        # Get the creator
+        msg_creator = msg.get_creator()
+        # If no creator then get author
+        if not msg_creator:
+            # First attempt to search for the ID in the list
+            # if that fails then get it directly using a request
+            msg_author = self.ryver.get_user(id=msg.get_author_id()) or (await msg.get_author())
+            msg_creator = pyryver.Creator(msg_author.get_name(), self.user_avatars.get(msg_author.get_id(), ""))
+        return msg_creator
+
     def preprocess_command(self, command: str, is_dm: bool) -> typing.Tuple[str, str]:
         """
         Preprocess a command.
@@ -509,16 +536,23 @@ class LatexBot:
                             return group1 + name
                         new_text = util.MENTION_REGEX.sub(replace_func, msg.text)
                         if new_text != msg.text:
-                            # Get the message object
-                            to = self.ryver.get_chat(jid=msg.to_jid)
                             util.log(f"Role mention received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
                             async with session.typing(to):
+                                # Get the message object
+                                msg_obj = (await pyryver.retry_until_available(to.get_message, msg.message_id))
                                 # Pretend to be the creator
-                                msg_creator = pyryver.Creator(from_user.get_name(), self.user_avatars.get(from_user.get_id(), ""))
+                                msg_creator = await self.get_replace_message_creator(msg_obj)
                                 await to.send_message(new_text, msg_creator)
                             # Can't delete the other person's messages in DMs, so skip
                             if not is_dm:
-                                await (await pyryver.retry_until_available(to.get_message, msg.message_id)).delete()
+                                await msg_obj.delete()
+                    # Check for macros
+                    if msg.text in self.MACROS:
+                        async with session.typing(to):
+                            msg_obj = (await pyryver.retry_until_available(to.get_message, msg.message_id))
+                            await to.send_message(self.MACROS[msg.text], await self.get_replace_message_creator(msg_obj))
+                            if not is_dm:
+                                await msg_obj.delete()
                     # Search for keyword matches
                     notify_users = dict() # type: typing.Dict[int, typing.Set[str]]
                     for i, (keyword, users) in self.keyword_watches_automaton.find_all(msg.text.lower()):

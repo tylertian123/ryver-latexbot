@@ -1161,14 +1161,7 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
 
     for msg in msgs:
         # Get the creator
-        msg_creator = msg.get_creator()
-        # If no creator then get author
-        if not msg_creator:
-            # First attempt to search for the ID in the list
-            # if that fails then get it directly using a request
-            msg_author = bot.ryver.get_user(id=msg.get_author_id()) or (await msg.get_author())
-            # Pretend to be another person
-            msg_creator = pyryver.Creator(msg_author.get_name(), bot.user_avatars.get(msg_author.get_id(), ""))
+        msg_creator = await bot.get_replace_message_creator(msg)
 
         msg_body = util.sanitize(msg.get_body())
         # Handle reactions
