@@ -114,6 +114,7 @@ class LatexBot:
         self.commands.add_command(Command("sleep", commands.command_sleep, Command.ACCESS_LEVEL_BOT_ADMIN))
         self.commands.add_command(Command("execute", commands.command_execute, Command.ACCESS_LEVEL_BOT_ADMIN))
         self.commands.add_command(Command("updateChats", commands.command_updateChats, Command.ACCESS_LEVEL_FORUM_ADMIN))
+        self.commands.add_command(Command("setEnabled", None, Command.ACCESS_LEVEL_BOT_ADMIN))
     
         self.commands.add_command(Command("alias", commands.command_alias, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("exportConfig", commands.command_exportConfig, Command.ACCESS_LEVEL_EVERYONE))
@@ -446,6 +447,9 @@ class LatexBot:
                     command, args = preprocessed
                     # Processing for re-enabling after disable
                     if (command == "setEnabled" and args == "true") or command == "wakeUp":
+                        if not self.commands.commands["setEnabled"].is_authorized(self, to, from_user):
+                            await to.send_message(Command.get_access_denied_message(), self.msg_creator)
+                            return
                         if self.analytics:
                             self.analytics.command(command, args, from_user, to)
                         # Send the presence change anyways in case it gets messed up
@@ -458,6 +462,9 @@ class LatexBot:
                             await to.send_message("I'm already enabled.", self.msg_creator)
                         return
                     elif command == "setEnabled" and args == "false" and self.enabled:
+                        if not self.commands.commands["setEnabled"].is_authorized(self, to, from_user):
+                            await to.send_message(Command.get_access_denied_message(), self.msg_creator)
+                            return
                         if self.analytics:
                             self.analytics.command(command, args, from_user, to)
                         self.enabled = False
