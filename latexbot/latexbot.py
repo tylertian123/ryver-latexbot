@@ -447,7 +447,7 @@ class LatexBot:
                     command, args = preprocessed
                     # Processing for re-enabling after disable
                     if (command == "setEnabled" and args == "true") or command == "wakeUp":
-                        if not self.commands.commands["setEnabled"].is_authorized(self, to, from_user):
+                        if not await self.commands.commands["setEnabled"].is_authorized(self, to, from_user):
                             await to.send_message(Command.get_access_denied_message(), self.msg_creator)
                             return
                         if self.analytics:
@@ -462,7 +462,7 @@ class LatexBot:
                             await to.send_message("I'm already enabled.", self.msg_creator)
                         return
                     elif command == "setEnabled" and args == "false" and self.enabled:
-                        if not self.commands.commands["setEnabled"].is_authorized(self, to, from_user):
+                        if not await self.commands.commands["setEnabled"].is_authorized(self, to, from_user):
                             await to.send_message(Command.get_access_denied_message(), self.msg_creator)
                             return
                         if self.analytics:
