@@ -24,17 +24,46 @@ class LatexBot:
     An instance of LaTeX Bot.
     """
 
+    MACRO_SHRUG = "\u00af\\\\_(\u30c4)\\_/\u00af"
+    MACRO_TABLEFLIP = "(\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b"
+    MACRO_UNFLIP = "\u252c\u2500\u252c\u30ce( \xba _ \xba\u30ce)"
+    MACRO_LENNY = "( \u0361\xb0 \u035c\u0296 \u0361\xb0)"
+    MACRO_DISAPPROVAL = "\u0ca0_\u0ca0"
+    MACRO_SENDLOVE = "(\u0254\u25d4\u203f\u25d4)\u0254 :heart:"
+    MACRO_MEGAPHONE = "\U0001f4e3 ('\u1d17' )\u0648"
+    MACRO_CELEBRATION = "\uff3c(\uff3eO\uff3e)\uff0f"
+    MACRO_STRAT = ":poop:"
+
     MACROS = {
-        ".shrug": "\u00af\\\\_(\u30c4)\\_/\u00af",
-        ".tableflip": "(\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b",
-        ".unflip": "\u252c\u2500\u252c\u30ce( \xba _ \xba\u30ce)",
-        ".lenny": "( \u0361\xb0 \u035c\u0296 \u0361\xb0)",
-        ".disapproval": "\u0ca0_\u0ca0",
-        "/shrug": "\u00af\\\\_(\u30c4)\\_/\u00af",
-        "/tableflip": "(\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b",
-        "/unflip": "\u252c\u2500\u252c\u30ce( \xba _ \xba\u30ce)",
-        "/lenny": "( \u0361\xb0 \u035c\u0296 \u0361\xb0)",
-        "/disapproval": "\u0ca0_\u0ca0",
+        ".shrug": MACRO_SHRUG,
+        ".tableflip": MACRO_TABLEFLIP,
+        ".flip": MACRO_TABLEFLIP,
+        ".unflip": MACRO_UNFLIP,
+        ".lenny": MACRO_LENNY,
+        ".disapproval": MACRO_DISAPPROVAL,
+        ".sendlove": MACRO_SENDLOVE,
+        ".love": MACRO_SENDLOVE,
+        ".megaphone": MACRO_MEGAPHONE,
+        ".scream": MACRO_MEGAPHONE,
+        ".announcement": MACRO_MEGAPHONE,
+        ".celebration": MACRO_CELEBRATION,
+        ".strat": MACRO_STRAT,
+        ".strategy": MACRO_STRAT,
+
+        "/shrug": MACRO_SHRUG,
+        "/tableflip": MACRO_TABLEFLIP,
+        "/flip": MACRO_TABLEFLIP,
+        "/unflip": MACRO_UNFLIP,
+        "/lenny": MACRO_LENNY,
+        "/disapproval": MACRO_DISAPPROVAL,
+        "/sendlove": MACRO_SENDLOVE,
+        "/love": MACRO_SENDLOVE,
+        "/megaphone": MACRO_MEGAPHONE,
+        "/scream": MACRO_MEGAPHONE,
+        "/announcement": MACRO_MEGAPHONE,
+        "/celebration": MACRO_CELEBRATION,
+        "/strat": MACRO_STRAT,
+        "/strategy": MACRO_STRAT,
     }
 
     def __init__(self, version: str, analytics_file: str = None, debug: bool = False):
