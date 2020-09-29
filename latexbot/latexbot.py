@@ -125,15 +125,16 @@ class LatexBot:
         self.commands.add_command(Command("renderSimple", commands.command_renderSimple, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("help", commands.command_help, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("ping", commands.command_ping, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("tba", commands.command_tba, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("watch", commands.command_watch, Command.ACCESS_LEVEL_EVERYONE))
+
         self.commands.add_command(Command("whatDoYouThink", commands.command_whatDoYouThink, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("xkcd", commands.command_xkcd, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("checkiday", commands.command_checkiday, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("tba", commands.command_tba, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("trivia", commands.command_trivia, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("trivia importCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("trivia exportCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("trivia end", None, Command.ACCESS_LEVEL_FORUM_ADMIN))
-        self.commands.add_command(Command("watch", commands.command_watch, Command.ACCESS_LEVEL_EVERYONE))
         
         self.commands.add_command(Command("deleteMessages", commands.command_deleteMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))
         self.commands.add_command(Command("moveMessages", commands.command_moveMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))

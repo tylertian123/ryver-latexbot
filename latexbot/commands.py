@@ -201,115 +201,6 @@ async def command_ping(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     await chat.send_message("Pong", bot.msg_creator)
 
 
-YES_MSGS = [
-    "Yes.",
-    "I like it!",
-    "Brilliant!",
-    "Genius!",
-    "Do it!",
-    "It's good.",
-    ":thumbsup:",
-]
-NO_MSGS = [
-    "No.",
-    ":thumbsdown:",
-    "I hate it.",
-    "Please no.",
-    "It's bad.",
-    "It's stupid.",
-]
-
-
-async def command_whatDoYouThink(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
-    """
-    Ask my opinion of a thing!
-
-    Disclaimer: These are my own opinions, Tyler is not responsible for anything said.
-    ---
-    group: General Commands
-    syntax: <thing>
-    ---
-    > `@latexbot whatDoYouThink <insert controversial topic here>`
-    """
-    args = args.lower()
-    # Match configured opinions
-    for opinion in config.opinions:
-        if args in opinion["thing"]:
-            # Match user if required
-            if "user" in opinion:
-                if user.get_username() in opinion["user"]:
-                    await chat.send_message(opinion["opinion"][random.randrange(len(opinion["opinion"]))], bot.msg_creator)
-                    return
-            else:
-                await chat.send_message(opinion["opinion"][random.randrange(len(opinion["opinion"]))], bot.msg_creator)
-                return
-    msgs = NO_MSGS if hash(args) % 2 == 0 else YES_MSGS
-    await chat.send_message(msgs[random.randrange(len(msgs))], bot.msg_creator)
-
-
-async def command_xkcd(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
-    """
-    Get the latest xkcd or a specific xkcd by number.
-    ---
-    group: General Commands
-    syntax: [number]
-    ---
-    > `@latexbot xkcd` - Get the latest xkcd.
-    > `@latexbot xkcd 149` - Get xkcd #149.
-    """
-    xkcd_creator = pyryver.Creator(bot.msg_creator.name, util.XKCD_PROFILE)
-    if args:
-        try:
-            number = int(args)
-        except ValueError:
-            await chat.send_message(f"Invalid number.", xkcd_creator)
-            return
-    else:
-        number = None
-    
-    try:
-        comic = await xkcd.get_comic(number)
-        if not comic:
-            await chat.send_message(f"Error: This comic does not exist (404). Have this image of a turtle instead.\n\n![A turtle](https://cdn.britannica.com/66/195966-138-F9E7A828/facts-turtles.jpg)", xkcd_creator)
-            return
-        
-        await chat.send_message(xkcd.comic_to_str(comic), xkcd_creator)
-    except aiohttp.ClientResponseError as e:
-        await chat.send_message(f"An error occurred: {e}", xkcd_creator)
-
-
-async def command_checkiday(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
-    """
-    Get a list of today's holidays or holidays for any date.
-
-    This command uses the https://www.checkiday.com/ API.
-
-    The date is optional; if specified, it must be in the YYYY/MM/DD format.
-    ---
-    group: General Commands
-    syntax: [date]
-    ---
-    > `@latexbot checkiday` - Get today's holidays.
-    > `@latexbot checkiday 2020/05/12` - Get the holidays on May 12, 2020.
-    """
-    url = f"https://www.checkiday.com/api/3/?d={args or util.current_time().strftime('%Y/%m/%d')}"
-    async with aiohttp.request("GET", url) as resp:
-        if resp.status != 200:
-            await chat.send_message(f"HTTP error while trying to get holidays: {resp}", bot.msg_creator)
-            return
-        data = await resp.json()
-    if data["error"] != "none":
-        await chat.send_message(f"Error: {data['error']}", bot.msg_creator)
-        return
-    if not data.get("holidays", None):
-        await chat.send_message(f"No holidays on {data['date']}.")
-        return
-    else:
-        msg = f"Here is a list of all the holidays on {data['date']}:\n"
-        msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
-        await chat.send_message(msg, bot.msg_creator)
-
-
 async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Query TheBlueAlliance.
@@ -561,6 +452,288 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
             await chat.send_message(f"HTTP Error: {e}. Please try again.", bot.msg_creator)
 
 
+async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Configure your keyword watches.
+
+    Keyword watches are unique for each user. When you set up a keyword watch, LaTeX Bot will
+    search every message sent for the string you specified. When a message containing your keyword
+    is sent, you will be notified through a private message. With this system, you could mute a
+    forum/team but still receive notifications when a topic you're interested in is being
+    discussed.
+
+    *Keywords could contain any number of characters and could be of any length.* You can configure
+    them to be case-sensitive and/or match whole words only (by default they're neither).
+
+    **You will not receive keyword watch notifications if any of the following are true:**
+    - Your status is Available (indicated by a green dot; you can change this by clicking on your
+    profile in the top left corner)
+    - The message was sent to a forum or team you are not in
+    - You turned keyword notifications off using `@latexbot watch off`
+    - You are considered "active" by LaTeX Bot, i.e. you sent a message recently (by default in the
+    last 3 minutes, configurable via `@latexbot watch activityTimeout <seconds>`).
+
+    To manage your keyword watches, use the following sub-commands (see examples below):
+    - (No arguments) - List all your keyword watches and settings.
+    - `add <keyword> [match-case] [match-whole-word]` - Add a keyword watch. **The keyword must be
+    in quotes if it contains a space, e.g. "3d printer".** `match-case` and `match-whole-word`
+    specify whether the keyword is case-sensitive and should match whole words only, and can be
+    "true"/"false" or "yes"/"no". Both are false by default.
+    - `delete <keyword-number>` - Delete a keyword *by number*. Keyword numbers can be obtained by
+    listing them through `@latexbot watch`. 
+    - `delete all` - Delete *all* of your keyword watches.
+    - `on`, `off` - Turn keyword watch notifications on or off.
+    - `activityTimeout <seconds>` - Set your activity timeout. This is the duration in seconds that
+    you're considered "active" for after sending a message. When you are considered "active", you
+    will not receive watch notifications. By default this is set to 3 minutes, i.e. you will not
+    receive notifications for 3 minutes after sending a message. Set to 0 to disable.
+    ---
+    group: General Commands
+    syntax: [sub-command] [args]
+    ---
+    > `@latexbot watch` - View your keyword watches and settings.
+    > `@latexbot watch add "programming"` - Add a watch for the keyword "programming" (case insensitive).
+    > `@latexbot watch add "3d printer" false true` - Add a watch for the keyword "3d printer" (case insensitive, whole words only).
+    > `@latexbot watch add "CAD" yes yes` - Add a watch for the keyword "CAD" (case sensitive, whole words only).
+    > `@latexbot watch delete 1` - Delete the watch with number 1.
+    > `@latexbot watch delete all` - Delete all your watches.
+    > `@latexbot watch off` - Turn off watch notifications.
+    > `@latexbot watch activityTimeout 60` - Set your activity timeout to 1 minute, i.e. you will not receive watch notifications for 1 minute after sending a message.
+    > `@latexbot watch activityTimeout 0` - Disable your activity timeout, i.e. sending messages will not affect watch notifications.
+    """
+    def get_default_settings_dict():
+        return {
+            "on": True,
+            "activityTimeout": 180.0,
+            "keywords": [],
+        }
+
+    args = shlex.split(args)
+    user_id = str(user.get_id())
+    if not args:
+        if user_id in bot.keyword_watches:
+            if bot.keyword_watches[user_id]["on"]:
+                resp = "Your keyword watches notifications are turned **on**."
+            else:
+                resp = "Your keyword watches notifications are turned **off**."
+            if bot.keyword_watches[user_id]["activityTimeout"] != 0:
+                resp += f" Your activity timeout is set to {bot.keyword_watches[user_id]['activityTimeout']} seconds.\n\n"
+            else:
+                resp += " Activity timeout is disabled.\n\n"
+            if bot.keyword_watches[user_id]["keywords"]:
+                resp += "Your keyword watches are:"
+                for i, watch in enumerate(bot.keyword_watches[user_id]["keywords"]):
+                    resp += f"\n{i + 1}. \"{watch['keyword']}\" (match case: {watch['matchCase']}, whole word: {watch['wholeWord']})"
+            else:
+                resp += "You do not have any keyword watches."
+        else:
+            resp = "You have not set up keyword watches."
+        await chat.send_message(resp, bot.msg_creator)
+        return
+
+    if args[0] == "add":
+        if not (2 <= len(args) <= 4):
+            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
+            return
+        
+        if len(args) >= 3:
+            arg = args[2].lower()
+            if arg == "true" or arg == "yes":
+                match_case = True
+            elif arg == "false" or arg == "no":
+                match_case = False
+            else:
+                await chat.send_message("Invalid argument for match case option. See `@latexbot help watch` for help.", bot.msg_creator)
+                return
+        else:
+            match_case = False
+        if len(args) >= 4:
+            arg = args[3].lower()
+            if arg == "true" or arg == "yes":
+                whole_word = True
+            elif arg == "false" or arg == "no":
+                whole_word = False
+            else:
+                await chat.send_message("Invalid argument for whole word option. See `@latexbot help watch` for help.", bot.msg_creator)
+                return
+        else:
+            whole_word = False
+        
+        if not args[1]:
+            await chat.send_message("Error: Empty keywords are not allowed.", bot.msg_creator)
+            return
+        if user_id not in bot.keyword_watches:
+            bot.keyword_watches[user_id] = get_default_settings_dict()
+        bot.keyword_watches[user_id]["keywords"].append({
+            "keyword": args[1],
+            "wholeWord": whole_word,
+            "matchCase": match_case,
+        })
+        bot.save_watches()
+        bot.rebuild_automaton() # Could be optimized
+        resp = f"Added watch for keyword \"{args[1]}\" (match case: {match_case}, whole word: {whole_word})."
+        if not bot.keyword_watches[user_id]["on"]:
+            resp += " Note: Your keyword watch notifications are currently off."
+        await chat.send_message(resp, bot.msg_creator)
+    elif args[0] == "delete":
+        if len(args) != 2:
+            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
+            return
+        if user_id not in bot.keyword_watches or not bot.keyword_watches[user_id]["keywords"]:
+            await chat.send_message("You have no watches configured.", bot.msg_creator)
+            return
+        if args[1].lower() == "all":
+            bot.keyword_watches[user_id]["keywords"] = []
+            bot.save_watches()
+            await chat.send_message("Cleared all your keyword watches.", bot.msg_creator)
+        else:
+            try:
+                n = int(args[1]) - 1
+                if n < 0 or n >= len(bot.keyword_watches[user_id]["keywords"]):
+                    raise ValueError
+            except ValueError:
+                await chat.send_message("Invalid number.", bot.msg_creator)
+            watch = bot.keyword_watches[user_id]["keywords"].pop(n)
+            bot.save_watches()
+            await chat.send_message(f"Removed watch #{n + 1} for keyword \"{watch['keyword']}\" (match case: {watch['matchCase']}, whole word: {watch['wholeWord']}).", bot.msg_creator)
+        bot.rebuild_automaton() # Could be optimized
+    elif args[0] == "on" or args[0] == "off":
+        if len(args) != 1:
+            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
+            return
+        if user_id not in bot.keyword_watches:
+            bot.keyword_watches[user_id] = get_default_settings_dict()
+        bot.keyword_watches[user_id]["on"] = True if args[0] == "on" else False
+        bot.save_watches()
+        bot.rebuild_automaton()
+        await chat.send_message(f"Turned keyword watch notifications **{args[0]}**.", bot.msg_creator)
+    elif args[0] == "activityTimeout":
+        if len(args) != 2:
+            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
+            return
+        try:
+            timeout = float(args[1])
+        except ValueError:
+            await chat.send_message("Invalid number. Set this to 0 if you want to disable activity timeout.", bot.msg_creator)
+            return
+        if user_id not in bot.keyword_watches:
+            bot.keyword_watches[user_id] = get_default_settings_dict()
+        bot.keyword_watches[user_id]["activityTimeout"] = timeout
+        bot.save_watches()
+        await chat.send_message("Activity timeout has been " + (f"set to {timeout} seconds." if timeout > 0 else "disabled."), bot.msg_creator)
+    else:
+        await chat.send_message("Invalid sub-command. See `@latexbot help watch` for help.", bot.msg_creator)
+
+
+YES_MSGS = [
+    "Yes.",
+    "I like it!",
+    "Brilliant!",
+    "Genius!",
+    "Do it!",
+    "It's good.",
+    ":thumbsup:",
+]
+NO_MSGS = [
+    "No.",
+    ":thumbsdown:",
+    "I hate it.",
+    "Please no.",
+    "It's bad.",
+    "It's stupid.",
+]
+
+
+async def command_whatDoYouThink(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Ask my opinion of a thing!
+
+    Disclaimer: These are my own opinions, Tyler is not responsible for anything said.
+    ---
+    group: Entertainment Commands
+    syntax: <thing>
+    ---
+    > `@latexbot whatDoYouThink <insert controversial topic here>`
+    """
+    args = args.lower()
+    # Match configured opinions
+    for opinion in config.opinions:
+        if args in opinion["thing"]:
+            # Match user if required
+            if "user" in opinion:
+                if user.get_username() in opinion["user"]:
+                    await chat.send_message(opinion["opinion"][random.randrange(len(opinion["opinion"]))], bot.msg_creator)
+                    return
+            else:
+                await chat.send_message(opinion["opinion"][random.randrange(len(opinion["opinion"]))], bot.msg_creator)
+                return
+    msgs = NO_MSGS if hash(args) % 2 == 0 else YES_MSGS
+    await chat.send_message(msgs[random.randrange(len(msgs))], bot.msg_creator)
+
+
+async def command_xkcd(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Get the latest xkcd or a specific xkcd by number.
+    ---
+    group: Entertainment Commands
+    syntax: [number]
+    ---
+    > `@latexbot xkcd` - Get the latest xkcd.
+    > `@latexbot xkcd 149` - Get xkcd #149.
+    """
+    xkcd_creator = pyryver.Creator(bot.msg_creator.name, util.XKCD_PROFILE)
+    if args:
+        try:
+            number = int(args)
+        except ValueError:
+            await chat.send_message(f"Invalid number.", xkcd_creator)
+            return
+    else:
+        number = None
+    
+    try:
+        comic = await xkcd.get_comic(number)
+        if not comic:
+            await chat.send_message(f"Error: This comic does not exist (404). Have this image of a turtle instead.\n\n![A turtle](https://cdn.britannica.com/66/195966-138-F9E7A828/facts-turtles.jpg)", xkcd_creator)
+            return
+        
+        await chat.send_message(xkcd.comic_to_str(comic), xkcd_creator)
+    except aiohttp.ClientResponseError as e:
+        await chat.send_message(f"An error occurred: {e}", xkcd_creator)
+
+
+async def command_checkiday(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Get a list of today's holidays or holidays for any date.
+
+    This command uses the https://www.checkiday.com/ API.
+
+    The date is optional; if specified, it must be in the YYYY/MM/DD format.
+    ---
+    group: Entertainment Commands
+    syntax: [date]
+    ---
+    > `@latexbot checkiday` - Get today's holidays.
+    > `@latexbot checkiday 2020/05/12` - Get the holidays on May 12, 2020.
+    """
+    url = f"https://www.checkiday.com/api/3/?d={args or util.current_time().strftime('%Y/%m/%d')}"
+    async with aiohttp.request("GET", url) as resp:
+        if resp.status != 200:
+            await chat.send_message(f"HTTP error while trying to get holidays: {resp}", bot.msg_creator)
+            return
+        data = await resp.json()
+    if data["error"] != "none":
+        await chat.send_message(f"Error: {data['error']}", bot.msg_creator)
+        return
+    if not data.get("holidays", None):
+        await chat.send_message(f"No holidays on {data['date']}.")
+        return
+    else:
+        msg = f"Here is a list of all the holidays on {data['date']}:\n"
+        msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
+        await chat.send_message(msg, bot.msg_creator)
+
+
 async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Play a game of trivia. See extended description for details. 
@@ -593,7 +766,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     Note: The `importCustomQuestions`, `exportCustomQuestions`, and `end` sub-commands can have access rules.
     Use the names `trivia importCustomQuestions`, `trivia exportCustomQuestions` and `trivia end` respectively to refer to them in the accessRule command.
     ---
-    group: General Commands
+    group: Entertainment Commands
     syntax: <sub-command> [args]
     ---
     > `@latexbot trivia categories` - See all categories.
@@ -884,179 +1057,6 @@ async def reaction_trivia(bot: "latexbot.LatexBot", ryver: pyryver.Ryver, sessio
             
             await game.answer(answer, data["userId"])
             break
-
-
-async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
-    """
-    Configure your keyword watches.
-
-    Keyword watches are unique for each user. When you set up a keyword watch, LaTeX Bot will
-    search every message sent for the string you specified. When a message containing your keyword
-    is sent, you will be notified through a private message. With this system, you could mute a
-    forum/team but still receive notifications when a topic you're interested in is being
-    discussed.
-
-    *Keywords could contain any number of characters and could be of any length.* You can configure
-    them to be case-sensitive and/or match whole words only (by default they're neither).
-
-    **You will not receive keyword watch notifications if any of the following are true:**
-    - Your status is Available (indicated by a green dot; you can change this by clicking on your
-    profile in the top left corner)
-    - The message was sent to a forum or team you are not in
-    - You turned keyword notifications off using `@latexbot watch off`
-    - You are considered "active" by LaTeX Bot, i.e. you sent a message recently (by default in the
-    last 3 minutes, configurable via `@latexbot watch activityTimeout <seconds>`).
-
-    To manage your keyword watches, use the following sub-commands (see examples below):
-    - (No arguments) - List all your keyword watches and settings.
-    - `add <keyword> [match-case] [match-whole-word]` - Add a keyword watch. **The keyword must be
-    in quotes if it contains a space, e.g. "3d printer".** `match-case` and `match-whole-word`
-    specify whether the keyword is case-sensitive and should match whole words only, and can be
-    "true"/"false" or "yes"/"no". Both are false by default.
-    - `delete <keyword-number>` - Delete a keyword *by number*. Keyword numbers can be obtained by
-    listing them through `@latexbot watch`. 
-    - `delete all` - Delete *all* of your keyword watches.
-    - `on`, `off` - Turn keyword watch notifications on or off.
-    - `activityTimeout <seconds>` - Set your activity timeout. This is the duration in seconds that
-    you're considered "active" for after sending a message. When you are considered "active", you
-    will not receive watch notifications. By default this is set to 3 minutes, i.e. you will not
-    receive notifications for 3 minutes after sending a message. Set to 0 to disable.
-    ---
-    group: General Commands
-    syntax: [sub-command] [args]
-    ---
-    > `@latexbot watch` - View your keyword watches and settings.
-    > `@latexbot watch add "programming"` - Add a watch for the keyword "programming" (case insensitive).
-    > `@latexbot watch add "3d printer" false true` - Add a watch for the keyword "3d printer" (case insensitive, whole words only).
-    > `@latexbot watch add "CAD" yes yes` - Add a watch for the keyword "CAD" (case sensitive, whole words only).
-    > `@latexbot watch delete 1` - Delete the watch with number 1.
-    > `@latexbot watch delete all` - Delete all your watches.
-    > `@latexbot watch off` - Turn off watch notifications.
-    > `@latexbot watch activityTimeout 60` - Set your activity timeout to 1 minute, i.e. you will not receive watch notifications for 1 minute after sending a message.
-    > `@latexbot watch activityTimeout 0` - Disable your activity timeout, i.e. sending messages will not affect watch notifications.
-    """
-    def get_default_settings_dict():
-        return {
-            "on": True,
-            "activityTimeout": 180.0,
-            "keywords": [],
-        }
-
-    args = shlex.split(args)
-    user_id = str(user.get_id())
-    if not args:
-        if user_id in bot.keyword_watches:
-            if bot.keyword_watches[user_id]["on"]:
-                resp = "Your keyword watches notifications are turned **on**."
-            else:
-                resp = "Your keyword watches notifications are turned **off**."
-            if bot.keyword_watches[user_id]["activityTimeout"] != 0:
-                resp += f" Your activity timeout is set to {bot.keyword_watches[user_id]['activityTimeout']} seconds.\n\n"
-            else:
-                resp += " Activity timeout is disabled.\n\n"
-            if bot.keyword_watches[user_id]["keywords"]:
-                resp += "Your keyword watches are:"
-                for i, watch in enumerate(bot.keyword_watches[user_id]["keywords"]):
-                    resp += f"\n{i + 1}. \"{watch['keyword']}\" (match case: {watch['matchCase']}, whole word: {watch['wholeWord']})"
-            else:
-                resp += "You do not have any keyword watches."
-        else:
-            resp = "You have not set up keyword watches."
-        await chat.send_message(resp, bot.msg_creator)
-        return
-
-    if args[0] == "add":
-        if not (2 <= len(args) <= 4):
-            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
-            return
-        
-        if len(args) >= 3:
-            arg = args[2].lower()
-            if arg == "true" or arg == "yes":
-                match_case = True
-            elif arg == "false" or arg == "no":
-                match_case = False
-            else:
-                await chat.send_message("Invalid argument for match case option. See `@latexbot help watch` for help.", bot.msg_creator)
-                return
-        else:
-            match_case = False
-        if len(args) >= 4:
-            arg = args[3].lower()
-            if arg == "true" or arg == "yes":
-                whole_word = True
-            elif arg == "false" or arg == "no":
-                whole_word = False
-            else:
-                await chat.send_message("Invalid argument for whole word option. See `@latexbot help watch` for help.", bot.msg_creator)
-                return
-        else:
-            whole_word = False
-        
-        if not args[1]:
-            await chat.send_message("Error: Empty keywords are not allowed.", bot.msg_creator)
-            return
-        if user_id not in bot.keyword_watches:
-            bot.keyword_watches[user_id] = get_default_settings_dict()
-        bot.keyword_watches[user_id]["keywords"].append({
-            "keyword": args[1],
-            "wholeWord": whole_word,
-            "matchCase": match_case,
-        })
-        bot.save_watches()
-        bot.rebuild_automaton() # Could be optimized
-        resp = f"Added watch for keyword \"{args[1]}\" (match case: {match_case}, whole word: {whole_word})."
-        if not bot.keyword_watches[user_id]["on"]:
-            resp += " Note: Your keyword watch notifications are currently off."
-        await chat.send_message(resp, bot.msg_creator)
-    elif args[0] == "delete":
-        if len(args) != 2:
-            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
-            return
-        if user_id not in bot.keyword_watches or not bot.keyword_watches[user_id]["keywords"]:
-            await chat.send_message("You have no watches configured.", bot.msg_creator)
-            return
-        if args[1].lower() == "all":
-            bot.keyword_watches[user_id]["keywords"] = []
-            bot.save_watches()
-            await chat.send_message("Cleared all your keyword watches.", bot.msg_creator)
-        else:
-            try:
-                n = int(args[1]) - 1
-                if n < 0 or n >= len(bot.keyword_watches[user_id]["keywords"]):
-                    raise ValueError
-            except ValueError:
-                await chat.send_message("Invalid number.", bot.msg_creator)
-            watch = bot.keyword_watches[user_id]["keywords"].pop(n)
-            bot.save_watches()
-            await chat.send_message(f"Removed watch #{n + 1} for keyword \"{watch['keyword']}\" (match case: {watch['matchCase']}, whole word: {watch['wholeWord']}).", bot.msg_creator)
-        bot.rebuild_automaton() # Could be optimized
-    elif args[0] == "on" or args[0] == "off":
-        if len(args) != 1:
-            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
-            return
-        if user_id not in bot.keyword_watches:
-            bot.keyword_watches[user_id] = get_default_settings_dict()
-        bot.keyword_watches[user_id]["on"] = True if args[0] == "on" else False
-        bot.save_watches()
-        bot.rebuild_automaton()
-        await chat.send_message(f"Turned keyword watch notifications **{args[0]}**.", bot.msg_creator)
-    elif args[0] == "activityTimeout":
-        if len(args) != 2:
-            await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
-            return
-        try:
-            timeout = float(args[1])
-        except ValueError:
-            await chat.send_message("Invalid number. Set this to 0 if you want to disable activity timeout.", bot.msg_creator)
-            return
-        if user_id not in bot.keyword_watches:
-            bot.keyword_watches[user_id] = get_default_settings_dict()
-        bot.keyword_watches[user_id]["activityTimeout"] = timeout
-        bot.save_watches()
-        await chat.send_message("Activity timeout has been " + (f"set to {timeout} seconds." if timeout > 0 else "disabled."), bot.msg_creator)
-    else:
-        await chat.send_message("Invalid sub-command. See `@latexbot help watch` for help.", bot.msg_creator)
 
 
 async def command_deleteMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
