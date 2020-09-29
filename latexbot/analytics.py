@@ -49,10 +49,11 @@ class Analytics:
         Record a message.
         """
         uid = str(user.get_id())
-        if uid in self.message_activity:
-            self.message_activity[uid] += len(body)
-        else:
-            self.message_activity[uid] = len(body)
+        if len(body) < 750:
+            if uid in self.message_activity:
+                self.message_activity[uid] += len(body)
+            else:
+                self.message_activity[uid] = len(body)
     
     def save(self) -> None:
         """
