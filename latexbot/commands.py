@@ -1059,6 +1059,35 @@ async def reaction_trivia(bot: "latexbot.LatexBot", ryver: pyryver.Ryver, sessio
             break
 
 
+async def command_leaderboards(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Print out the activity leaderboards. Only works with analytics enabled.
+
+    Message activity is measured in total number of characters sent. Also available at `/analytics-ui`
+    on the web server.
+    ---
+    group: Entertainment Commands
+    syntax:
+    """
+    if not bot.analytics:
+        await chat.send_message("This feature is unavailable because analytics are disabled.", bot.msg_creator)
+    leaderboards = [(int(uid), count) for i, (uid, count) in enumerate(sorted(bot.analytics.message_activity.items(), key=lambda x: x[1], reverse=True)) if i < 20]
+    resp = "# Message Activity Leaderboards (Top 20)"
+    rank = None
+    score = None
+    for i, (uid, count) in enumerate(leaderboards):
+        uobj = bot.ryver.get_user(id=uid)
+        resp += f"\n{i + 1}. {uobj.get_name()} (`{uobj.get_username()}`) with a score of **{count}**"
+        if uid == user.get_id():
+            rank = i + 1
+            score = count
+    if rank is not None:
+        resp += f"\n\nYou are in **{util.ordinal(rank)}** place, with a score of **{score}**."
+    else:
+        resp += f"\n\nYou are not on the leaderboards. Be more active!"
+    await chat.send_message(resp, bot.msg_creator)
+
+
 async def command_deleteMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Delete messages.
