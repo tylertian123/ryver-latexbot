@@ -46,7 +46,7 @@ LATEX: /\$.+?\$/
        | VARIABLE NUMBER      -> sub
        | mvalue "_" value     -> sub
 
-// Values that cannot be on the right-hand side of an implicit multiplcation
+// Values that cannot be on the right-hand side of an implicit multiplication
 ?nmvalue: NUMBER               -> val
         | SUM_OP value         -> signed_val
         | nmvalue VAL_SUFFIX   -> suffix

@@ -27,9 +27,10 @@ ALL_TIME_FORMATS = [
 
 XKCD_PROFILE = "https://www.explainxkcd.com/wiki/images/6/6d/BlackHat_head.png"
 
-MENTION_REGEX = re.compile(r"((?:^|[^a-zA-Z0-9_!@#$%&*])(?:(?:@)(?!\/)))([a-zA-Z0-9_]*)(?:\b(?!@)|$)", flags=re.MULTILINE)
-
+MENTION_REGEX = re.compile(r"((?:^|[^a-zA-Z0-9_!@#$%&*\\])(?:(?:@)(?!\/)))([a-zA-Z0-9_]*)(?:\b(?!@)|$)", flags=re.MULTILINE)
+MACRO_REGEX = re.compile(r"(^|[^a-z0-9_\\])\.([a-z0-9_]+)\b", flags=re.MULTILINE)
 CHAT_LOOKUP_REGEX = re.compile(r"([a-z]+)=(.*)")
+
 
 def log(*args, **kwargs):
     """

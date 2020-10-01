@@ -5,20 +5,29 @@ It covers many important topics that you might find helpful.
 For more information about a particular command, do `@latexbot help <command>`. 
 This guide does not cover all commands, nor does it offer in-depth syntax info for most commands.
 
-This guide is for LaTeX Bot v0.8.1.
+This guide is for LaTeX Bot v0.8.4.
 
 # Table of Contents
 - [Access Levels](#access-levels)
 - [General Usage](#general-usage)
   - [Rendering Math/Chemical Equations](#rendering-mathchemical-equations)
+    - [Rendering Simple Equations](#rendering-simple-equations)
   - [Viewing XKCDs](#viewing-xkcds)
   - [Checkiday](#checkiday)
+  - [Chat Macros](#chat-macros)
   - [Playing Trivia](#playing-trivia)
     - [Starting a Game](#starting-a-game)
     - [Playing the Game](#playing-the-game)
     - [Ending the Game](#ending-the-game)
     - [Adding Custom Trivia Questions](#adding-custom-trivia-questions)
 - [Keyword Watches](#keyword-watches)
+  - [Managing Your Keyword Watches](#managing-your-keyword-watches)
+    - [Viewing Your Keywords and Configurations](#viewing-your-keywords-and-configurations)
+    - [Adding Keywords](#adding-keywords)
+    - [Removing Keywords](#removing-keywords)
+    - [Turning Keyword Watches Off](#turning-keyword-watches-off)
+    - [Setting Your Activity Timeout](#setting-your-activity-timeout)
+  - [Keyword Watch JSON Format](#keyword-watch-json-format)
 - [The Blue Alliance (TBA) Integration](#the-blue-alliance-tba-integration)
 - [Google Calendar Integration](#google-calendar-integration)
   - [Checking Events](#checking-events)
@@ -45,6 +54,7 @@ This guide is for LaTeX Bot v0.8.1.
   - [Access Rules](#access-rules)
   - [Updating Cached Chat Data](#updating-cached-chat-data)
   - [Analytics](#analytics)
+    - [Analytics JSON Format](#analytics-json-format)
   - [Server](#server)
 - [Configuring LaTeX Bot](#configuring-latex-bot)
 
@@ -69,7 +79,7 @@ The access levels go like this:
 Where the level increases as you go down the list.
 
 # General Usage
-This section outlines commands and topics accessible to everyone.
+This section outlines commands and topics that are commonly used and (mostly) accessible to everyone.
 
 ## Rendering Math/Chemical Equations
 Of course, the primary function of LaTeX Bot is to render LaTeX.
@@ -78,12 +88,22 @@ e.g. `F(s) = \int_{0}^{\infty} f(t) e^{-st} dt` will render the definition of th
 
 LaTeX Bot also supports rendering chemical equations with `mhchem`.
 Render chemical equations with the `chem` command, 
-e.g. `@latex bot render HCl_{(aq)} + NaOH_{(aq)} -> H2O_{(l)} + NaCl_{(aq)}` will render the neutralization of hydrochloric acid and sodium hydroxide.
+e.g. `@latexbot render HCl_{(aq)} + NaOH_{(aq)} -> H2O_{(l)} + NaCl_{(aq)}` will render the neutralization of hydrochloric acid and sodium hydroxide.
 Note that the spaces before and after the plus signs and the arrow are required; 
 if there are no spaces around the arrow, the equation cannot be rendered;
 if there are no spaces around the plus signs, they will get rendered as charges instead.
 
 Fun fact: The output colour is grey because it is the only decent-looking colour visible in both light and dark mode.
+
+### Rendering Simple Equations
+LaTeX can be quite verbose and a lot to type when you just want to render a simple equation during a discussion.
+To solve this problem, LaTeX Bot supports *simple equations*.
+
+Simple equations have a syntax much less verbose and much more intuitive and readable than LaTeX.
+For example, the simple equation `sin(sqrt(e^x + a) / 2)` will be converted into LaTeX `\sin\left(\frac{\sqrt{e^{x}+a}}{2}\right)`.
+
+To render a simple equation, use the `renderSimple` command.
+For more details on simple equations, see `@latexbot help renderSimple`, or read the simple equation grammar in `latexbot/simplelatex.py`.
 
 ## Viewing XKCDs
 View the current xkcd or any past xkcd using the `xkcd` command!
@@ -100,6 +120,23 @@ If given a specific date (format: YYYY/MM/DD), it'll print out the holidays for 
 
 Holidays are sent each day as part of the Daily Message.
 See [Daily Message](#daily-message) for details.
+
+## Chat Macros
+Macros allow LaTeX Bot to automatically replace specific strings in your messages with something else.
+Macros can be used by putting a dot in front of the macro name, like so: `.shrug`.
+They can be used anywhere in the message and by anyone.
+Currently, macros cannot be modified. The list of macros and their replacements are:
+ - `.shrug` - &#x00af;\\\_(&#x30c4;)\_/&#x00af;
+ - `.tableflip`, `.flip` - (&#x256f;&#xb0;&#x25a1;&#xb0;)&#x256f;&#xfe35; &#x253b;&#x2501;&#x253b;
+ - `.unflip` - &#x252c;&#x2500;&#x252c;&#x30ce;( &#xba; _ &#xba;&#x30ce;)
+ - `.lenny` - ( &#x0361;&#xb0; &#x035c;&#x0296; &#x0361;&#xb0;)
+ - `.disapproval` - &#x0ca0;_&#x0ca0;
+ - `.sendlove`, `.love` - (&#x0254;&#x25d4;&#x203f;&#x25d4;)&#x0254; :heart:
+ - `.megaphone`, `.announcement`, `.scream` - &#x0001f4e3; ('&#x1d17;' )&#x0648;
+ - `.celebration` - &#xff3c;(&#xff3e;O&#xff3e;)&#xff0f;
+
+If you do not want a string to be replaced as a macro, put a backslash before it, e.g. `\.shrug` will not be parsed as a macro.
+Because of Ryver's Markdown rendering, the backslash will not be visible in the final message.
 
 ## Playing Trivia
 Yes, LaTeX Bot has games!
@@ -411,6 +448,9 @@ Using Roles and [Access Rules](#access-rules), you can also grant and restrict a
 
 Role names work exactly like regular Ryver usernames.
 They are case-insensitive, and can only contain alphanumeric characters and underscores. 
+
+If you want to send a literal `@RoleName` and not have LaTeX Bot expand it, you can prefix it with a backslash, e.g. `\@RoleName`.
+Because of Ryver's Markdown rendering, the backslash will not be visible in the final message.
 
 ### Viewing Roles
 You can view roles using the `roles` command. 

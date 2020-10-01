@@ -6,6 +6,7 @@ import server
 import json
 import os
 import pyryver
+import re
 import time
 import trivia
 import typing # pylint: disable=unused-import
@@ -26,44 +27,29 @@ class LatexBot:
 
     MACRO_SHRUG = "\u00af\\\\_(\u30c4)\\_/\u00af"
     MACRO_TABLEFLIP = "(\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b"
-    MACRO_UNFLIP = "\u252c\u2500\u252c\u30ce( \xba _ \xba\u30ce)"
+    MACRO_UNFLIP = "\u252c\u2500\u252c\u30ce( \xba \\_ \xba\u30ce)"
     MACRO_LENNY = "( \u0361\xb0 \u035c\u0296 \u0361\xb0)"
-    MACRO_DISAPPROVAL = "\u0ca0_\u0ca0"
+    MACRO_DISAPPROVAL = "\u0ca0\\_\u0ca0"
     MACRO_SENDLOVE = "(\u0254\u25d4\u203f\u25d4)\u0254 :heart:"
     MACRO_MEGAPHONE = "\U0001f4e3 ('\u1d17' )\u0648"
     MACRO_CELEBRATION = "\uff3c(\uff3eO\uff3e)\uff0f"
     MACRO_STRAT = ":poop:"
 
     MACROS = {
-        ".shrug": MACRO_SHRUG,
-        ".tableflip": MACRO_TABLEFLIP,
-        ".flip": MACRO_TABLEFLIP,
-        ".unflip": MACRO_UNFLIP,
-        ".lenny": MACRO_LENNY,
-        ".disapproval": MACRO_DISAPPROVAL,
-        ".sendlove": MACRO_SENDLOVE,
-        ".love": MACRO_SENDLOVE,
-        ".megaphone": MACRO_MEGAPHONE,
-        ".scream": MACRO_MEGAPHONE,
-        ".announcement": MACRO_MEGAPHONE,
-        ".celebration": MACRO_CELEBRATION,
-        ".strat": MACRO_STRAT,
-        ".strategy": MACRO_STRAT,
-
-        "/shrug": MACRO_SHRUG,
-        "/tableflip": MACRO_TABLEFLIP,
-        "/flip": MACRO_TABLEFLIP,
-        "/unflip": MACRO_UNFLIP,
-        "/lenny": MACRO_LENNY,
-        "/disapproval": MACRO_DISAPPROVAL,
-        "/sendlove": MACRO_SENDLOVE,
-        "/love": MACRO_SENDLOVE,
-        "/megaphone": MACRO_MEGAPHONE,
-        "/scream": MACRO_MEGAPHONE,
-        "/announcement": MACRO_MEGAPHONE,
-        "/celebration": MACRO_CELEBRATION,
-        "/strat": MACRO_STRAT,
-        "/strategy": MACRO_STRAT,
+        "shrug": MACRO_SHRUG,
+        "tableflip": MACRO_TABLEFLIP,
+        "flip": MACRO_TABLEFLIP,
+        "unflip": MACRO_UNFLIP,
+        "lenny": MACRO_LENNY,
+        "disapproval": MACRO_DISAPPROVAL,
+        "sendlove": MACRO_SENDLOVE,
+        "love": MACRO_SENDLOVE,
+        "megaphone": MACRO_MEGAPHONE,
+        "scream": MACRO_MEGAPHONE,
+        "announcement": MACRO_MEGAPHONE,
+        "celebration": MACRO_CELEBRATION,
+        "strat": MACRO_STRAT,
+        "strategy": MACRO_STRAT,
     }
 
     def __init__(self, version: str, analytics_file: str = None, debug: bool = False):
@@ -556,34 +542,35 @@ class LatexBot:
                             await to.send_message(f"Sorry, I didn't understand what you were asking me to do.", self.msg_creator)
                 # Not a command
                 else:
-                    # Check for roles
-                    if util.MENTION_REGEX.search(msg.text):
-                        # Replace roles and re-send
-                        def replace_func(match):
-                            group1 = match.group(1)
-                            name = match.group(2)
-                            if name in self.roles:
-                                name = " @".join(self.roles[name])
-                            return group1 + name
-                        new_text = util.MENTION_REGEX.sub(replace_func, msg.text)
-                        if new_text != msg.text:
-                            util.log(f"Role mention received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
-                            async with session.typing(to):
-                                # Get the message object
-                                msg_obj = (await pyryver.retry_until_available(to.get_message, msg.message_id))
-                                # Pretend to be the creator
-                                msg_creator = await self.get_replace_message_creator(msg_obj)
-                                await to.send_message(new_text, msg_creator)
-                            # Can't delete the other person's messages in DMs, so skip
-                            if not is_dm:
-                                await msg_obj.delete()
-                    # Check for macros
-                    if msg.text in self.MACROS:
+                    # Replace roles + macros
+                    def role_replace_func(match: re.Match):
+                        # First capture group is character in front of @ and the @ itself
+                        prefix = match.group(1)
+                        name = match.group(2)
+                        if name in self.roles:
+                            name = " @".join(self.roles[name])
+                        return prefix + name
+                    def macro_replace_func(match: re.Match):
+                        prefix = match.group(1)
+                        macro = match.group(2)
+                        if macro in self.MACROS:
+                            macro = self.MACROS[macro]
+                        return prefix + macro
+                    new_text = util.MENTION_REGEX.sub(role_replace_func, msg.text)
+                    new_text = util.MACRO_REGEX.sub(macro_replace_func, new_text)
+                    # Replace the message if changed
+                    if new_text != msg.text:
+                        msg.text = new_text
                         async with session.typing(to):
+                            # Get the message object
                             msg_obj = (await pyryver.retry_until_available(to.get_message, msg.message_id))
-                            await to.send_message(self.MACROS[msg.text], await self.get_replace_message_creator(msg_obj))
-                            if not is_dm:
-                                await msg_obj.delete()
+                            # Pretend to be the creator
+                            msg_creator = await self.get_replace_message_creator(msg_obj)
+                            await to.send_message(msg.text, msg_creator)
+                        # Can't delete the other person's messages in DMs, so skip
+                        if not is_dm:
+                            await msg_obj.delete()
+                    
                     # Search for keyword matches
                     notify_users = dict() # type: typing.Dict[int, typing.Set[str]]
                     for i, (keyword, users) in self.keyword_watches_automaton.find_all(msg.text.lower()):
