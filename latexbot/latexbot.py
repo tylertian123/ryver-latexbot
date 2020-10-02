@@ -444,12 +444,18 @@ class LatexBot:
             port = None
         await self.webhook_server.start(port or 80)
         # Start live session
-        async with self.ryver.get_live_session() as session: # type: pyryver.RyverWS
+        util.log("Starting live session")
+        async with self.ryver.get_live_session(auto_reconnect=True) as session: # type: pyryver.RyverWS
+            util.log("Initializing live session")
             self.session = session
+            
             @session.on_connection_loss
             async def _on_conn_loss():
                 util.log("Error: Connection lost!")
-                await self.shutdown()
+            
+            @session.on_reconnect
+            async def _on_reconnect():
+                util.log("Reconnected!")
             
             @session.on_chat
             async def _on_chat(msg: pyryver.WSChatMessageData):
@@ -539,7 +545,7 @@ class LatexBot:
                                 await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", self.msg_creator)
                         else:
                             util.log("Invalid command.")
-                            await to.send_message(f"Sorry, I didn't understand what you were asking me to do.", self.msg_creator)
+                            await to.send_message("Sorry, I didn't understand what you were asking me to do.", self.msg_creator)
                 # Not a command
                 else:
                     # Replace roles + macros
