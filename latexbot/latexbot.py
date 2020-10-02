@@ -618,7 +618,7 @@ class LatexBot:
                             if self.user_presences.get(uid) == pyryver.RyverWS.PRESENCE_AVAILABLE:
                                 continue
                             # Check user last activity
-                            if t - self.user_last_activity.get(uid) < self.keyword_watches[str(uid)]["activityTimeout"]:
+                            if t - self.user_last_activity.get(uid, 0) < self.keyword_watches[str(uid)]["activityTimeout"]:
                                 continue
                             # Verify that the user is a member of this chat
                             if isinstance(to, pyryver.GroupChat):
