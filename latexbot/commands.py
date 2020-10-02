@@ -532,7 +532,7 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         return
 
     if args[0] == "add":
-        if not (2 <= len(args) <= 4):
+        if not 2 <= len(args) <= 4:
             await chat.send_message("Invalid number of arguments. See `@latexbot help watch` for help.", bot.msg_creator)
             return
         
@@ -686,7 +686,7 @@ async def command_xkcd(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
         try:
             number = int(args)
         except ValueError:
-            await chat.send_message(f"Invalid number.", xkcd_creator)
+            await chat.send_message("Invalid number.", xkcd_creator)
             return
     else:
         number = None
@@ -694,7 +694,7 @@ async def command_xkcd(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     try:
         comic = await xkcd.get_comic(number)
         if not comic:
-            await chat.send_message(f"Error: This comic does not exist (404). Have this image of a turtle instead.\n\n![A turtle](https://cdn.britannica.com/66/195966-138-F9E7A828/facts-turtles.jpg)", xkcd_creator)
+            await chat.send_message("Error: This comic does not exist (404). Have this image of a turtle instead.\n\n![A turtle](https://cdn.britannica.com/66/195966-138-F9E7A828/facts-turtles.jpg)", xkcd_creator)
             return
         
         await chat.send_message(xkcd.comic_to_str(comic), xkcd_creator)
@@ -1084,7 +1084,7 @@ async def command_leaderboards(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     if rank is not None:
         resp += f"\n\nYou are in **{util.ordinal(rank)}** place, with a score of **{score}**."
     else:
-        resp += f"\n\nYou are not on the leaderboards. Be more active!"
+        resp += "\n\nYou are not on the leaderboards. Be more active!"
     await chat.send_message(resp, bot.msg_creator)
 
 
@@ -1105,6 +1105,7 @@ async def command_deleteMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, u
     """
     if isinstance(chat, pyryver.User):
         await chat.send_message("This command cannot be used in private messages.", bot.msg_creator)
+        return
     try:
         # Try and parse the range
         if "-" in args:
@@ -1150,6 +1151,7 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     """
     if isinstance(chat, pyryver.User):
         await chat.send_message("This command cannot be used in private messages.", bot.msg_creator)
+        return
     try:
         i = args.index(" ")
         msg_range = args[:i]
@@ -1293,7 +1295,7 @@ async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     syntax: [user|role]
     """
     if not bot.roles:
-        await chat.send_message(f"There are currently no roles.", bot.msg_creator)
+        await chat.send_message("There are currently no roles.", bot.msg_creator)
     if args == "":
         if bot.roles:
             roles_str = "\n".join(
@@ -1476,8 +1478,7 @@ async def command_importRoles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     try:
         bot.roles = CaseInsensitiveDict(json.loads(data))
         bot.save_roles()
-        await chat.send_message(
-            f"Operation successful. Use `@latexbot roles` to view the updated roles.", bot.msg_creator)
+        await chat.send_message("Operation successful. Use `@latexbot roles` to view the updated roles.", bot.msg_creator)
     except json.JSONDecodeError as e:
         await chat.send_message(f"Error decoding JSON: {e}", bot.msg_creator)
 
@@ -1499,7 +1500,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         if count < 1:
             raise ValueError
     except ValueError:
-        await chat.send_message(f"Error: Invalid number.", bot.msg_creatorbot.msg_creator)
+        await chat.send_message("Error: Invalid number.", bot.msg_creatorbot.msg_creator)
         return
     
     events = bot.calendar.get_upcoming_events(count)
@@ -1726,7 +1727,7 @@ async def command_deleteEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
         end_str = datetime.strftime(end, util.DATETIME_DISPLAY_FORMAT if end.tzinfo else util.DATE_DISPLAY_FORMAT)
         await chat.send_message(f"Deleted event {matched_event['summary']} (**{start_str}** to **{end_str}**).", bot.msg_creator)
     else:
-        await chat.send_message(f"Error: No event matches that name.", bot.msg_creator)
+        await chat.send_message("Error: No event matches that name.", bot.msg_creator)
 
 
 async def command_setEnabled(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
@@ -1905,7 +1906,7 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
                 bot.save_config()
                 await chat.send_message(f"Successfully deleted alias `{args[1]}`.", bot.msg_creator)
                 return
-        await chat.send_message(f"Alias not found!", bot.msg_creator)
+        await chat.send_message("Alias not found!", bot.msg_creator)
     else:
         await chat.send_message("Invalid action. Allowed actions are create, delete and no argument (view).", bot.msg_creator)
 
@@ -2014,7 +2015,7 @@ async def command_accessRule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user:
     # Only command name is given - show access rules
     if len(args) == 1:
         if args[0] not in bot.commands.commands:
-            await chat.send_message(f"Error: Invalid command.", bot.msg_creator)
+            await chat.send_message("Error: Invalid command.", bot.msg_creator)
             return
         if args[0] in config.access_rules:
             await chat.send_message(util.format_access_rules(args[0], config.access_rules[args[0]]), bot.msg_creator)
@@ -2026,14 +2027,14 @@ async def command_accessRule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user:
     else:
         # Verify arguments are correct
         if args[0] not in bot.commands.commands:
-            await chat.send_message(f"Error: Invalid command.", bot.msg_creator)
+            await chat.send_message("Error: Invalid command.", bot.msg_creator)
             return
         if args[1] == "set":
             if args[2] != "level":
                 await chat.send_message(f"Error: Invalid rule type for action `set`: {args[2]}. See `@latexbot help accessRule` for details.", bot.msg_creator)
                 return
             if len(args) != 4:
-                await chat.send_message(f"Error: The `set` action takes exactly 1 argument.", bot.msg_creator)
+                await chat.send_message("Error: The `set` action takes exactly 1 argument.", bot.msg_creator)
                 return
             try:
                 level = int(args[3])
@@ -2087,7 +2088,7 @@ async def command_accessRule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user:
                 config.access_rules.pop(args[0])
         elif args[1] == "delete":
             if len(args) != 3:
-                await chat.send_message(f"Error: The `delete` action does not take any arguments.", bot.msg_creator)
+                await chat.send_message("Error: The `delete` action does not take any arguments.", bot.msg_creator)
                 return
             try:
                 config.access_rules[args[0]].pop(args[2])
@@ -2136,7 +2137,7 @@ async def command_setDailyMessageTime(bot: "latexbot.LatexBot", chat: pyryver.Ch
     if config.daily_msg_time:
         await chat.send_message(f"Messages will now be sent at {args} daily.", bot.msg_creator)
     else:
-        await chat.send_message(f"Messages have been disabled.", bot.msg_creator)
+        await chat.send_message("Messages have been disabled.", bot.msg_creator)
 
 
 async def command_dailyMessage(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
@@ -2195,7 +2196,7 @@ async def command_dailyMessage(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
         await bot.messages_chat.send_message(f"Error while trying to check today's holidays: {data['error']}", bot.msg_creator)
     else:
         if data.get("holidays", None):
-            msg = f"Here is a list of all the holidays today:\n"
+            msg = "Here is a list of all the holidays today:\n"
             msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
             await bot.messages_chat.send_message(msg, bot.msg_creator)
     comic = await xkcd.get_comic()

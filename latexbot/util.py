@@ -1,3 +1,7 @@
+"""
+Utility functions and constants.
+"""
+
 import aiohttp
 import config
 import datetime
@@ -207,8 +211,8 @@ def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
     for attr in attrs.strip().splitlines():
         try:
             name, val = attr.split(":")
-        except ValueError:
-            raise ValueError(f"Incorrect format: {attr}")
+        except ValueError as e:
+            raise ValueError(f"Incorrect format: {attr}") from e
         doc_dict[name.strip()] = val.strip()
     return doc_dict
 
@@ -282,16 +286,16 @@ async def get_attached_json_data(msg: pyryver.ChatMessage, msg_contents: str) ->
         try:
             data = (await file.download_data()).decode("utf-8")
         except aiohttp.ClientResponseError as e:
-            raise ValueError(f"Error while trying to GET file attachment: {e}")
+            raise ValueError(f"Error while trying to GET file attachment: {e}") from e
         except UnicodeDecodeError as e:
-            raise ValueError(f"File needs to be encoded with utf-8! The following decode error occurred: {e}")
+            raise ValueError(f"File needs to be encoded with utf-8! The following decode error occurred: {e}") from e
     else:
         data = msg_contents
     
     try:
         return json.loads(data)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Error decoding JSON: {e}")
+        raise ValueError(f"Error decoding JSON: {e}") from e
 
 
 def slice_range(l: typing.List[_T], r: str) -> typing.List[_T]:
@@ -335,7 +339,7 @@ def parse_args(args: typing.Iterable[str], *syntax: typing.Union[typing.Tuple[st
             try:
                 results.append(s[1](args[i]) if s[1] else args[i])
             except ValueError as e:
-                raise ValueError(f"{args[i]} is not a valid value for '{s[0]}': {e}")
+                raise ValueError(f"{args[i]} is not a valid value for '{s[0]}': {e}") from e
     return results
 
 
