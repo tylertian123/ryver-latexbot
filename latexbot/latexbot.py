@@ -560,8 +560,8 @@ class LatexBot:
                         prefix = match.group(1)
                         macro = match.group(2)
                         if macro in self.MACROS:
-                            macro = self.MACROS[macro]
-                        return prefix + macro
+                            return prefix + self.MACROS[macro]
+                        return prefix + "." + macro
                     new_text = util.MENTION_REGEX.sub(role_replace_func, msg.text)
                     new_text = util.MACRO_REGEX.sub(macro_replace_func, new_text)
                     # Replace the message if changed
