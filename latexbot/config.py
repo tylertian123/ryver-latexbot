@@ -32,12 +32,14 @@ Config JSON format:
         - "user": A list of users that has to be matched for this opinion (optional, list of str)
         - "opinion": A list of possible responses from which the response is randomly chosen (list of str)
     ]
-- "ghUsersMap": A dict of {github_username: ryver_username} used to map from GitHub users to Ryver users for task assignment.
+- "ghUsersMap": A dict of {github_username (str): ryver_username (str)} used to map from GitHub users to Ryver users for task assignment.
+- "macros": A dict of {macro (str): expansion (str)} used to define custom macros
 """
 
 import datetime
 import dateutil
 import typing
+import util
 from config_loader import ConfigLoader
 
 loader = ConfigLoader()
@@ -78,6 +80,13 @@ def opinions_loader(opinions: list): # pylint: disable=redefined-outer-name
         if "thing" not in opinion or "opinion" not in opinion:
             raise ValueError("Incorrect opinions format!")
     return opinions
+def macros_loader(macros: dict): # pylint: disable=redefined-outer-name
+    for macro, expansion in macros.items():
+        if not isinstance(macro, str) or not isinstance(expansion, str):
+            raise ValueError("Incorrect macros format!")
+        if not set(macro).issubset(util.MACRO_CHARS):
+            raise ValueError("Invalid character in macro!")
+    return macros
 
 loader.field("admins", list, admins_loader, list, set())
 loader.field("organizationTimeZone", str, timezone_loader, lambda x: tz_str, default=datetime.timezone.utc)
@@ -96,6 +105,7 @@ loader.field("aliases", list, aliases_loader, default=[])
 loader.field("accessRules", dict, access_rules_loader, default={})
 loader.field("opinions", list, opinions_loader, default=[])
 loader.field("ghUsersMap", dict, default={})
+loader.field("macros", dict, macros_loader, default={})
 
 config = {}
 
@@ -115,6 +125,7 @@ aliases = None # type: typing.List[typing.Dict[str, str]]
 access_rules = None # type: typing.Dict[str, typing.Dict[str, typing.Any]]
 opinions = None # type: typing.List[typing.Dict[str, typing.Any]]
 gh_users_map = None # type: typing.Dict[str, str]
+macros = None # type: typing.Dict[str, str]
 
 def load(data: typing.Dict[str, typing.Any], use_defaults: bool = True) -> str:
     """
@@ -122,7 +133,7 @@ def load(data: typing.Dict[str, typing.Any], use_defaults: bool = True) -> str:
     """
     global admins, timezone, home_chat, announcements_chat, messages_chat, gh_updates_chat # pylint: disable=global-statement
     global gh_issues_chat, calendar_id, daily_msg_time, last_xkcd, frc_team, prefixes, aliases # pylint: disable=global-statement
-    global access_rules, opinions, gh_users_map # pylint: disable = global-statement
+    global access_rules, opinions, gh_users_map, macros # pylint: disable = global-statement
     err = loader.load(data, config, use_defaults)
     admins = config["admins"]
     timezone = config["organizationTimeZone"]
@@ -140,6 +151,7 @@ def load(data: typing.Dict[str, typing.Any], use_defaults: bool = True) -> str:
     access_rules = config["accessRules"]
     opinions = config["opinions"]
     gh_users_map = config["ghUsersMap"]
+    macros = config["macros"]
     return err
 
 def dump(use_defaults: bool = True) -> typing.Tuple[typing.Dict[str, typing.Any], str]:
@@ -162,4 +174,5 @@ def dump(use_defaults: bool = True) -> typing.Tuple[typing.Dict[str, typing.Any]
     config["accessRules"] = access_rules
     config["opinions"] = opinions
     config["ghUsersMap"] = gh_users_map
+    config["macros"] = macros
     return loader.dump(config, use_defaults)

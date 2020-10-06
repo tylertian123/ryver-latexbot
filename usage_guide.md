@@ -123,20 +123,32 @@ See [Daily Message](#daily-message) for details.
 
 ## Chat Macros
 Macros allow LaTeX Bot to automatically replace specific strings in your messages with something else.
-Macros can be used by putting a dot in front of the macro name, like so: `.shrug`.
-They can be used anywhere in the message and by anyone.
-Currently, macros cannot be modified. The list of macros and their replacements are:
- - `.shrug` - &#x00af;\\\_(&#x30c4;)\_/&#x00af;
- - `.tableflip`, `.flip` - (&#x256f;&#xb0;&#x25a1;&#xb0;)&#x256f;&#xfe35; &#x253b;&#x2501;&#x253b;
- - `.unflip` - &#x252c;&#x2500;&#x252c;&#x30ce;( &#xba; _ &#xba;&#x30ce;)
- - `.lenny` - ( &#x0361;&#xb0; &#x035c;&#x0296; &#x0361;&#xb0;)
- - `.disapproval` - &#x0ca0;_&#x0ca0;
- - `.sendlove`, `.love` - (&#x0254;&#x25d4;&#x203f;&#x25d4;)&#x0254; :heart:
- - `.megaphone`, `.announcement`, `.scream` - &#x0001f4e3; ('&#x1d17;' )&#x0648;
- - `.celebration` - &#xff3c;(&#xff3e;O&#xff3e;)&#xff0f;
+They can be used by putting a dot in front of the macro name, e.g. `.shrug`.
+When a message containing one or more macros is sent, the macros will be automatically expanded (replaced with its expansion).
+They can be used anywhere and any number of times in a message and anyone can use them.
 
 If you do not want a string to be replaced as a macro, put a backslash before it, e.g. `\.shrug` will not be parsed as a macro.
 Because of Ryver's Markdown rendering, the backslash will not be visible in the final message.
+
+### Managing Macros
+Admins can add or remove macros with the `macro` command.
+Use `@latexbot macro` with no arguments to list all macros.
+
+Use `@latexbot macro create <macro> <expansion>` to create a macro.
+The expansion must be surrounded in quotes if it contains a space.
+Additionally, macro names can only contain lowercase letters, numbers and underscores.
+
+Use `@latexbot macro delete <macro>` to delete a macro.
+
+By default no macros are defined. Here's a recommended list that you could add:
+ - `.shrug` - &#x00af;\\\_(&#x30c4;)\_/&#x00af; (Make sure to escape the backslashes and underscores)
+ - `.tableflip`, `.flip` - (&#x256f;&#xb0;&#x25a1;&#xb0;)&#x256f;&#xfe35; &#x253b;&#x2501;&#x253b;
+ - `.unflip` - &#x252c;&#x2500;&#x252c;&#x30ce;( &#xba; _ &#xba;&#x30ce;) (escape the underscore)
+ - `.lenny` - ( &#x0361;&#xb0; &#x035c;&#x0296; &#x0361;&#xb0;)
+ - `.disapproval` - &#x0ca0;_&#x0ca0; (escape the underscore)
+ - `.sendlove`, `.love` - (&#x0254;&#x25d4;&#x203f;&#x25d4;)&#x0254; :heart:
+ - `.megaphone`, `.announcement`, `.scream` - &#x0001f4e3; ('&#x1d17;' )&#x0648;
+ - `.celebration` - &#xff3c;(&#xff3e;O&#xff3e;)&#xff0f;
 
 ## Playing Trivia
 Yes, LaTeX Bot has games!
@@ -667,6 +679,10 @@ Below is an illustration of the JSON config file format:
   ],
   "ghUsersMap": { // A mapping of GitHub usernames to Ryver usernames for Task assignments
     "foobar": "foo_bar"
+    // ...
+  },
+  "macros": { // A mapping of macro names to expansions
+    ".shrug": "\u00af\\\\_(\u30c4)\\_/\u00af",
     // ...
   }
 }

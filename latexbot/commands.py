@@ -1911,6 +1911,74 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         await chat.send_message("Invalid action. Allowed actions are create, delete and no argument (view).", bot.msg_creator)
 
 
+async def command_macro(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Manage macros.
+
+    Macros allow LaTeX Bot to automatically replace specific strings in your messages with
+    something else. They can be used by putting a dot in front of the macro name, e.g. `.shrug`.
+    When a message containing one or more macros is sent, the macros will be automatically expanded
+    (replaced with its expansion). They can be used anywhere and any number of times in a message
+    and anyone can use them.
+
+    For example, you could create a macro `tableflip` that expands to
+    (\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b. Then, the message "foo .tableflip bar"
+    will be expanded to "foo (\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b bar".
+
+    The macro command has 3 actions (sub-commands). They are as follows:
+    - No argument: View all macros.
+    - `create [macro] [expansion]` - Create a macro. If the expansion has spaces, it should be
+    surrounded by quotes. If the macro already exists, it will be replaced.
+    - `delete [macro]` - Delete a macro.
+
+    Macro names can only contain **lowercase letters, numbers and underscores**.
+
+    Note that macros only work in chat messages and not topics or tasks. Once a message is replaced
+    with its macro expansion, you can no longer edit it.
+    ---
+    group: Miscellaneous Commands
+    syntax: [create|delete] [args]
+    ---
+    > `@latexbot macro` - View all macros.
+    > `@latexbot macro create tableflip "(\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b"` - Create a macro named "tableflip".
+    > `@latexbot macro delete` - Delete the "tableflip" macro.
+    """
+    if args == "":
+        if not config.macros:
+            resp = "No macros have been created."
+        else:
+            resp = "All macros:"
+            for macro, expansion in config.macros.items():
+                resp += f"\n* `{macro}` expands to `{expansion}`"
+        await chat.send_message(resp, bot.msg_creator)
+        return
+
+    args = shlex.split(args)
+    if args[0] == "create":
+        if len(args) != 3:
+            await chat.send_message("Invalid syntax. Did you forget the quotes?", bot.msg_creator)
+            return
+        s = set(args[1])
+        if not s.issubset(util.MACRO_CHARS):
+            await chat.send_message(f"Invalid character(s) for a macro name: {s - util.MACRO_CHARS}", bot.msg_creator)
+            return
+        config.macros[args[1]] = args[2]
+        bot.save_config()
+        await chat.send_message(f"Successfully created macro `{args[1]}` expands to `{args[2]}`.", bot.msg_creator)
+    elif args[0] == "delete":
+        if len(args) != 2:
+            await chat.send_message("Invalid syntax.", bot.msg_creator)
+            return
+        if args[1] not in config.macros:
+            await chat.send_message("Macro not found!", bot.msg_creator)
+            return
+        config.macros.pop(args[1])
+        bot.save_config()
+        await chat.send_message(f"Successfully deleted macro `{args[1]}`.", bot.msg_creator)
+    else:
+        await chat.send_message("Invalid action. Allowed actions are create, delete and no argument (view).", bot.msg_creator)
+
+
 async def command_exportConfig(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Export config as a JSON.

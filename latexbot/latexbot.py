@@ -148,6 +148,7 @@ class LatexBot:
         self.commands.add_command(Command("setEnabled", None, Command.ACCESS_LEVEL_BOT_ADMIN))
     
         self.commands.add_command(Command("alias", commands.command_alias, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("macro", commands.command_macro, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("exportConfig", commands.command_exportConfig, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("importConfig", commands.command_importConfig, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("accessRule", commands.command_accessRule, Command.ACCESS_LEVEL_ORG_ADMIN))
@@ -560,8 +561,8 @@ class LatexBot:
                     def macro_replace_func(match: re.Match):
                         prefix = match.group(1)
                         macro = match.group(2)
-                        if macro in self.MACROS:
-                            return prefix + self.MACROS[macro]
+                        if macro in config.macros:
+                            return prefix + config.macros[macro]
                         return prefix + "." + macro
                     new_text = util.MENTION_REGEX.sub(role_replace_func, msg.text)
                     new_text = util.MACRO_REGEX.sub(macro_replace_func, new_text)
