@@ -484,7 +484,7 @@ class LatexBot:
                 else:
                     is_dm = False
                 
-                if self.analytics is not None:
+                if not is_dm and self.analytics is not None:
                     self.analytics.message(msg.text, from_user)
 
                 try:
@@ -534,6 +534,8 @@ class LatexBot:
 
                     async with session.typing(to):
                         if command in self.commands.commands:
+                            if is_dm and self.analytics is not None:
+                                self.analytics.message(msg.text, from_user)
                             try:
                                 if not await self.commands.process(command, args, self, to, from_user, msg.message_id):
                                     await to.send_message(Command.get_access_denied_message(), self.msg_creator)
