@@ -1,3 +1,4 @@
+import aiohttp
 import analytics
 import asyncio
 import commands
@@ -646,11 +647,15 @@ class LatexBot:
                 user = self.ryver.get_user(jid=msg.from_jid)
                 self.user_presences[user.get_id()] = msg.presence
 
-            util.log("LaTeX Bot is running!")
             if not self.debug and self.home_chat is not None:
-                await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
-                await self.home_chat.send_message(f"LaTeX Bot {self.version} is online! **I now respond to messages in real time!**\n\n{self.help}", self.msg_creator)
+                util.log("Sending startup message...")
+                try:
+                    await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
+                    await self.home_chat.send_message(f"LaTeX Bot {self.version} is online! **I now respond to messages in real time!**\n\n{self.help}", self.msg_creator)
+                except (pyryver.WSConnectionError, aiohttp.ClientError) as e:
+                    util.log(f"Exception during startup routine: {format_exc()}")
 
+            util.log("LaTeX Bot is running!")
             await session.run_forever()
     
     async def shutdown(self):
