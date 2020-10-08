@@ -334,6 +334,19 @@ class LatexBot:
         self.daily_msg_task = asyncio.ensure_future(self._daily_msg(init_delay))
         util.log(f"Daily message re-scheduled, starting after {init_delay} seconds.")
     
+    async def update_cache(self) -> None:
+        """
+        Update cached chat data.
+        """
+        old_users = set(user.get_id() for user in self.ryver.users)
+        await self.ryver.load_chats()
+        if config.welcome_message:
+            new_users = [user for user in self.ryver.users if user.get_id() not in old_users]
+            util.log(new_users)
+            for new_user in new_users:
+                msg = config.welcome_message.format(name=new_user.get_name(), username=new_user.get_username())
+                await new_user.send_message(msg, self.msg_creator)
+
     def rebuild_automaton(self) -> None:
         """
         Rebuild the DFA used for keyword searching in messages using Aho-Corasick.
@@ -467,8 +480,21 @@ class LatexBot:
                 if msg.subtype != pyryver.ChatMessage.SUBTYPE_CHAT_MESSAGE:
                     return
 
-                # Check the sender
+                # Check the sender and destination
+                to = self.ryver.get_chat(jid=msg.to_jid)
                 from_user = self.ryver.get_user(jid=msg.from_jid)
+
+                if to is None or from_user is None:
+                    util.log("Received message from/to user/chat not in cache. Updating cache...")
+                    await self.update_cache()
+                    if to is None:
+                        to = self.ryver.get_chat(jid=msg.to_jid)
+                    if from_user is None:
+                        from_user = self.ryver.get_user(jid=msg.from_jid)
+                    if to is None or from_user is None:
+                        util.log("Error: Still not found after cache update. Command skipped.")
+                        return
+                
                 # Ignore messages sent by us
                 if from_user.get_username() == self.username:
                     return
@@ -477,7 +503,6 @@ class LatexBot:
                 self.user_last_activity[from_user.get_id()] = time.time()
                 
                 # Check if this is a DM
-                to = self.ryver.get_chat(jid=msg.to_jid)
                 if isinstance(to, pyryver.User):
                     # For DMs special processing is required
                     # Since we don't want to reply to ourselves, reply to the sender directly instead

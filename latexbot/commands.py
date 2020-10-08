@@ -2231,9 +2231,9 @@ async def command_dailyMessage(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     ---
     > `@latexbot dailyMessage` - Send the daily message.
     """
-    await bot.ryver.load_chats()
     if bot.analytics:
         bot.analytics.save()
+    await bot.update_cache()
     now = util.current_time()
     events = bot.calendar.get_today_events(now)
     if events:

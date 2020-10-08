@@ -34,6 +34,7 @@ Config JSON format:
     ]
 - "ghUsersMap": A dict of {github_username (str): ryver_username (str)} used to map from GitHub users to Ryver users for task assignment.
 - "macros": A dict of {macro (str): expansion (str)} used to define custom macros
+- "welcomeMessage": A string containing the welcome message to send to new members as a part of the daily message. If empty, no welcome message will be sent. You can use {name} and {username} in the string to be replaced with details about the user.
 """
 
 import datetime
@@ -106,6 +107,7 @@ loader.field("accessRules", dict, access_rules_loader, default={})
 loader.field("opinions", list, opinions_loader, default=[])
 loader.field("ghUsersMap", dict, default={})
 loader.field("macros", dict, macros_loader, default={})
+loader.field("welcomeMessage", str, default="")
 
 config = {}
 
@@ -126,6 +128,7 @@ access_rules = None # type: typing.Dict[str, typing.Dict[str, typing.Any]]
 opinions = None # type: typing.List[typing.Dict[str, typing.Any]]
 gh_users_map = None # type: typing.Dict[str, str]
 macros = None # type: typing.Dict[str, str]
+welcome_message = None # type: str
 
 def load(data: typing.Dict[str, typing.Any], use_defaults: bool = True) -> str:
     """
@@ -133,7 +136,7 @@ def load(data: typing.Dict[str, typing.Any], use_defaults: bool = True) -> str:
     """
     global admins, timezone, home_chat, announcements_chat, messages_chat, gh_updates_chat # pylint: disable=global-statement
     global gh_issues_chat, calendar_id, daily_msg_time, last_xkcd, frc_team, prefixes, aliases # pylint: disable=global-statement
-    global access_rules, opinions, gh_users_map, macros # pylint: disable = global-statement
+    global access_rules, opinions, gh_users_map, macros, welcome_message # pylint: disable = global-statement
     err = loader.load(data, config, use_defaults)
     admins = config["admins"]
     timezone = config["organizationTimeZone"]
@@ -152,6 +155,7 @@ def load(data: typing.Dict[str, typing.Any], use_defaults: bool = True) -> str:
     opinions = config["opinions"]
     gh_users_map = config["ghUsersMap"]
     macros = config["macros"]
+    welcome_message = config["welcomeMessage"]
     return err
 
 def dump(use_defaults: bool = True) -> typing.Tuple[typing.Dict[str, typing.Any], str]:
@@ -175,4 +179,5 @@ def dump(use_defaults: bool = True) -> typing.Tuple[typing.Dict[str, typing.Any]
     config["opinions"] = opinions
     config["ghUsersMap"] = gh_users_map
     config["macros"] = macros
+    config["welcomeMessage"] = welcome_message
     return loader.dump(config, use_defaults)
