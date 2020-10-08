@@ -678,11 +678,13 @@ class LatexBot:
                 self.user_presences[user.get_id()] = msg.presence
 
             if not self.debug and self.home_chat is not None:
+                await asyncio.sleep(5)
                 util.log("Sending startup message...")
                 try:
                     await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
+                    util.log("Presence change sent.")
                     await self.home_chat.send_message(f"LaTeX Bot {self.version} is online! **I now respond to messages in real time!**\n\n{self.help}", self.msg_creator)
-                except (pyryver.WSConnectionError, aiohttp.ClientError) as e:
+                except (pyryver.WSConnectionError, aiohttp.ClientError, asyncio.TimeoutError) as e:
                     util.log(f"Exception during startup routine: {format_exc()}")
 
             util.log("LaTeX Bot is running!")
