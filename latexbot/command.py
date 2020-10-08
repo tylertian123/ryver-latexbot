@@ -96,9 +96,12 @@ class Command:
         rules = config.access_rules.get(self._name, {})
         return rules["level"] if "level" in rules else self._level
     
-    async def is_authorized(self, bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User) -> bool:
+    async def is_authorized(self, bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, access_level: int = None) -> bool:
         """
         Test if a user is authorized to use this command.
+
+        An optional access level of the user can be provided. If None, requests may be sent to
+        determine the access level.
         """
         # Get access rules
         rules = config.access_rules.get(self._name, {})
@@ -119,7 +122,7 @@ class Command:
         if role_allowed:
             return True
         # If none of those are true, check the access level normally
-        user_level = await Command.get_access_level(chat, user)
+        user_level = access_level if access_level is not None else await Command.get_access_level(chat, user)
         required_level = rules["level"] if "level" in rules else self._level
         return user_level >= required_level
     
@@ -164,13 +167,17 @@ class CommandSet:
         await command.execute(args, bot, chat, user, msg_id)
         return True
     
-    def generate_help_text(self, ryver: pyryver.Ryver) -> typing.Tuple[str, typing.Dict[str, str]]:
+    def generate_help_text(self, ryver: pyryver.Ryver) -> typing.Tuple[typing.Dict[str, typing.List[typing.Tuple[str, str]]], typing.Dict[str, str]]:
         """
         Generate help text and extended help text for each command.
+
+        Returns a tuple of (help_text, extended_help_text).
+        The help text is a mapping of command group names to lists of tuples of (command_name, command_description).
+        The extended help text is a mapping of command names to their extended descriptions.
         """
-        help_text = ""
+        help_text = {}
         extended_help_text = {}
-        commands = {}
+        prefix = config.prefixes[0]
         for name, command in self.commands.items():
             if command.get_processor() is None:
                 # Don't generate a warning for commands with no processors
@@ -187,17 +194,17 @@ class CommandSet:
                     continue
 
                 # Generate syntax string
-                syntax = f"`@latexbot {name} {properties['syntax']}`" if properties["syntax"] else f"`@latexbot {name}`"
+                syntax = f"`{prefix}{name} {properties['syntax']}`" if properties["syntax"] else f"`{prefix}{name}`"
                 # Generate short description
                 access_level = Command.ACCESS_LEVEL_STRS.get(command.get_level(), f"**Unknown Access Level: {command.get_level()}.**")
                 description = f"{syntax} - {properties['short_desc']} {access_level}"
 
                 # Group commands
                 group = properties['group']
-                if group in commands:
-                    commands[group].append(description)
+                if group in help_text:
+                    help_text[group].append((name, description))
                 else:
-                    commands[group] = [description]
+                    help_text[group] = [(name, description)]
 
                 extended_description = properties["long_desc"] or "***No extended description provided.***"
                 examples = "\n".join(
@@ -207,22 +214,6 @@ class CommandSet:
                 extended_help_text[name] = description
             except (ValueError, KeyError) as e:
                 util.log(f"Error while parsing doc for {name}: {e}")
-
-        for group, cmds in commands.items():
-            help_text += group + ":\n"
-            for description in cmds:
-                help_text += f"  - {description}\n"
-            help_text += "\n"
-        admins = ", ".join([ryver.get_user(id=uid).get_name() for uid in config.admins])
-        if admins:
-            help_text += f"\nCurrent Bot Admins are: {admins}."
-        else:
-            help_text += "\nNo Bot Admins are in the configuration."
-        help_text += "\n\nFor more details about a command, try `@latexbot help <command>`."
-        help_text += "\nClick [here](https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md) for a usage guide."
-        if config.aliases:
-            help_text += "\n\nCurrent Aliases:\n"
-            help_text += "\n".join(f"* `{alias['from']}` \u2192 `{alias['to']}`" for alias in config.aliases)
         return help_text, extended_help_text
 
 

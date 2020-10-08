@@ -93,7 +93,7 @@ class LatexBot:
         self.daily_msg_task = None # type: typing.Awaitable
 
         self.commands = None # type: CommandSet
-        self.help = None # type: str
+        self.help = None # typing.Dict[str, typing.List[typing.Tuple[str, str]]]
         self.command_help = {} # type: typing.Dict[str, str]
        
         self.msg_creator = pyryver.Creator("LaTeX Bot " + self.version)
@@ -683,7 +683,7 @@ class LatexBot:
                 try:
                     await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
                     util.log("Presence change sent.")
-                    await self.home_chat.send_message(f"LaTeX Bot {self.version} is online! **I now respond to messages in real time!**\n\n{self.help}", self.msg_creator)
+                    await self.home_chat.send_message(f"LaTeX Bot {self.version} is online!", self.msg_creator)
                 except (pyryver.WSConnectionError, aiohttp.ClientError, asyncio.TimeoutError) as e:
                     util.log(f"Exception during startup routine: {format_exc()}")
 

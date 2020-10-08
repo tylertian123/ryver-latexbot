@@ -3,6 +3,7 @@ This module contains command definitions for LaTeX Bot.
 """
 import aiohttp
 import asyncio
+import command
 import config
 import io
 import json
@@ -14,6 +15,7 @@ import render
 import shlex
 import simplelatex
 import sys
+import textwrap
 import trivia
 import typing
 import util
@@ -164,10 +166,11 @@ async def command_renderSimple(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
 
 async def command_help(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
-    Get a list of all the commands, or details about a command.
+    Get a list of commands or details about a specific command.
 
-    Use this command without any arguments to get an overview of all the commands,
-    or give the name of the command you would like to know more about.
+    Use this command without any arguments to get an overview of all the commands you can use,
+    or give the name of the command you would like to know more about. You can also use "all" to
+    list all the commands, regardless of whether they're accessible to you.
     ---
     group: General Commands
     syntax: [command]
@@ -176,8 +179,34 @@ async def command_help(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     > `@latexbot help render` - Get help about the "render" command.
     """
     args = args.strip()
-    if args == "":
-        await chat.send_message(bot.help, bot.msg_creator)
+    if args == "" or args.lower() == "all":
+        all_cmds = args.lower() == "all"
+        if not all_cmds:
+            level = await command.Command.get_access_level(chat, user)
+            resp = "Showing commands that you have access to."
+        else:
+            resp = "Showing all commands."
+        for group, commands in bot.help.items():
+            group_desc = group + ":"
+            empty = True
+            for (name, description) in commands:
+                if all_cmds or await bot.commands.commands[name].is_authorized(bot, chat, user, level):
+                    group_desc += f"\n - {description}"
+                    empty = False
+            if not empty:
+                resp += f"\n\n{group_desc}"
+        if config.aliases:
+            resp += "\n\nCurrent Aliases:\n"
+            resp += "\n".join(f"* `{alias['from']}` \u2192 `{alias['to']}`" for alias in config.aliases)
+        if all_cmds:
+            admins = ", ".join([bot.ryver.get_user(id=uid).get_name() for uid in config.admins])
+            if admins:
+                resp += f"\n\nCurrent Bot Admins are: {admins}."
+            else:
+                resp += "\n\nNo Bot Admins are in the configuration."
+        resp += "\n\nFor more details about a command, try `@latexbot help <command>`. "
+        resp += "Click [here](https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md) for a usage guide."
+        await chat.send_message(resp, bot.msg_creator)
     else:
         default = f"Error: {args} is not a valid command, or does not have an extended description."
         if args in bot.command_help:
@@ -1823,7 +1852,7 @@ async def command_execute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: py
     try:
         sys.stdout = io.StringIO()
         sys.stderr = sys.stdout
-        exec("async def __aexec_func(bot, chat, user, msg_id, args):\n    " + args.replace("\n", "\n    "), globals(), locals()) # pylint: disable=exec-used
+        exec("async def __aexec_func(bot, chat, user, msg_id, args):\n    " + textwrap.indent(args, "    "), globals(), locals()) # pylint: disable=exec-used
         await locals()["__aexec_func"](bot, chat, user, msg_id, args)
         output = sys.stdout.getvalue()
         await chat.send_message(output, bot.msg_creator)
@@ -1897,7 +1926,6 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
             "from": args[1],
             "to": args[2],
         })
-        bot.update_help()
         bot.save_config()
         await chat.send_message(f"Successfully created alias `{args[1]}` \u2192 `{args[2]}`.", bot.msg_creator)
     elif args[0] == "delete":
@@ -1908,7 +1936,6 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         for i, alias in enumerate(config.aliases):
             if alias["from"] == args[1]:
                 del config.aliases[i]
-                bot.update_help()
                 bot.save_config()
                 await chat.send_message(f"Successfully deleted alias `{args[1]}`.", bot.msg_creator)
                 return
