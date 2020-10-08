@@ -1955,6 +1955,9 @@ async def command_macro(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
 
     args = shlex.split(args)
     if args[0] == "create":
+        if not await bot.commands.commands["macro create"].is_authorized(bot, chat, user):
+            await chat.send_message("You are not allowed to do that.", bot.msg_creator)
+            return
         if len(args) != 3:
             await chat.send_message("Invalid syntax. Did you forget the quotes?", bot.msg_creator)
             return
@@ -1966,6 +1969,9 @@ async def command_macro(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         bot.save_config()
         await chat.send_message(f"Successfully created macro `{args[1]}` expands to `{args[2]}`.", bot.msg_creator)
     elif args[0] == "delete":
+        if not await bot.commands.commands["macro delete"].is_authorized(bot, chat, user):
+            await chat.send_message("You are not allowed to do that.", bot.msg_creator)
+            return
         if len(args) != 2:
             await chat.send_message("Invalid syntax.", bot.msg_creator)
             return

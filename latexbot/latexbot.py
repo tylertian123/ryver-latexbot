@@ -148,7 +148,9 @@ class LatexBot:
         self.commands.add_command(Command("setEnabled", None, Command.ACCESS_LEVEL_BOT_ADMIN))
     
         self.commands.add_command(Command("alias", commands.command_alias, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("macro", commands.command_macro, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("macro", commands.command_macro, Command.ACCESS_LEVEL_EVERYONE))
+        self.commands.add_command(Command("macro create", None, Command.ACCESS_LEVEL_ORG_ADMIN))
+        self.commands.add_command(Command("macro delete", None, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("exportConfig", commands.command_exportConfig, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("importConfig", commands.command_importConfig, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("accessRule", commands.command_accessRule, Command.ACCESS_LEVEL_ORG_ADMIN))
