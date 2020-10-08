@@ -1551,7 +1551,13 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             # If the event does not have a time, then don't include the time
             start_str = datetime.strftime(start, util.DATETIME_DISPLAY_FORMAT if has_time else util.DATE_DISPLAY_FORMAT)
             end_str = datetime.strftime(end, util.DATETIME_DISPLAY_FORMAT if has_time else util.DATE_DISPLAY_FORMAT)
-            resp += f"\n# *{day}* day(s) until {event['summary']} (*{start_str}* to *{end_str}*)"
+            if has_time and day == 0:
+                hours, seconds = divmod((start - now).seconds, 3600)
+                minutes, seconds = divmod(seconds, 60)
+                resp += f"\n# {hours}:{minutes:02d} "
+            else:
+                resp += f"\n# {day} days "
+            resp += f"until {event['summary']} (*{start_str}* to *{end_str}*)"
             if "description" in event and event["description"] != "":
                 # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
                 resp += f"\u200B:\n{markdownify(event['description'])}"
