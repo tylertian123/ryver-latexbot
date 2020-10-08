@@ -626,7 +626,7 @@ class LatexBot:
                                 continue
                             # Verify that the user is a member of this chat
                             if isinstance(to, pyryver.GroupChat):
-                                if to.get_member(from_user) is None:
+                                if await to.get_member(uid) is None:
                                     continue
                             user = self.ryver.get_user(id=uid)
                             resp = "The following message matched your watches for the keyword(s) " + ", ".join(f"\"**{w}**\"""" for w in keywords) + ":"
