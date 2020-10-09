@@ -342,7 +342,6 @@ class LatexBot:
         await self.ryver.load_chats()
         if config.welcome_message:
             new_users = [user for user in self.ryver.users if user.get_id() not in old_users]
-            util.log(new_users)
             for new_user in new_users:
                 msg = config.welcome_message.format(name=new_user.get_name(), username=new_user.get_username())
                 await new_user.send_message(msg, self.msg_creator)

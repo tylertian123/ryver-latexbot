@@ -68,7 +68,7 @@ async def command_chem(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
         try:
             img_data = await render.render(f"\\ce{{{args}}}", color="gray", transparent=True, extra_packages=["mhchem"])
         except ValueError as e:
-            await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```\n\nDid you forget to put spaces on both sides of the reaction arrow?". bot.msg_creator)
+            await chat.send_message(f"Error while rendering formula:\n```\n{e}\n```\n\nDid you forget to put spaces on both sides of the reaction arrow?", bot.msg_creator)
             return
         file = (await chat.get_ryver().upload_file("formula.png", img_data, "image/png")).get_file()
         await chat.send_message(f"Formula: `{args}`\n![{args}]({file.get_url()})", bot.msg_creator)
@@ -1875,7 +1875,7 @@ async def command_updateChats(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     group: Developer Commands
     syntax:
     """
-    await bot.ryver.load_chats()
+    await bot.update_cache()
     await chat.send_message("Forums/Teams/Users updated.", bot.msg_creator)
 
 
