@@ -53,6 +53,7 @@ window.onload = function() {
     userCmdUsage = new Map([...userCmdUsage.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20));
 
     // Command usage doughnut chart
+    var usageChartCmdBreakdown = null;
     var usageChartCmd = new Chart(document.getElementById("cmd-usage-cmd"), {
         type: "doughnut",
         data: {
@@ -61,10 +62,36 @@ window.onload = function() {
                 backgroundColor: usageChartColors
             }],
             labels: cmdUsage.map((x) => x[0])
+        },
+        options: {
+            onClick: function(evt, items) {
+                if (items.length > 0) {
+                    var command = cmdUsage[items[0]._index][0];
+                    var commandData = data.commandUsage[command];
+                    var chartData = {
+                        datasets: [{
+                            data: Object.keys(commandData).map(k => commandData[k]),
+                            backgroundColor: genColors(Object.keys(commandData).length)
+                        }],
+                        labels: Object.keys(commandData)
+                    };
+                    if (usageChartCmdBreakdown === null) {
+                        usageChartCmdBreakdown = new Chart(document.getElementById("cmd-usage-cmd-breakdown"), {
+                            type: "doughnut",
+                            data: chartData,
+                        });
+                    }
+                    else {
+                        usageChartCmdBreakdown.data = chartData;
+                        usageChartCmdBreakdown.update();
+                    }
+                }
+            }
         }
     });
 
     // Command usage by user bar chart
+    var usageChartUserBreakdown = null;
     var usageChartUserBar = new Chart(document.getElementById("cmd-usage-user"), {
         type: "bar",
         data: {
@@ -84,6 +111,36 @@ window.onload = function() {
                         precision: 0
                     }
                 }]
+            },
+            onClick: function(evt, items) {
+                if (items.length > 0) {
+                    var user = Array.from(userCmdUsage.keys())[items[0]._index];
+                    var cmds = [];
+                    var uses = [];
+                    for (const cmd in data.commandUsage) {
+                        if (user in data.commandUsage[cmd]) {
+                            cmds.push(cmd);
+                            uses.push(data.commandUsage[cmd][user]);
+                        }
+                    }
+                    chartData = {
+                        datasets: [{
+                            data: uses,
+                            backgroundColor: genColors(uses.length)
+                        }],
+                        labels: cmds
+                    };
+                    if (usageChartUserBreakdown === null) {
+                        usageChartUserBreakdown = new Chart(document.getElementById("cmd-usage-user-breakdown"), {
+                            type: "doughnut",
+                            data: chartData,
+                        });
+                    }
+                    else {
+                        usageChartUserBreakdown.data = chartData;
+                        usageChartUserBreakdown.update();
+                    }
+                }
             }
         }
     });
