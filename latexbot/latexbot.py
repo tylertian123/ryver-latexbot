@@ -694,4 +694,4 @@ class LatexBot:
         Stop running LaTeX Bot.
         """
         await self.webhook_server.stop()
-        await self.session.close()
+        await self.session.terminate()
