@@ -1874,7 +1874,7 @@ async def command_execute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: py
     try:
         sys.stdout = io.StringIO()
         sys.stderr = sys.stdout
-        exec("async def __aexec_func(bot, chat, user, msg_id, args):\n    " + textwrap.indent(args, "    "), globals(), locals()) # pylint: disable=exec-used
+        exec("async def __aexec_func(bot, chat, user, msg_id, args):\n" + textwrap.indent(args, "    "), globals(), locals()) # pylint: disable=exec-used
         await locals()["__aexec_func"](bot, chat, user, msg_id, args)
         output = sys.stdout.getvalue()
         await chat.send_message(output, bot.msg_creator)
