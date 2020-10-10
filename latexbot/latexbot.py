@@ -641,14 +641,18 @@ class LatexBot:
                             quoted_msg += "\n> " + line
                         t = time.time()
                         for uid, keywords in notify_users.items():
+                            uid_key = str(uid)
                             # Check if it's from the same user
                             if from_user.get_id() == uid:
                                 continue
                             # Check user presence
                             if self.user_presences.get(uid) == pyryver.RyverWS.PRESENCE_AVAILABLE:
                                 continue
+                            # Check suppression
+                            if self.keyword_watches[uid_key].get("_suppressed", 0) > t:
+                                continue
                             # Check user last activity
-                            if t - self.user_last_activity.get(uid, 0) < self.keyword_watches[str(uid)]["activityTimeout"]:
+                            if t - self.user_last_activity.get(uid, 0) < self.keyword_watches[uid_key]["activityTimeout"]:
                                 continue
                             # Verify that the user is a member of this chat
                             if isinstance(to, pyryver.GroupChat):

@@ -242,6 +242,7 @@ You can configure keywords to be case-sensitive and/or match whole words only (b
  - You turned keyword notifications off using `@latexbot watch off`
  - You are considered "active" by LaTeX Bot, i.e. you sent a message recently (by default in the
  last 3 minutes, configurable via `@latexbot watch activityTimeout <seconds>`).
+ - Keyword watches have been suppressed explicitly through `watch suppress <seconds>` (see below).
 
 Keyword matching is done using a DFA constructed using the Aho-Corasick algorithm to match a large number of keywords at once.
 
@@ -268,6 +269,11 @@ Alternatively, use `@latexbot watch delete all` to delete *all* keywords.
 ### Turning Keyword Watches Off
 You can turn keyword watches off entirely so you don't receive any notifications by using `@latexbot watch off`.
 To turn it back on, use `@latexbot watch on`.
+
+### Suppressing Keyword Watches
+To temporarily suppress keyword watch notifications, use `@latexbot watch suppress <seconds>`. 
+This is completely separate from turning it off/on.
+To un-suppress without having to wait the full duration, simply suppress with a duration of 0, i.e. `@latexbot watch suppress 0`.
 
 ### Setting Your Activity Timeout
 Your activity timeout is how long you're considered "active" for after you send a message.
