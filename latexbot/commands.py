@@ -21,7 +21,7 @@ import trivia
 import typing
 import util
 import xkcd
-from caseinsensitivedict import CaseInsensitiveDict
+from cid import CaseInsensitiveDict
 from datetime import datetime
 from gcalendar import Calendar
 from markdownify import markdownify
@@ -721,13 +721,13 @@ async def command_whatDoYouThink(bot: "latexbot.LatexBot", chat: pyryver.Chat, u
             # Match user if required
             if "user" in opinion:
                 if user.get_username() in opinion["user"]:
-                    await chat.send_message(opinion["opinion"][random.randrange(len(opinion["opinion"]))], bot.msg_creator)
+                    await chat.send_message(random.choice(opinion["opinion"]), bot.msg_creator)
                     return
             else:
-                await chat.send_message(opinion["opinion"][random.randrange(len(opinion["opinion"]))], bot.msg_creator)
+                await chat.send_message(random.choice(opinion["opinion"]), bot.msg_creator)
                 return
     msgs = NO_MSGS if hash(args) % 2 == 0 else YES_MSGS
-    await chat.send_message(msgs[random.randrange(len(msgs))], bot.msg_creator)
+    await chat.send_message(random.choice(msgs), bot.msg_creator)
 
 
 async def command_xkcd(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
@@ -1836,7 +1836,7 @@ async def command_kill(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     group: Developer Commands
     syntax:
     """
-    await chat.send_message(KILL_MSGS[random.randrange(0, len(KILL_MSGS))], bot.msg_creator)
+    await chat.send_message(random.choice(KILL_MSGS), bot.msg_creator)
     await bot.shutdown()
 
 

@@ -13,7 +13,7 @@ import trivia
 import typing # pylint: disable=unused-import
 import util
 from aho_corasick import Automaton
-from caseinsensitivedict import CaseInsensitiveDict
+from cid import CaseInsensitiveDict
 from command import Command, CommandSet
 from datetime import datetime, timedelta
 from gcalendar import Calendar
@@ -318,6 +318,12 @@ class LatexBot:
         """
         old_users = set(user.get_id() for user in self.ryver.users)
         await self.ryver.load_chats()
+        # Get user avatar URLs
+        # This information is not included in the regular user info
+        info = await self.ryver.get_info()
+        users_json = info["users"]
+        self.user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
+        # Send welcome message
         if config.welcome_message:
             new_users = [user for user in self.ryver.users if user.get_id() not in old_users]
             for new_user in new_users:
