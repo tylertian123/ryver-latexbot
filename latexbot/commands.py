@@ -1353,6 +1353,42 @@ async def command_countMessagesSince(bot: "latexbot.LatexBot", chat: pyryver.Cha
         "Error: Max search depth of 250 messages exceeded without finding a match.", bot.msg_creator)
 
 
+@command.command(access_level=command.Command.ACCESS_LEVEL_FORUM_ADMIN)
+async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    "Mute" another user in the current forum.
+
+    Since Ryver doesn't allow muting directly, this is achieved by deleting every single message
+    sent by that user immediately. All commands and messages from the user will also be ignored.
+
+    A user cannot mute another user that can also mute, unless they have a higher access level.
+    For example, if two people can both use mute, but one of them is a forum admin while the other
+    isn't, then the first person can mute the second person. However, if both or neither of them
+    are forum admins, then they cannot mute each other.
+    ---
+    group: Administrative Commands
+    syntax: [@]<username>
+    ---
+    > `@latexbot mute tylertian` - Mute tylertian in the current forum.
+    """
+    if args.startswith("@"):
+        args = args[1:]
+    mute_user = bot.ryver.get_user(username=args)
+    if mute_user is None:
+        await chat.send_message(f"User {args} not found. Please enter a valid username.", bot.msg_creator)
+    # Check access levels
+    user_level = await command.Command.get_access_level(chat, user)
+    if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user, user_level):
+        mute_level = await command.Command.get_access_level(chat, mute_user)
+        if user_level <= mute_level:
+            await chat.send_message(f"Error: You cannot mute this user because they can also use mute and have a higher access level than you ({mute_level} >= {user_level}).", bot.msg_creator)
+            return
+    if mute_user.get_id() not in bot.user_info or bot.user_info[mute_user.get_id()].muted is None:
+        bot.user_info[mute_user.get_id()] = latexbot.UserInfo(muted=set())
+    bot.user_info[mute_user.get_id()].muted.add(chat.get_id())
+    await chat.send_message(f"Muted user {mute_user.get_name()} (`{mute_user.get_username()}`) in {chat.get_name()}.", bot.msg_creator)
+
+
 @command.command(access_level=command.Command.ACCESS_LEVEL_EVERYONE)
 async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
@@ -1371,7 +1407,11 @@ async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     with roles.
     ---
     group: Roles Commands
-    syntax: [user|role]
+    syntax: [[@]username|role]
+    ---
+    > `@latexbot roles` - Get all roles and users with the roles.
+    > `@latexbot roles Foo` - Get all users with role Foo.
+    > `@latexbot roles tylertian` - Get all roles of user tylertian.
     """
     if not bot.roles:
         await chat.send_message("There are currently no roles.", bot.msg_creator)
@@ -1411,7 +1451,7 @@ async def command_addToRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
     Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
     ---
     group: Roles Commands
-    syntax: <roles> <people>
+    syntax: <role1>[,<role2>...] [@]<username1>[,[@]<username2>...]
     ---
     > `@latexbot addToRole Foo tylertian` - Give Tyler the "Foo" role.
     > `@latexbot addToRole Foo,Bar tylertian latexbot` Give Tyler and LaTeX Bot the "Foo" and "Bar" roles.
@@ -1452,12 +1492,12 @@ async def command_addToRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
 async def command_removeFromRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
-    Remove people from a role.
+    Remove people from roles.
 
     Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
     ---
     group: Roles Commands
-    syntax: <roles> <people>
+    syntax: <role1>[,<role2>...] [@]<username1>[,[@]<username2>...]
     ---
     > `@latexbot removeFromRole Foo tylertian` - Remove Tyler from the "Foo" role.
     > `@latexbot removeFromRole Foo,Bar tylertian latexbot` Remove Tyler and LaTeX Bot from the "Foo" and "Bar" roles.
@@ -1504,7 +1544,7 @@ async def command_deleteRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user:
     Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
     ---
     group: Roles Commands
-    syntax: <roles>
+    syntax: <role1>[,<role2>...]
     ---
     > `@latexbot deleteRole Foo` - Remove everyone from the role Foo and delete it.
     """

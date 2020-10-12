@@ -27,6 +27,7 @@ class UserInfo:
     avatar: str = None
     presence: str = None
     last_activity: float = 0
+    muted: typing.Set[int] = None
 
 
 class LatexBot:
@@ -118,7 +119,7 @@ class LatexBot:
         info = await self.ryver.get_info()
         for user in info["users"]:
             if user["id"] not in self.user_info:
-                self.user_info[user["id"]] = UserInfo
+                self.user_info[user["id"]] = UserInfo()
             self.user_info[user["id"]].avatar = user["avatarUrl"]
 
         if os.environ.get("LATEXBOT_TBA_KEY"):
@@ -291,7 +292,7 @@ class LatexBot:
         info = await self.ryver.get_info()
         for user in info["users"]:
             if user["id"] not in self.user_info:
-                self.user_info[user["id"]] = UserInfo
+                self.user_info[user["id"]] = UserInfo()
             self.user_info[user["id"]].avatar = user["avatarUrl"]
         # Send welcome message
         if config.welcome_message:
@@ -458,7 +459,7 @@ class LatexBot:
                 if from_user.get_id() not in self.user_info:
                     self.user_info[from_user.get_id()] = UserInfo()
                 self.user_info[from_user.get_id()].last_activity = time.time()
-                
+
                 # Check if this is a DM
                 if isinstance(to, pyryver.User):
                     # For DMs special processing is required
@@ -467,6 +468,14 @@ class LatexBot:
                     is_dm = True
                 else:
                     is_dm = False
+
+                # See if user is muted
+                if from_user.get_id() in self.user_info:
+                    muted = self.user_info[from_user.get_id()].muted
+                    if muted is not None and to.get_id() in muted:
+                        msg_obj = await pyryver.retry_until_available(to.get_message, msg.message_id, retry_delay=0.1)
+                        await msg_obj.delete()
+                        return
                 
                 if not is_dm and self.analytics is not None:
                     self.analytics.message(msg.text, from_user)
