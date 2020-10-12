@@ -1408,7 +1408,7 @@ async def command_unmute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     if mute_user is None:
         await chat.send_message(f"User {args} not found. Please enter a valid username.", bot.msg_creator)
         return
-    if mute_user.get_id() not in bot.user_info() or bot.user_info[mute_user.get_id()].muted is None or chat.get_id() not in bot.user_info[mute_user.get_id()].muted:
+    if mute_user.get_id() not in bot.user_info or bot.user_info[mute_user.get_id()].muted is None or chat.get_id() not in bot.user_info[mute_user.get_id()].muted:
         await chat.send_message(f"{mute_user.get_name()} is not muted in {chat.get_name()}.", bot.msg_creator)
         return
     # Check access levels
@@ -1463,7 +1463,7 @@ async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
             await chat.send_message(f"These users have the role '{args}':\n{users}", bot.msg_creator)
         # Check if it's a username
         elif chat.get_ryver().get_user(username=args):
-            roles = "\n".join(role for role, usernames in bot.roles.items() if args in usernames)
+            roles = "\n".join(role for role, usernames in bot.roles.items() if util.contains_ignorecase(args, usernames))
             if roles:
                 await chat.send_message(
                     f"User '{args}' has the following roles:\n{roles}", bot.msg_creator)
@@ -2316,7 +2316,7 @@ async def command_accessRule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user:
         # Combine the two because they're similar
         elif args[1] == "add" or args[1] == "remove":
             # Verify rule type
-            if args[2] not in ["allowUser", "disallowUser", "allowRole", "disallowRole"]:
+            if args[2] not in ("allowUser", "disallowUser", "allowRole", "disallowRole"):
                 await chat.send_message(f"Error: Invalid rule type for action `{args[1]}`: {args[2]}. See `@latexbot help accessRule` for details.", bot.msg_creator)
                 return
             if len(args) < 4:
@@ -2325,27 +2325,31 @@ async def command_accessRule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user:
             # Set the rules
             rules = config.access_rules.get(args[0], {})
             if args[1] == "add":
+                # Handle @mention syntax usernames
+                items = [item[1:] if item.startswith("@") else item for item in args[3:]]
                 # If there are already items, merge the lists
                 if args[2] in rules:
-                    for arg in args[3:]:
+                    for item in items:
                         # Don't allow duplicates
-                        if arg in rules[args[2]]:
-                            await chat.send_message(f"Warning: {arg} is already in the list for rule {args[2]}.", bot.msg_creator)
+                        if item in rules[args[2]]:
+                            await chat.send_message(f"Warning: {item} is already in the list for rule {args[2]}.", bot.msg_creator)
                         else:
-                            rules[args[2]].append(arg)
+                            rules[args[2]].append(item)
                 # Otherwise directly assign
                 else:
-                    rules[args[2]] = args[3:]
+                    rules[args[2]] = items
             else:
                 if args[2] not in rules:
                     await chat.send_message(f"Error: Rule {args[2]} is not set for command {args[0]}.", bot.msg_creator)
                     return
                 # Remove each one
-                for arg in args[3:]:
-                    if arg not in rules[args[2]]:
-                        await chat.send_message(f"Warning: {arg} is not in the list for rule {args[2]}.", bot.msg_creator)
+                for item in args[3:]:
+                    if item.startswith("@"):
+                        item = item[1:]
+                    if item not in rules[args[2]]:
+                        await chat.send_message(f"Warning: {item} is not in the list for rule {args[2]}.", bot.msg_creator)
                     else:
-                        rules[args[2]].remove(arg)
+                        rules[args[2]].remove(item)
                 # Don't leave empty arrays
                 if not rules[args[2]]:
                     rules.pop(args[2])

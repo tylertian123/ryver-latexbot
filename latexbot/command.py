@@ -111,20 +111,16 @@ class Command:
         # Get access rules
         rules = config.access_rules.get(self._name, {})
         # disallowUser has the highest precedence
-        user_disallowed = user.get_username() in rules["disallowUser"] if "disallowUser" in rules else False
-        if user_disallowed:
+        if util.contains_ignorecase(user.get_username(), rules.get("disallowUser", ())):
             return False
         # allowUser is second
-        user_allowed = user.get_username() in rules["allowUser"] if "allowUser" in rules else False
-        if user_allowed:
+        if util.contains_ignorecase(user.get_username(), rules.get("allowUser", ())):
             return True
         # And then disallowRole
-        role_disallowed = any(user.get_username() in bot.roles.get(role, []) for role in rules["disallowRole"]) if "disallowRole" in rules else False
-        if role_disallowed:
+        if any(util.contains_ignorecase(user.get_username(), bot.roles.get(role, ())) for role in rules.get("disallowRole", ())):
             return False
         # Finally allowRole
-        role_allowed = any(user.get_username() in bot.roles.get(role, []) for role in rules["allowRole"]) if "allowRole" in rules else False
-        if role_allowed:
+        if any(util.contains_ignorecase(user.get_username(), bot.roles.get(role, ())) for role in rules.get("allowRole", ())):
             return True
         # If none of those are true, check the access level normally
         user_level = access_level if access_level is not None else await Command.get_access_level(chat, user)

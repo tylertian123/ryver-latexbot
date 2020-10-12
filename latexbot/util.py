@@ -385,3 +385,10 @@ def ordinal(n: int) -> str:
     if 1 <= d <= 3:
         return str(n) + ["st", "nd", "rd"][d - 1]
     return str(n) + "th"
+
+
+def contains_ignorecase(s: str, i: typing.Iterable[str]) -> bool:
+    """
+    Return whether the string s is in i when case is ignored.
+    """
+    return s.casefold() in (t.casefold() for t in i)
