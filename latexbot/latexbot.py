@@ -15,10 +15,18 @@ import util
 from aho_corasick import Automaton
 from cid import CaseInsensitiveDict
 from command import Command, CommandSet
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from gcalendar import Calendar
 from tba import TheBlueAlliance
 from traceback import format_exc
+
+
+@dataclass(unsafe_hash=True, eq=False)
+class UserInfo:
+    avatar: str = None
+    presence: str = None
+    last_activity: float = 0
 
 
 class LatexBot:
@@ -38,9 +46,7 @@ class LatexBot:
         self.session = None # type: pyryver.RyverWS
         self.username = None # type: str
         self.user = None # type: pyryver.User
-        self.user_avatars = None # type: typing.Dict[str, str]
-        self.user_presences = dict() # type: typing.Dict[int, str]
-        self.user_last_activity = dict() # type: typing.Dict[int, float]
+        self.user_info = {} # type: typing.Dict[int, UserInfo]
 
         self.config_file = None # type: str
         self.calendar = None # type: Calendar
@@ -150,8 +156,10 @@ class LatexBot:
         # Get user avatar URLs
         # This information is not included in the regular user info
         info = await self.ryver.get_info()
-        users_json = info["users"]
-        self.user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
+        for user in info["users"]:
+            if user["id"] not in self.user_info:
+                self.user_info[user["id"]] = UserInfo
+            self.user_info[user["id"]].avatar = user["avatarUrl"]
 
         if os.environ.get("LATEXBOT_TBA_KEY"):
             self.tba = TheBlueAlliance(os.environ.get("LATEXBOT_TBA_KEY"))
@@ -321,8 +329,10 @@ class LatexBot:
         # Get user avatar URLs
         # This information is not included in the regular user info
         info = await self.ryver.get_info()
-        users_json = info["users"]
-        self.user_avatars = {u["id"]: u["avatarUrl"] for u in users_json}
+        for user in info["users"]:
+            if user["id"] not in self.user_info:
+                self.user_info[user["id"]] = UserInfo
+            self.user_info[user["id"]].avatar = user["avatarUrl"]
         # Send welcome message
         if config.welcome_message:
             new_users = [user for user in self.ryver.users if user.get_id() not in old_users]
@@ -362,7 +372,9 @@ class LatexBot:
             # First attempt to search for the ID in the list
             # if that fails then get it directly using a request
             msg_author = self.ryver.get_user(id=msg.get_author_id()) or (await msg.get_author())
-            msg_creator = pyryver.Creator(msg_author.get_name(), self.user_avatars.get(msg_author.get_id(), ""))
+            info = self.user_info.get(msg_author.get_id())
+            avatar = "" if info is None or info.avatar is None else info.avatar
+            msg_creator = pyryver.Creator(msg_author.get_name(), avatar)
         return msg_creator
 
     def preprocess_command(self, command: str, is_dm: bool) -> typing.Tuple[str, str]:
@@ -483,7 +495,9 @@ class LatexBot:
                     return
                 
                 # Record activity
-                self.user_last_activity[from_user.get_id()] = time.time()
+                if from_user.get_id() not in self.user_info:
+                    self.user_info[from_user.get_id()] = UserInfo()
+                self.user_info[from_user.get_id()].last_activity = time.time()
                 
                 # Check if this is a DM
                 if isinstance(to, pyryver.User):
@@ -632,14 +646,15 @@ class LatexBot:
                             # Check if it's from the same user
                             if from_user.get_id() == uid:
                                 continue
-                            # Check user presence
-                            if self.user_presences.get(uid) == pyryver.RyverWS.PRESENCE_AVAILABLE:
-                                continue
+                            if uid in self.user_info:
+                                # Check user presence
+                                if self.user_info[uid].presence == pyryver.RyverWS.PRESENCE_AVAILABLE:
+                                    continue
+                                # Check user last activity
+                                if t - self.user_info[uid].last_activity < self.keyword_watches[uid_key]["activityTimeout"]:
+                                    continue
                             # Check suppression
                             if self.keyword_watches[uid_key].get("_suppressed", 0) > t:
-                                continue
-                            # Check user last activity
-                            if t - self.user_last_activity.get(uid, 0) < self.keyword_watches[uid_key]["activityTimeout"]:
                                 continue
                             # Verify that the user is a member of this chat
                             if isinstance(to, pyryver.GroupChat):
@@ -665,7 +680,9 @@ class LatexBot:
             async def _on_presence_changed(msg: pyryver.WSPresenceChangedData):
                 # Keep track of user presences
                 user = self.ryver.get_user(jid=msg.from_jid)
-                self.user_presences[user.get_id()] = msg.presence
+                if user.get_id() not in self.user_info:
+                    self.user_info[user.get_id()] = UserInfo()
+                self.user_info[user.get_id()].presence = msg.presence
 
             if not self.debug and self.home_chat is not None:
                 await asyncio.sleep(5)

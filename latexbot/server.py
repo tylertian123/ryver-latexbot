@@ -70,8 +70,10 @@ class Server:
         self.app = None # type: aiohttp.web.Application()
         self.runner = None # type: aiohttp.web.AppRunner
         self.site = None # type: aiohttp.web.TCPSite
-
-        self.icon_href = self.bot.user_avatars.get(self.bot.user.get_id(), "")
+        if self.bot.user.get_id() in self.bot.user_info:
+            self.icon_href = self.bot.user_info[self.bot.user.get_id()].avatar or ""
+        else:
+            self.icon_href = ""
     
     async def start(self, port: int = 80):
         """
@@ -285,7 +287,7 @@ class Server:
         """
         Handle a GET request to /.
         """
-        daily_msg_status = "\U0001F534 NOT SCHEDULED" if self.bot.daily_msg_task.done() else f"\U0001F7E2 OK"
+        daily_msg_status = "\U0001F534 NOT SCHEDULED" if self.bot.daily_msg_task.done() else "\U0001F7E2 OK"
         start_time = self.bot.start_time.strftime(util.DATE_FORMAT)
         uptime = util.current_time() - self.bot.start_time
         with open("latexbot/html/home.html", "r") as f:
