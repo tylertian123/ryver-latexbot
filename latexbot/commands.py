@@ -1376,6 +1376,7 @@ async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     mute_user = bot.ryver.get_user(username=args)
     if mute_user is None:
         await chat.send_message(f"User {args} not found. Please enter a valid username.", bot.msg_creator)
+        return
     # Check access levels
     user_level = await command.Command.get_access_level(chat, user)
     if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user, user_level):
@@ -1387,6 +1388,38 @@ async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
         bot.user_info[mute_user.get_id()] = latexbot.UserInfo(muted=set())
     bot.user_info[mute_user.get_id()].muted.add(chat.get_id())
     await chat.send_message(f"Muted user {mute_user.get_name()} (`{mute_user.get_username()}`) in {chat.get_name()}.", bot.msg_creator)
+
+
+@command.command(access_level=command.Command.ACCESS_LEVEL_FORUM_ADMIN)
+async def command_unmute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Unmute someone in the current forum.
+
+    See `@latexbot help mute` for more information about muting.
+    ---
+    group: Administrative Commands
+    syntax: [@]<username>
+    ---
+    > `@latexbot unmute tylertian` - Unmute tylertian in the current forum.
+    """
+    if args.startswith("@"):
+        args = args[1:]
+    mute_user = bot.ryver.get_user(username=args)
+    if mute_user is None:
+        await chat.send_message(f"User {args} not found. Please enter a valid username.", bot.msg_creator)
+        return
+    if mute_user.get_id() not in bot.user_info() or bot.user_info[mute_user.get_id()].muted is None or chat.get_id() not in bot.user_info[mute_user.get_id()].muted:
+        await chat.send_message(f"{mute_user.get_name()} is not muted in {chat.get_name()}.", bot.msg_creator)
+        return
+    # Check access levels
+    user_level = await command.Command.get_access_level(chat, user)
+    if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user, user_level):
+        mute_level = await command.Command.get_access_level(chat, mute_user)
+        if user_level <= mute_level:
+            await chat.send_message(f"Error: You cannot unmute this user because they can use mute and have a higher access level than you ({mute_level} >= {user_level}).", bot.msg_creator)
+            return
+    bot.user_info[mute_user.get_id()].muted.remove(chat.get_id())
+    await chat.send_message(f"Unmuted user {mute_user.get_name()} (`{mute_user.get_username()}`) in {chat.get_name()}.", bot.msg_creator)
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_EVERYONE)
