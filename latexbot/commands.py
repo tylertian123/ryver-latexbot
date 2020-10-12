@@ -1378,8 +1378,8 @@ async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
         await chat.send_message(f"User {args} not found. Please enter a valid username.", bot.msg_creator)
         return
     # Check access levels
-    user_level = await command.Command.get_access_level(chat, user)
-    if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user, user_level):
+    if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user):
+        user_level = await command.Command.get_access_level(chat, user)
         mute_level = await command.Command.get_access_level(chat, mute_user)
         if user_level <= mute_level:
             await chat.send_message(f"Error: You cannot mute this user because they can also use mute and have a higher access level than you ({mute_level} >= {user_level}).", bot.msg_creator)
@@ -1412,8 +1412,8 @@ async def command_unmute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         await chat.send_message(f"{mute_user.get_name()} is not muted in {chat.get_name()}.", bot.msg_creator)
         return
     # Check access levels
-    user_level = await command.Command.get_access_level(chat, user)
-    if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user, user_level):
+    if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user):
+        user_level = await command.Command.get_access_level(chat, user)
         mute_level = await command.Command.get_access_level(chat, mute_user)
         if user_level <= mute_level:
             await chat.send_message(f"Error: You cannot unmute this user because they can use mute and have a higher access level than you ({mute_level} >= {user_level}).", bot.msg_creator)
