@@ -275,7 +275,11 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
     > `@latexbot tba event ONOSH 2020` - Get info about the ONOSH event in 2020.
     > `@latexbot tba eventRankings ONOSH` - Get the rankings for the ONOSH event for the current year.
     """
-    args = shlex.split(args)
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
+        return
     if not args:
         await chat.send_message("Please specify a sub-command! See `@latexbot help tba` for details.", bot.msg_creator)
         return
@@ -542,7 +546,11 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
             "keywords": [],
         }
 
-    args = shlex.split(args)
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
+        return
     user_id = str(user.get_id())
     if not args:
         if user_id in bot.keyword_watches:
@@ -872,7 +880,11 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             await chat.send_message("You are not authorized to do that.", bot.msg_creator)
         return
 
-    sub_args = shlex.split(sub_args)
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
+        return
     if cmd == "games":
         if not bot.trivia_games:
             await chat.send_message("No games are ongoing.", bot.msg_creator)
@@ -1387,7 +1399,11 @@ async def command_addToRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
     > `@latexbot addToRole Foo tylertian` - Give Tyler the "Foo" role.
     > `@latexbot addToRole Foo,Bar tylertian latexbot` Give Tyler and LaTeX Bot the "Foo" and "Bar" roles.
     """
-    args = args.split()
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
+        return
     if len(args) < 2:
         await chat.send_message("Invalid syntax.", bot.msg_creator)
         return
@@ -1428,7 +1444,11 @@ async def command_removeFromRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, u
     > `@latexbot removeFromRole Foo tylertian` - Remove Tyler from the "Foo" role.
     > `@latexbot removeFromRole Foo,Bar tylertian latexbot` Remove Tyler and LaTeX Bot from the "Foo" and "Bar" roles.
     """
-    args = args.split()
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
+        return
     if len(args) < 2:
         await chat.send_message("Invalid syntax.", bot.msg_creator)
         return
@@ -1939,7 +1959,11 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         await chat.send_message(resp, bot.msg_creator)
         return
 
-    args = shlex.split(args)
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
+        return
     if args[0] == "create":
         if len(args) != 3:
             await chat.send_message("Invalid syntax. Did you forget the quotes?", bot.msg_creator)
@@ -2008,7 +2032,11 @@ async def command_macro(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         await chat.send_message(resp, bot.msg_creator)
         return
 
-    args = shlex.split(args)
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
+        return
     if args[0] == "create":
         if not await bot.commands.commands["macro create"].is_authorized(bot, chat, user):
             await chat.send_message("You are not allowed to do that.", bot.msg_creator)
@@ -2140,7 +2168,11 @@ async def command_accessRule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user:
         resp = "\n\n".join(util.format_access_rules(command, rule) for command, rule in config.access_rules.items())
         await chat.send_message(resp, bot.msg_creator)
         return
-    args = shlex.split(args)
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
+        return
     # Only command name is given - show access rules
     if len(args) == 1:
         if args[0] not in bot.commands.commands:
