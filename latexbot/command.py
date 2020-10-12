@@ -1,4 +1,5 @@
 import config
+import functools
 import os
 import pyryver
 import random
@@ -70,10 +71,13 @@ class Command:
             return cls.ACCESS_LEVEL_FORUM_ADMIN
         return cls.ACCESS_LEVEL_EVERYONE
     
-    def __init__(self, name: str, processor: typing.Awaitable, access_level: int):
+    def __init__(self, name: str, processor: typing.Callable[..., typing.Awaitable], access_level: int):
         self._name = name
         self._processor = processor
         self._level = access_level
+    
+    def __call__(self, *args, **kwargs):
+        return self._processor(*args, **kwargs)
     
     def get_name(self) -> str:
         """
@@ -81,7 +85,7 @@ class Command:
         """
         return self._name
     
-    def get_processor(self) -> typing.Awaitable:
+    def get_processor(self) -> typing.Callable[..., typing.Awaitable]:
         """
         Get the command processor for this command.
         """
@@ -144,11 +148,11 @@ class CommandSet:
     def __init__(self):
         self.commands = {} # type: typing.Dict[str, Command]
     
-    def add_command(self, command: Command) -> None:
+    def add_command(self, cmd: Command) -> None:
         """
         Add a command to the set.
         """
-        self.commands[command.get_name()] = command
+        self.commands[cmd.get_name()] = cmd
     
     async def process(self, name: str, args: str, bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str) -> bool:
         """
@@ -162,10 +166,10 @@ class CommandSet:
         """
         if name not in self.commands:
             raise ValueError("Command not found")
-        command = self.commands[name]
-        if not await command.is_authorized(bot, chat, user):
+        cmd = self.commands[name]
+        if not await cmd.is_authorized(bot, chat, user):
             return False
-        await command.execute(args, bot, chat, user, msg_id)
+        await cmd.execute(args, bot, chat, user, msg_id)
         return True
     
     def generate_help_text(self, ryver: pyryver.Ryver) -> typing.Tuple[typing.Dict[str, typing.List[typing.Tuple[str, str]]], typing.Dict[str, str]]: # pylint: disable=unused-argument
@@ -179,17 +183,17 @@ class CommandSet:
         help_text = {}
         extended_help_text = {}
         prefix = config.prefixes[0]
-        for name, command in self.commands.items():
-            if command.get_processor() is None:
+        for name, cmd in self.commands.items():
+            if cmd.get_processor() is None:
                 # Don't generate a warning for commands with no processors
                 continue
 
-            if command.get_processor().__doc__ == "":
+            if cmd.get_processor().__doc__ == "":
                 util.log(f"Warning: Command {name} has no documentation, skipped")
                 continue
 
             try:
-                properties = util.parse_doc(command.get_processor().__doc__)
+                properties = util.parse_doc(cmd.get_processor().__doc__)
                 if properties.get("hidden", False) == "true":
                     # skip hidden commands
                     continue
@@ -197,7 +201,7 @@ class CommandSet:
                 # Generate syntax string
                 syntax = f"`{prefix}{name} {properties['syntax']}`" if properties["syntax"] else f"`{prefix}{name}`"
                 # Generate short description
-                access_level = Command.ACCESS_LEVEL_STRS.get(command.get_level(), f"**Unknown Access Level: {command.get_level()}.**")
+                access_level = Command.ACCESS_LEVEL_STRS.get(cmd.get_level(), f"**Unknown Access Level: {cmd.get_level()}.**")
                 description = f"{syntax} - {properties['short_desc']} {access_level}"
 
                 # Group commands
@@ -216,6 +220,23 @@ class CommandSet:
             except (ValueError, KeyError) as e:
                 util.log(f"Error while parsing doc for {name}: {e}")
         return help_text, extended_help_text
+
+
+def command(name: str = None, access_level: int = Command.ACCESS_LEVEL_EVERYONE): # pylint: disable=unused-argument
+    """
+    Decorator for creating a command from a processor function.
+
+    For functions with name command_x, the name can be automatically deduced.
+    """
+    def _command_decor(func):
+        nonlocal name
+        if name is None:
+            if func.__name__.startswith("command_"):
+                name = func.__name__[len("command_"):]
+            else:
+                raise ValueError("Cannot deduce function name")
+        return functools.wraps(func)(Command(name, func, access_level))
+    return _command_decor
 
 
 import latexbot # nopep8 # pylint: disable=unused-import

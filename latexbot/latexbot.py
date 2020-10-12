@@ -87,57 +87,17 @@ class LatexBot:
         Initialize the command set.
         """
         self.commands = CommandSet()
-        self.commands.add_command(Command("render", commands.command_render, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("chem", commands.command_chem, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("renderSimple", commands.command_renderSimple, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("help", commands.command_help, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("ping", commands.command_ping, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("tba", commands.command_tba, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("watch", commands.command_watch, Command.ACCESS_LEVEL_EVERYONE))
-
-        self.commands.add_command(Command("whatDoYouThink", commands.command_whatDoYouThink, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("xkcd", commands.command_xkcd, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("checkiday", commands.command_checkiday, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("trivia", commands.command_trivia, Command.ACCESS_LEVEL_EVERYONE))
+        for name in dir(commands):
+            obj = getattr(commands, name)
+            if isinstance(obj, Command):
+                self.commands.add_command(obj)
+        # Set access levels for sub-commands
         self.commands.add_command(Command("trivia importCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("trivia exportCustomQuestions", None, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("trivia end", None, Command.ACCESS_LEVEL_FORUM_ADMIN))
-        self.commands.add_command(Command("leaderboards", commands.command_leaderboards, Command.ACCESS_LEVEL_EVERYONE))
-        
-        self.commands.add_command(Command("deleteMessages", commands.command_deleteMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))
-        self.commands.add_command(Command("moveMessages", commands.command_moveMessages, Command.ACCESS_LEVEL_FORUM_ADMIN))
-        self.commands.add_command(Command("countMessagesSince", commands.command_countMessagesSince, Command.ACCESS_LEVEL_FORUM_ADMIN))
-
-        self.commands.add_command(Command("roles", commands.command_roles, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("addToRole", commands.command_addToRole, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("removeFromRole", commands.command_removeFromRole, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("deleteRole", commands.command_deleteRole, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("exportRoles", commands.command_exportRoles, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("importRoles", commands.command_importRoles, Command.ACCESS_LEVEL_ORG_ADMIN))
-
-        self.commands.add_command(Command("events", commands.command_events, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("addEvent", commands.command_addEvent, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("quickAddEvent", commands.command_quickAddEvent, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("deleteEvent", commands.command_deleteEvent, Command.ACCESS_LEVEL_ORG_ADMIN))
-
-        self.commands.add_command(Command("setEnabled", commands.command_setEnabled, Command.ACCESS_LEVEL_BOT_ADMIN))
-        self.commands.add_command(Command("kill", commands.command_kill, Command.ACCESS_LEVEL_BOT_ADMIN))
-        self.commands.add_command(Command("sleep", commands.command_sleep, Command.ACCESS_LEVEL_BOT_ADMIN))
-        self.commands.add_command(Command("execute", commands.command_execute, Command.ACCESS_LEVEL_BOT_ADMIN))
-        self.commands.add_command(Command("updateChats", commands.command_updateChats, Command.ACCESS_LEVEL_FORUM_ADMIN))
         self.commands.add_command(Command("setEnabled", None, Command.ACCESS_LEVEL_BOT_ADMIN))
-    
-        self.commands.add_command(Command("alias", commands.command_alias, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("macro", commands.command_macro, Command.ACCESS_LEVEL_EVERYONE))
         self.commands.add_command(Command("macro create", None, Command.ACCESS_LEVEL_ORG_ADMIN))
         self.commands.add_command(Command("macro delete", None, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("exportConfig", commands.command_exportConfig, Command.ACCESS_LEVEL_EVERYONE))
-        self.commands.add_command(Command("importConfig", commands.command_importConfig, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("accessRule", commands.command_accessRule, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("setDailyMessageTime", commands.command_setDailyMessageTime, Command.ACCESS_LEVEL_ORG_ADMIN))
-        self.commands.add_command(Command("dailyMessage", commands.command_dailyMessage, Command.ACCESS_LEVEL_FORUM_ADMIN))
-
-        self.commands.add_command(Command("message", commands.command_message, Command.ACCESS_LEVEL_ORG_ADMIN))
 
     async def init(self, org: str, user: str, password: str, cache_dir: str, cache_prefix: str) -> None:
         """
