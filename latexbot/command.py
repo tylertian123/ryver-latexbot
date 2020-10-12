@@ -1,4 +1,5 @@
 import config
+import os
 import pyryver
 import random
 import typing
@@ -10,20 +11,20 @@ class Command:
     A LaTeX Bot command.
     """
 
-    TYLER_ID = 1311906
+    MAINTAINER_ID = int(os.environ.get("LATEXBOT_MAINTAINER_ID", 0))
 
     ACCESS_LEVEL_EVERYONE = 0
     ACCESS_LEVEL_FORUM_ADMIN = 1
     ACCESS_LEVEL_ORG_ADMIN = 2
     ACCESS_LEVEL_BOT_ADMIN = 3
-    ACCESS_LEVEL_TYLER = 9001
+    ACCESS_LEVEL_MAINTAINER = 4
 
     ACCESS_LEVEL_STRS = {
         ACCESS_LEVEL_EVERYONE: "",
         ACCESS_LEVEL_FORUM_ADMIN: "**Accessible to Forum, Org and Bot Admins only.**",
         ACCESS_LEVEL_ORG_ADMIN: "**Accessible to Org and Bot Admins only.**",
         ACCESS_LEVEL_BOT_ADMIN: "**Accessible to Bot Admins only.**",
-        ACCESS_LEVEL_TYLER: "**Accessible to Tyler only.**"
+        ACCESS_LEVEL_MAINTAINER: "**Accessible to my Maintainer only.**"
     }
 
     ACCESS_DENIED_MESSAGES = [
@@ -52,8 +53,8 @@ class Command:
         The chat is used to determine whether the user is a forum or team admin.
         If the chat is not a pyryver.GroupChat, it will be ignored.
         """
-        if user.get_id() == cls.TYLER_ID:
-            return cls.ACCESS_LEVEL_TYLER
+        if user.get_id() == cls.MAINTAINER_ID:
+            return cls.ACCESS_LEVEL_MAINTAINER
         if user.get_id() in config.admins:
             return cls.ACCESS_LEVEL_BOT_ADMIN
         if user.is_admin():
@@ -167,7 +168,7 @@ class CommandSet:
         await command.execute(args, bot, chat, user, msg_id)
         return True
     
-    def generate_help_text(self, ryver: pyryver.Ryver) -> typing.Tuple[typing.Dict[str, typing.List[typing.Tuple[str, str]]], typing.Dict[str, str]]:
+    def generate_help_text(self, ryver: pyryver.Ryver) -> typing.Tuple[typing.Dict[str, typing.List[typing.Tuple[str, str]]], typing.Dict[str, str]]: # pylint: disable=unused-argument
         """
         Generate help text and extended help text for each command.
 

@@ -74,7 +74,7 @@ The access levels go like this:
   2. Forum Admins (specific to each forum; a forum admin of one forum has a different Access Level in another forum) - **1**
   3. Org Admins - **2**
   4. Bot Admins (configurable in the config JSON; see [Configuring LaTeX Bot](#configuring-latex-bot)) - **3**
-  5. Tyler - **9001**
+  5. The Maintainer - **4**
 
 Where the level increases as you go down the list.
 

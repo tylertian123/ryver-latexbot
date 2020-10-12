@@ -26,33 +26,6 @@ class LatexBot:
     An instance of LaTeX Bot.
     """
 
-    MACRO_SHRUG = "\u00af\\\\_(\u30c4)\\_/\u00af"
-    MACRO_TABLEFLIP = "(\u256f\xb0\u25a1\xb0)\u256f\ufe35 \u253b\u2501\u253b"
-    MACRO_UNFLIP = "\u252c\u2500\u252c\u30ce( \xba \\_ \xba\u30ce)"
-    MACRO_LENNY = "( \u0361\xb0 \u035c\u0296 \u0361\xb0)"
-    MACRO_DISAPPROVAL = "\u0ca0\\_\u0ca0"
-    MACRO_SENDLOVE = "(\u0254\u25d4\u203f\u25d4)\u0254 :heart:"
-    MACRO_MEGAPHONE = "\U0001f4e3 ('\u1d17' )\u0648"
-    MACRO_CELEBRATION = "\uff3c(\uff3eO\uff3e)\uff0f"
-    MACRO_STRAT = ":poop:"
-
-    MACROS = {
-        "shrug": MACRO_SHRUG,
-        "tableflip": MACRO_TABLEFLIP,
-        "flip": MACRO_TABLEFLIP,
-        "unflip": MACRO_UNFLIP,
-        "lenny": MACRO_LENNY,
-        "disapproval": MACRO_DISAPPROVAL,
-        "sendlove": MACRO_SENDLOVE,
-        "love": MACRO_SENDLOVE,
-        "megaphone": MACRO_MEGAPHONE,
-        "scream": MACRO_MEGAPHONE,
-        "announcement": MACRO_MEGAPHONE,
-        "celebration": MACRO_CELEBRATION,
-        "strat": MACRO_STRAT,
-        "strategy": MACRO_STRAT,
-    }
-
     def __init__(self, version: str, analytics_file: str = None, debug: bool = False):
         self.debug = debug
         if debug:
@@ -74,6 +47,7 @@ class LatexBot:
         self.tba = None # type: TheBlueAlliance
         self.home_chat = None # type: pyryver.Chat
         self.announcements_chat = None # type: pyryver.Chat
+        self.maintainer = None # type: pyryver.User
         self.messages_chat = None # type: pyryver.Chat
         self.gh_updates_chat = None # type: pyryver.Chat
         self.gh_issues_board = None # type: pyryver.TaskBoard
@@ -171,6 +145,7 @@ class LatexBot:
         self.ryver = pyryver.Ryver(org=org, user=user, password=password, cache=cache)
         await self.ryver.load_missing_chats()
         self.user = self.ryver.get_user(username=self.username)
+        self.maintainer = self.ryver.get_user(id=int(os.environ.get("LATEXBOT_MAINTAINER_ID", 0)))
 
         # Get user avatar URLs
         # This information is not included in the regular user info
@@ -236,8 +211,8 @@ class LatexBot:
         await self.reload_config()
         if err:
             util.log(err)
-            if self.home_chat is not None:
-                await self.home_chat.send_message(err, self.msg_creator)
+            if self.maintainer is not None:
+                await self.maintainer.send_message(err, self.msg_creator)
 
         # Load roles
         try:
@@ -245,8 +220,8 @@ class LatexBot:
                 self.roles = CaseInsensitiveDict(json.load(f))
         except (json.JSONDecodeError, FileNotFoundError) as e:
             util.log(f"Error while loading roles: {e}. Defaulting to {{}}.")
-            if self.home_chat is not None:
-                await self.home_chat.send_message(f"Error while loading roles: {e}. Defaulting to {{}}.", self.msg_creator)
+            if self.maintainer is not None:
+                await self.maintainer.send_message(f"Error while loading roles: {e}. Defaulting to {{}}.", self.msg_creator)
             self.roles = CaseInsensitiveDict()
         
         # Load trivia
@@ -255,8 +230,8 @@ class LatexBot:
                 trivia.set_custom_trivia_questions(json.load(f))
         except (json.JSONDecodeError, FileNotFoundError) as e:
             util.log(f"Error while loading custom trivia questions: {e}.")
-            if self.home_chat is not None:
-                await self.home_chat.send_message(f"Error while loading custom trivia questions: {e}.", self.msg_creator)
+            if self.maintainer is not None:
+                await self.maintainer.send_message(f"Error while loading custom trivia questions: {e}.", self.msg_creator)
 
         # Load keyword watches
         try:
@@ -264,8 +239,8 @@ class LatexBot:
                 self.keyword_watches = json.load(f)
         except (json.JSONDecodeError, FileNotFoundError) as e:
             util.log(f"Error while loading keyword watches: {e}.")
-            if self.home_chat is not None:
-                await self.home_chat.send_message(f"Error while keyword watches: {e}. Defaulting to {{}}.", self.msg_creator)
+            if self.maintainer is not None:
+                await self.maintainer.send_message(f"Error while keyword watches: {e}. Defaulting to {{}}.", self.msg_creator)
             self.keyword_watches = dict()
         self.rebuild_automaton()
 
@@ -308,8 +283,11 @@ class LatexBot:
             util.log("Daily message was sent.")
         except asyncio.CancelledError:
             cancelled = True
-        except Exception as e: # pylint: disable=broad-except
-            util.log(f"Error while executing daily message routine: {e}")
+        except Exception: # pylint: disable=broad-except
+            exc = format_exc()
+            util.log(f"Error while executing daily message routine: {exc}")
+            if self.maintainer is not None:
+                await self.maintainer.send_message(f"Exception while sending daily message:\n```\n{exc}\n```", self.msg_creator)
         finally:
             if not cancelled:
                 self.schedule_daily_message()
@@ -571,8 +549,11 @@ class LatexBot:
                                         self.analytics.command(command, args, from_user, to)
                                     util.log("Command processed.")
                             except Exception as e: # pylint: disable=broad-except
-                                util.log(f"Exception raised:\n{format_exc()}")
-                                await to.send_message(f"An exception occurred while processing the command:\n```{format_exc()}\n```\n\nPlease try again.", self.msg_creator)
+                                exc = format_exc()
+                                util.log(f"Exception raised:\n{exc}")
+                                await to.send_message(f"An exception occurred while processing the command:\n```{exc}\n```\n\nPlease try again.", self.msg_creator)
+                                if self.maintainer is not None:
+                                    await self.maintainer.send_message(f"An exception occurred while processing command `{msg.text}` in {to.get_name()}:\n```\n{exc}\n```", self.msg_creator)
                         else:
                             util.log("Invalid command.")
                             await to.send_message("Sorry, I didn't understand what you were asking me to do.", self.msg_creator)

@@ -103,3 +103,20 @@ have a functioning installation of Docker.
 To setup LaTeX Bot in this mode, follow the [Configuration](configuration) and [Building](building) steps, except don't run `docker-compose push` or setup/change the registry.
 
 Once you have done this, set the environment variables as explained in [Deploying](deploying) and simply run `docker-compose up -d` to create and start the necessary containers.
+
+## Environment Variables
+
+Here is a complete list of all the environment variables that affect LaTeX Bot. Some of them are very important.
+Unless marked otherwise, they are optional.
+- `LATEXBOT_ORG` (**Required**) - The organization name.
+- `LATEXBOT_USER` (**Required**) - The username of the bot account.
+- `LATEXBOT_PASS` (**Required**) - The bot account's password.
+- `LATEXBOT_MAINTAINER_ID` - The user ID of the bot's Maintainer. This user is given access to all commands among other privileges.
+- `LATEXBOT_ANALYTICS` - Set to 1 to enable analytics.
+- `LATEXBOT_SERVER_PORT` - The port to host the web server on.
+- `LATEXBOT_SERVER_AUTH_READ` - The password for the "read" account in the web server.
+- `LATEXBOT_SERVER_AUTH_WRITE` - The password for the "write" account in the web server.
+- `LATEXBOT_SERVER_AUTH_ADMIN` - The password for the "admin" account in the web server.
+- `LATEXBOT_GH_HOOK_SECRET` - The HMAC secret key for incoming webhook messages from GitHub.
+- `LATEXBOT_TBA_KEY` - The key used to access the The Blue Alliance API.
+- `LATEXBOT_DEBUG` - Set to 1 for debug mode.
