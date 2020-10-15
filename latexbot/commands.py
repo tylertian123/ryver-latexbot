@@ -1709,7 +1709,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         if count < 1:
             raise ValueError
     except ValueError:
-        await chat.send_message("Error: Invalid number.", bot.msg_creatorbot.msg_creator)
+        await chat.send_message("Error: Invalid number.", bot.msg_creator)
         return
     
     events = bot.calendar.get_upcoming_events(count)
