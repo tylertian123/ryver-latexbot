@@ -27,7 +27,7 @@ class UserInfo:
     avatar: str = None
     presence: str = None
     last_activity: float = 0
-    muted: typing.Set[int] = None
+    muted: typing.Dict[int, asyncio.Task] = None
 
 
 class LatexBot:
@@ -278,7 +278,7 @@ class LatexBot:
         if t < now:
             t += timedelta(days=1)
         init_delay = (t - now).total_seconds()
-        self.daily_msg_task = asyncio.ensure_future(self._daily_msg(init_delay))
+        self.daily_msg_task = asyncio.create_task(self._daily_msg(init_delay))
         util.log(f"Daily message re-scheduled, starting after {init_delay} seconds.")
     
     async def update_cache(self) -> None:

@@ -1365,18 +1365,39 @@ async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     For example, if two people can both use mute, but one of them is a forum admin while the other
     isn't, then the first person can mute the second person. However, if both or neither of them
     are forum admins, then they cannot mute each other.
+
+    You can optionally specify a duration in seconds, after which the user will be automatically
+    unmuted.
     ---
     group: Administrative Commands
-    syntax: [@]<username>
+    syntax: [@]<username> [duration]
     ---
     > `@latexbot mute tylertian` - Mute tylertian in the current forum.
+    > `@latexbot mute @foobar 1200` - Mute foobar in the current forum for 1200 seconds (20 minutes).
     """
-    if args.startswith("@"):
-        args = args[1:]
-    mute_user = bot.ryver.get_user(username=args)
-    if mute_user is None:
-        await chat.send_message(f"User {args} not found. Please enter a valid username.", bot.msg_creator)
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
         return
+    if len(args) > 2:
+        await chat.send_message("Invalid syntax: Too many arguments. See `@latexbot help mute` for more info.", bot.msg_creator)
+        return
+    username = args[0]
+    if username.startswith("@"):
+        username = username[1:]
+    mute_user = bot.ryver.get_user(username=username)
+    if mute_user is None:
+        await chat.send_message(f"User {username} not found. Please enter a valid username.", bot.msg_creator)
+        return
+    if len(args) >= 2:
+        try:
+            duration = float(args[1])
+        except ValueError as e:
+            await chat.send_message("Please enter a valid number for the duration.", bot.msg_creator)
+            return
+    else:
+        duration = None
     # Check access levels
     if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user):
         user_level = await command.Command.get_access_level(chat, user)
@@ -1384,10 +1405,29 @@ async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
         if user_level <= mute_level:
             await chat.send_message(f"Error: You cannot mute this user because they can also use mute and have a higher access level than you ({mute_level} >= {user_level}).", bot.msg_creator)
             return
-    if mute_user.get_id() not in bot.user_info or bot.user_info[mute_user.get_id()].muted is None:
-        bot.user_info[mute_user.get_id()] = latexbot.UserInfo(muted=set())
-    bot.user_info[mute_user.get_id()].muted.add(chat.get_id())
-    await chat.send_message(f"Muted user {mute_user.get_name()} (`{mute_user.get_username()}`) in {chat.get_name()}.", bot.msg_creator)
+    uid = mute_user.get_id()
+    if uid not in bot.user_info or bot.user_info[uid].muted is None:
+        bot.user_info[uid] = latexbot.UserInfo(muted={})
+    muted = bot.user_info[uid].muted
+    # Remove the previous unmute task if it exists
+    task = muted.get(chat.get_id())
+    if task is not None and not task.done():
+        task.cancel()
+        await task
+    if duration is None:
+        muted[chat.get_id()] = None
+        await chat.send_message(f"Muted user {mute_user.get_name()} (`{mute_user.get_username()}`) in {chat.get_name()}.", bot.msg_creator)
+    else:
+        # Define an unmute task that unmutes the user after the specified duration
+        async def _unmute_task():
+            try:
+                await asyncio.sleep(duration)
+                muted.pop(chat.get_id())
+                await chat.send_message(f"User {mute_user.get_name()} (`{mute_user.get_username()}`) has been unmuted in {chat.get_name()}.", bot.msg_creator)
+            except asyncio.CancelledError:
+                pass
+        muted[chat.get_id()] = asyncio.create_task(_unmute_task())
+        await chat.send_message(f"Muted user {mute_user.get_name()} (`{mute_user.get_username()}`) in {chat.get_name()} for {duration} seconds.", bot.msg_creator)
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_FORUM_ADMIN)
@@ -1418,7 +1458,10 @@ async def command_unmute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         if user_level <= mute_level:
             await chat.send_message(f"Error: You cannot unmute this user because they can use mute and have a higher access level than you ({mute_level} >= {user_level}).", bot.msg_creator)
             return
-    bot.user_info[mute_user.get_id()].muted.remove(chat.get_id())
+    task = bot.user_info[mute_user.get_id()].muted.pop(chat.get_id())
+    if task is not None and not task.done():
+        task.cancel()
+        await task
     await chat.send_message(f"Unmuted user {mute_user.get_name()} (`{mute_user.get_username()}`) in {chat.get_name()}.", bot.msg_creator)
 
 
@@ -1798,7 +1841,7 @@ async def command_addEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: p
         args = shlex.split(args)
     except ValueError as e:
         await chat.send_message(f"Invalid syntax: {e}", bot.msg_creator)
-        return  
+        return
     if len(args) != 3 and len(args) != 5:
         await chat.send_message("Error: Invalid syntax. Check `@latexbot help addEvent` for help. You may have to use quotes if any of the parameters contain spaces.", bot.msg_creator)
         return
@@ -1969,7 +2012,7 @@ async def command_sleep(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
                 bot.enabled = True
                 await bot.session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
                 await chat.send_message("Good morning!", bot.msg_creator)
-    asyncio.ensure_future(_wakeup_task())
+    asyncio.create_task(_wakeup_task())
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_MAINTAINER)

@@ -411,7 +411,7 @@ class LatexBotTriviaGame:
     def refresh_timeout(self, delay: float = 15 * 60):
         if self.timeout_task_handle is not None:
             self.timeout_task_handle.cancel()
-        self.timeout_task_handle = asyncio.ensure_future(self._timeout(delay))
+        self.timeout_task_handle = asyncio.create_task(self._timeout(delay))
     
     async def _try_get_next(self) -> bool:
         """
