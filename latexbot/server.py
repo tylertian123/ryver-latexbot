@@ -12,6 +12,7 @@ import time
 import trivia
 import typing
 import util
+from markdownify import markdownify
 
 
 def basicauth(level: str, realm: str = None):
@@ -137,7 +138,7 @@ class Server:
                     obj = data["pull_request"]
                     obj_type = "Pull Request"
                 title = f"(#{obj['number']}) {obj['title']}"
-                body = obj["body"] + f"\n\n*This {obj_type} is from [GitHub]({obj['html_url']}).*"
+                body = markdownify(obj["body"]) + f"\n\n*This {obj_type} is from [GitHub]({obj['html_url']}).*"
                 return (title, body)
             
             def format_comment() -> str:
@@ -145,7 +146,7 @@ class Server:
                 Format an issue or PR comment into a task comment body.
                 """
                 body = f"({data['comment']['id']}) {github.format_author(data['comment']['user'])} commented:\n\n"
-                body += f"{data['comment']['body']}\n\n*This comment is from [GitHub]({data['comment']['html_url']}).*"
+                body += f"{markdownify(data['comment']['body'])}\n\n*This comment is from [GitHub]({data['comment']['html_url']}).*"
                 return body
 
             async def find_or_create_category() -> pyryver.TaskCategory:
@@ -272,11 +273,11 @@ class Server:
                 body = f"*{github.format_author(data['sender'])} "
                 if data["action"] == "submitted":
                     body += f"submitted [a review]({data['review']['html_url']}) "
-                    body += f"**{state}***:\n\n{data['review']['body']}"
+                    body += f"**{state}***:\n\n{markdownify(data['review']['body'])}"
                     await task.comment(body)
                 elif data["action"] == "edited":
                     body += f"edited [their review]({data['review']['html_url']}) "
-                    body += f"**{state}***:\n\n{data['review']['body']}"
+                    body += f"**{state}***:\n\n{markdownify(data['review']['body'])}"
                     await task.comment(body)
                 elif data["action"] == "dismissed":
                     body += f"dismissed {github.format_author(data['review']['user'])}'s [review]({data['review']['html_url']}).*"

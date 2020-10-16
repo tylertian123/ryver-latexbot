@@ -1,4 +1,5 @@
 import typing
+from markdownify import markdownify
 
 
 def format_author(data: typing.Dict[str, typing.Any]) -> str:
@@ -65,7 +66,7 @@ def format_event_commit_comment(data: typing.Dict[str, typing.Any]) -> str:
         return None
     resp = f"{format_author(data['sender'])} [commented]({data['comment']['html_url']}) on commit "
     resp += f"{format_commit_sha(data['comment']['commit_id'], data['repository'])} in "
-    resp += f"{format_repo(data['repository'])}:\n\n{data['comment']['body']}."
+    resp += f"{format_repo(data['repository'])}:\n\n{markdownify(data['comment']['body'])}."
     return resp
 
 
@@ -114,7 +115,7 @@ def format_event_issues(data: typing.Dict[str, typing.Any]) -> str:
     description = f"issue {format_issue_or_pr(data['issue'])} in {format_repo(data['repository'])}"
     if data['action'] in ("opened", "edited"):
         resp += f"issue {format_issue_or_pr(data['issue'], False)} in {format_repo(data['repository'])}:\n\n"
-        resp += f"# {data['issue']['title']}\n{data['issue']['body']}"
+        resp += f"# {data['issue']['title']}\n{markdownify(data['issue']['body'])}"
     elif data['action'] in ("deleted", "pinned", "unpinned", "closed", "reopened", "locked", "unlocked"):
         resp += f"{description}."
     elif data['action'] in ("assigned", "unassigned"):
@@ -137,7 +138,7 @@ def format_event_issue_comment(data: typing.Dict[str, typing.Any]) -> str:
         resp += f"[commented]({data['comment']['html_url']}) on issue "
     else:
         resp += f"edited [their comment]({data['comment']['html_url']}) on issue "
-    resp += f"{format_issue_or_pr(data['issue'])} in {format_repo(data['repository'])}:\n\n{data['comment']['body']}"
+    resp += f"{format_issue_or_pr(data['issue'])} in {format_repo(data['repository'])}:\n\n{markdownify(data['comment']['body'])}"
     return resp
 
 
@@ -174,7 +175,7 @@ def format_event_pull_request(data: typing.Dict[str, typing.Any]) -> str:
     description = f"{format_issue_or_pr(data['pull_request'])} in {format_repo(data['repository'])}"
     if data['action'] in ("opened", "edited"):
         resp += f"{data['action']} pull request {format_issue_or_pr(data['pull_request'], False)} in "
-        resp += f"{format_repo(data['repository'])}:\n\n# {data['pull_request']['title']}\n{data['pull_request']['body']}"
+        resp += f"{format_repo(data['repository'])}:\n\n# {data['pull_request']['title']}\n{markdownify(data['pull_request']['body'])}"
     elif data['action'] == "closed":
         resp += f"{'merged' if data['pull_request']['merged'] else 'closed without merging'} pull request {description}."
     elif data['action'] in ("locked", "unlocked", "reopened"):
@@ -210,10 +211,10 @@ def format_event_pull_request_review(data: typing.Dict[str, typing.Any]) -> str:
     
     if data['action'] == "submitted":
         resp += f"submitted [a review]({data['review']['html_url']}) **{state}** pull request {description}:\n\n"
-        resp += data["review"]["body"]
+        resp += markdownify(data["review"]["body"])
     elif data['action'] == "edited":
         resp += f"edited [their review]({data['review']['html_url']}) **{state}** pull request {description}:\n\n"
-        resp += data["review"]["body"]
+        resp += markdownify(data["review"]["body"])
     elif data['action'] == "dismissed":
         resp += f"dismissed {format_author(data['review']['user'])}'s [review]({data['review']['html_url']}) "
         resp += f"for pull request {description}."
@@ -233,7 +234,7 @@ def format_event_pull_request_review_comment(data: typing.Dict[str, typing.Any])
         resp += f"[commented]({data['comment']['html_url']}) on pull request "
     else:
         resp += f"edited [their comment]({data['comment']['html_url']}) on pull request "
-    resp += f"{format_issue_or_pr(data['pull_request'])} in {format_repo(data['repository'])}:\n\n{data['comment']['body']}"
+    resp += f"{format_issue_or_pr(data['pull_request'])} in {format_repo(data['repository'])}:\n\n{markdownify(data['comment']['body'])}"
     return resp
 
 
