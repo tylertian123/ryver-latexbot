@@ -1399,12 +1399,19 @@ async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
     else:
         duration = None
     # Check access levels
-    if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user):
-        user_level = await command.Command.get_access_level(chat, user)
-        mute_level = await command.Command.get_access_level(chat, mute_user)
-        if user_level <= mute_level:
-            await chat.send_message(f"Error: You cannot mute this user because they can also use mute and have a higher access level than you ({mute_level} >= {user_level}).", bot.msg_creator)
+    if mute_user == user:
+        if duration is None:
+            await chat.send_message("Error: You cannot mute yourself without a time limit.", bot.msg_creator)
             return
+        else:
+            await chat.send_message("Warning: You are muting yourself. If this is a mistake, you can contact an admin to unmute yourself.", bot.msg_creator)
+    else:
+        if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user):
+            user_level = await command.Command.get_access_level(chat, user)
+            mute_level = await command.Command.get_access_level(chat, mute_user)
+            if user_level <= mute_level:
+                await chat.send_message(f"Error: You cannot mute this user because they can also use mute and have a higher access level than you ({mute_level} >= {user_level}).", bot.msg_creator)
+                return
     uid = mute_user.get_id()
     if uid not in bot.user_info or bot.user_info[uid].muted is None:
         bot.user_info[uid] = latexbot.UserInfo(muted={})
