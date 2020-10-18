@@ -1192,6 +1192,9 @@ async def command_delete_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, 
     except (ValueError, IndexError):
         await chat.send_message("Invalid syntax.", bot.msg_creator)
         return
+    if start > end:
+        await chat.send_message("No messages to delete.", bot.msg_creator)
+        return
 
     # Special case for start = 1
     if start == 1:
@@ -1200,8 +1203,9 @@ async def command_delete_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, 
         # Cut off the end (newer messages)
         # Subtract 1 for 1-based indexing
         msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
-    for message in msgs:
-        await message.delete()
+    # Use multiple tasks
+    WORKERS = 7
+    await util.process_concurrent(msgs, pyryver.ChatMessage.delete, WORKERS)
     await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
 
 

@@ -3,6 +3,7 @@ Utility functions and constants.
 """
 
 import aiohttp
+import asyncio
 import config
 import datetime
 import json
@@ -392,3 +393,15 @@ def contains_ignorecase(s: str, i: typing.Iterable[str]) -> bool:
     Return whether the string s is in i when case is ignored.
     """
     return s.casefold() in (t.casefold() for t in i)
+
+
+async def process_concurrent(objs: typing.List[typing.Any], process: typing.Callable[[typing.Any], typing.Awaitable], workers: int = 5):
+    """
+    Run a processing coroutine on a list of objects with multiple concurrent workers.
+    """
+    # Divide and round up
+    step = (len(objs) + 1) // workers + 1
+    async def _proc_range(start, end):
+        for i in range(start, end):
+            await process(objs[i])
+    await asyncio.gather(*(_proc_range(i * step, min((i + 1) * step, len(objs))) for i in range(workers)))
