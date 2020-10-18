@@ -229,6 +229,8 @@ def command(name: str = None, access_level: int = Command.ACCESS_LEVEL_EVERYONE)
         if name is None:
             if func.__name__.startswith("command_"):
                 name = func.__name__[len("command_"):]
+                words = name.split("_")
+                name = words[0] + ''.join(s[0].upper() + s[1:] for s in words[1:])
             else:
                 raise ValueError("Cannot deduce function name")
         return functools.wraps(func)(Command(name, func, access_level))

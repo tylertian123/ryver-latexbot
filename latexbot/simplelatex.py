@@ -154,10 +154,10 @@ def get_modifiers(tree: lark.Tree) -> typing.Tuple[str, str, int]:
     m1 = None
     m2 = None
     arg_start = 2
-    if tree.children[1] != None:
+    if tree.children[1] is not None:
         m1 = f"{tree_to_latex(tree.children[1])}{{{strip_bracket(tree.children[2])}}}"
         arg_start = 4
-        if tree.children[3] != None:
+        if tree.children[3] is not None:
             m2 = f"{tree_to_latex(tree.children[3])}{{{strip_bracket(tree.children[4])}}}"
             arg_start = 5
     return m1, m2, arg_start

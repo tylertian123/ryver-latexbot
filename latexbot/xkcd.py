@@ -1,5 +1,5 @@
 import aiohttp
-from typing import *
+from typing import Union, Dict, Any
 
 async def get_comic(number: int = None) -> Union[Dict[str, Any], None]:
     """

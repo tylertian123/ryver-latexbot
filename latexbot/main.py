@@ -21,6 +21,9 @@ ANALY_FILE = DATA_DIR + "analytics.json"
 WATCH_FILE = DATA_DIR + "keyword_watches.json"
 
 async def main():
+    """
+    Main LaTeX Bot coroutine.
+    """
     debug = os.environ.get("LATEXBOT_DEBUG") == "1"
     if os.environ.get("LATEXBOT_ANALYTICS") == "1":
         bot = latexbot.LatexBot(__version__, ANALY_FILE, debug)

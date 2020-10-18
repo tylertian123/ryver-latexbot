@@ -80,7 +80,7 @@ async def command_chem(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_EVERYONE)
-async def command_renderSimple(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_render_simple(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     r"""
     Render a "simple" mathematical expression.
 
@@ -469,7 +469,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                 title += ".++\n"
             header = "Rank|Team|" + "|".join(i["name"] for i in rankings["sort_order_info"])
             header += "|Record (W-L-T)|DQ|Matches Played|" + "|".join(i["name"] for i in rankings["extra_stats_info"]) + "\n"
-            header += "|".join("---" for i in range(len(rankings["extra_stats_info"]) + len(rankings["sort_order_info"]) + 5))
+            header += "|".join("---" * (len(rankings["extra_stats_info"]) + len(rankings["sort_order_info"]) + 5))
             header += "\n"
             def rankings_gen():
                 for r in team_rankings:
@@ -711,7 +711,7 @@ NO_MSGS = [
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_EVERYONE)
-async def command_whatDoYouThink(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_what_do_you_think(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Ask my opinion of a thing!
 
@@ -796,7 +796,6 @@ async def command_checkiday(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
         return
     if not data.get("holidays", None):
         await chat.send_message(f"No holidays on {data['date']}.")
-        return
     else:
         msg = f"Here is a list of all the holidays on {data['date']}:\n"
         msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
@@ -913,7 +912,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             categories += "\n\nCustom categories can only be specified by name. Use 'all' for all regular categories (no custom), or 'custom' for all custom categories (no regular)."
         await chat.send_message(f"# Categories:\n{categories}", bot.msg_creator)
     elif cmd == "start":
-        if not 0 <= len(sub_args) <= 3:
+        if len(sub_args) > 3:
             await chat.send_message("Invalid syntax. See `@latexbot help trivia` for details.", bot.msg_creator)
             return
         
@@ -1164,7 +1163,7 @@ async def command_leaderboards(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_FORUM_ADMIN)
-async def command_deleteMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_delete_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Delete messages.
 
@@ -1207,7 +1206,7 @@ async def command_deleteMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, u
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_FORUM_ADMIN)
-async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Move messages to another forum or team.
 
@@ -1301,7 +1300,7 @@ async def command_moveMessages(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_FORUM_ADMIN)
-async def command_countMessagesSince(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_count_messages_since(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     r"""
     Count the number of messages since the first message that matches a pattern.
 
@@ -1524,7 +1523,7 @@ async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_addToRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_add_to_role(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Add people to a role.
 
@@ -1573,7 +1572,7 @@ async def command_addToRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_removeFromRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_remove_from_role(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Remove people from roles.
 
@@ -1620,7 +1619,7 @@ async def command_removeFromRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, u
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_deleteRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_delete_role(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Completely delete a role, removing all users from that role.
 
@@ -1646,7 +1645,7 @@ async def command_deleteRole(bot: "latexbot.LatexBot", chat: pyryver.Chat, user:
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_exportRoles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_export_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Export roles data as a JSON. 
 
@@ -1660,7 +1659,7 @@ async def command_exportRoles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_importRoles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_import_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Import JSON roles data from the message, or from a file attachment.
 
@@ -1784,7 +1783,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_quickAddEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_quick_add_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Add an event to Google Calendar based on a simple text string.
 
@@ -1808,7 +1807,7 @@ async def command_quickAddEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_addEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_add_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Add an event to Google Calendar.
 
@@ -1917,7 +1916,7 @@ async def command_addEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: p
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_deleteEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_delete_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Delete an event by name from Google Calendar.
 
@@ -1956,7 +1955,7 @@ async def command_deleteEvent(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_BOT_ADMIN)
-async def command_setEnabled(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_set_enabled(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Enable or disable me.
     ---
@@ -2059,7 +2058,7 @@ async def command_execute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: py
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_BOT_ADMIN)
-async def command_updateChats(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_update_cache(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Update the cached list of forums/teams and users.
 
@@ -2224,7 +2223,7 @@ async def command_macro(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_exportConfig(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_export_config(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Export config as a JSON.
 
@@ -2241,7 +2240,7 @@ async def command_exportConfig(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_importConfig(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_import_config(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Import config from JSON.
 
@@ -2270,7 +2269,7 @@ async def command_importConfig(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_accessRule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     View or modify access rules.
 
@@ -2431,7 +2430,7 @@ async def command_accessRule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user:
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_setDailyMessageTime(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_set_daily_message_time(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Set the time daily messages are sent each day or turn them on/off.
 
@@ -2465,7 +2464,7 @@ async def command_setDailyMessageTime(bot: "latexbot.LatexBot", chat: pyryver.Ch
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
-async def command_dailyMessage(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Send the daily message.
 

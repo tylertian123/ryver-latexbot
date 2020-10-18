@@ -148,8 +148,8 @@ class CustomTriviaSession:
                 self._questions = []
                 for v in CUSTOM_TRIVIA_QUESTIONS.values():
                     self._questions.extend(v["questions"])
-        except KeyError:
-            raise ValueError("Error trying to load questions")
+        except KeyError as e:
+            raise ValueError("Error trying to load questions") from e
         self._index = 0
         random.shuffle(self._questions)
     
@@ -429,7 +429,7 @@ class LatexBotTriviaGame:
             await self.chat.send_message(f"Cannot get next question: {err}", self.msg_creator)
             if e.code == OpenTDBError.CODE_TOKEN_NOT_FOUND:
                 # End the session
-                await self.chat.send_message(f"Ending invalid session...", self.msg_creator)
+                await self.chat.send_message("Ending invalid session...", self.msg_creator)
                 await self.end()
             return False
 
@@ -441,10 +441,9 @@ class LatexBotTriviaGame:
             self.refresh_timeout()
 
             # Only update the question if already answered
-            if self.game.current_question["answered"]:
-                # Try to get the next question
-                if not await self._try_get_next():
-                    return
+            # Try to get the next question
+            if self.game.current_question["answered"] and not await self._try_get_next():
+                return
         
             formatted_question = self.format_question(self.game.current_question)
             # Send the message

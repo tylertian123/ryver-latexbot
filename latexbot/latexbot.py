@@ -24,6 +24,10 @@ from traceback import format_exc
 
 @dataclass(unsafe_hash=True, eq=False)
 class UserInfo:
+    """
+    A class for storing additional runtime user info.
+    """
+
     avatar: str = None
     presence: str = None
     last_activity: float = 0
@@ -626,9 +630,8 @@ class LatexBot:
                             if self.keyword_watches[uid_key].get("_suppressed", 0) > t:
                                 continue
                             # Verify that the user is a member of this chat
-                            if isinstance(to, pyryver.GroupChat):
-                                if await to.get_member(uid) is None:
-                                    continue
+                            if isinstance(to, pyryver.GroupChat) and await to.get_member(uid) is None:
+                                continue
                             user = self.ryver.get_user(id=uid)
                             resp = "The following message matched your watches for the keyword(s) " + ", ".join(f"\"**{w}**\"""" for w in keywords) + ":"
                             await user.send_message(resp + "\n" + quoted_msg, self.msg_creator)
