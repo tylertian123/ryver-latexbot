@@ -252,7 +252,7 @@ class LatexBot:
         try:
             await asyncio.sleep(init_delay)
             util.log("Executing daily message routine...")
-            await commands.command_dailyMessage(self, None, None, None, None)
+            await commands.command_daily_message(self, None, None, None, None)
             util.log("Daily message was sent.")
         except asyncio.CancelledError:
             cancelled = True
