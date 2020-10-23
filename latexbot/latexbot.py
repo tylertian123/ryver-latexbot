@@ -34,6 +34,10 @@ class UserInfo:
     muted: typing.Dict[int, asyncio.Task] = None
 
 
+# Global LatexBot instance
+bot = None # type: LatexBot
+
+
 class LatexBot:
     """
     An instance of LaTeX Bot.
@@ -86,6 +90,9 @@ class LatexBot:
         self.webhook_server = None # type: server.Webhooks
 
         self.start_time = None # type: datetime
+
+        global bot # pylint: disable=global-statement
+        bot = self
     
     def init_commands(self) -> None:
         """

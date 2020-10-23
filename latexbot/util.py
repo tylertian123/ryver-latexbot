@@ -76,6 +76,8 @@ def parse_chat_name(ryver: pyryver.Ryver, name: str) -> pyryver.Chat:
     Parse a chat name expression in the form [(name|nickname|username|email|id|jid)=][+|@]<forum|team|user>
     and return the correct chat.
     """
+    if not name:
+        raise ValueError("Name cannot be none or empty")
     match = CHAT_LOOKUP_REGEX.match(name) # type: re.Match
     if match:
         key = match.group(1)
