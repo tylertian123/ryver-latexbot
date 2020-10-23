@@ -1899,11 +1899,11 @@ async def command_add_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
         event_body = {
             "start": {
                 "dateTime": start.isoformat(),
-                "timeZone": bot.timezone,
+                "timeZone": config.tz_str,
             },
             "end": {
                 "dateTime": end.isoformat(),
-                "timeZone": bot.timezone,
+                "timeZone": config.tz_str,
             }
         }
     event_body["summary"] = args[0]
