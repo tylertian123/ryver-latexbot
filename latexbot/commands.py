@@ -1408,6 +1408,9 @@ async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
             return
         else:
             await chat.send_message("Warning: You are muting yourself. If this is a mistake, you can contact an admin to unmute yourself.", bot.msg_creator)
+    elif mute_user == bot.maintainer or mute_user == bot.user:
+        mute_user = user
+        await chat.send_message("no u", bot.msg_creator)
     else:
         if await bot.commands.commands["mute"].is_authorized(bot, chat, mute_user):
             user_level = await command.Command.get_access_level(chat, user)
