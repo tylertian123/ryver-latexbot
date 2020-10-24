@@ -10,6 +10,8 @@ class Node:
     A node in the automaton's trie.
     """
 
+    __slots__ = ("next", "leaf_value", "parent", "char", "fail")
+
     def __init__(self, parent: "Node", char: str):
         self.next = dict()
         self.leaf_value = None
@@ -26,14 +28,18 @@ class Automaton:
     An Aho-Corasick algorithm DFA.
     """
 
+    __slots__ = ("trie_root", "leaves")
+
     def __init__(self):
         self.trie_root = Node(None, None)
         self.trie_root.fail = self.trie_root
         self.leaves = []
     
-    def trie_find(self, s: str) -> Node:
+    def trie_find(self, s: str) -> typing.Optional[Node]:
         """
         Find the leaf node representing a string in the trie.
+
+        If it does not exist, return None.
         """
         node = self.trie_root
         for c in s:
