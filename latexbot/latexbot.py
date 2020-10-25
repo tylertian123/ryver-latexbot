@@ -2,12 +2,13 @@ import aiohttp
 import analytics
 import asyncio
 import commands
-import server
+import datetime
 import json
 import marshmallow
 import os
 import pyryver
 import re
+import server
 import schemas
 import time
 import trivia
@@ -15,9 +16,8 @@ import typing # pylint: disable=unused-import
 import util
 from aho_corasick import Automaton
 from cid import CaseInsensitiveDict
-from command import Command, CommandSet
+from command import Command, CommandSet, CommandError
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 from tba import TheBlueAlliance
 from traceback import format_exc
 
@@ -85,7 +85,7 @@ class LatexBot:
 
         self.webhook_server = None # type: server.Webhooks
 
-        self.start_time = None # type: datetime
+        self.start_time = None # type: datetime.datetime
 
         global bot # pylint: disable=global-statement
         bot = self
@@ -162,7 +162,6 @@ class LatexBot:
                     msg += "Invalid GitHub task board: Task board have categories."
         return msg or None
 
-        
     async def load_files(self, config_file: str, roles_file: str, trivia_file: str, watch_file: str) -> None:
         """
         Load all configuration files, including the config, roles and custom trivia.
@@ -275,12 +274,12 @@ class LatexBot:
         if self.config.daily_message_time is None:
             util.log("Daily message not scheduled because time isn't defined.")
             return
-        now = util.current_time()
+        now = self.current_time()
         # Get that time, today
-        t = datetime.combine(now, self.config.daily_message_time, tzinfo=self.config.tzinfo)
+        t = datetime.datetime.combine(now, self.config.daily_message_time, tzinfo=self.config.tzinfo)
         # If already passed, get that time the next day
         if t < now:
-            t += timedelta(days=1)
+            t += datetime.timedelta(days=1)
         init_delay = (t - now).total_seconds()
         self.daily_msg_task = asyncio.create_task(self._daily_msg(init_delay))
         util.log(f"Daily message re-scheduled, starting after {init_delay} seconds.")
@@ -402,11 +401,17 @@ class LatexBot:
                 return (cmd.strip(), args.strip())
             # Otherwise go again until no more expansion happens
     
+    def current_time(self) -> datetime.datetime:
+        """
+        Get the current time in the organization's timezone.
+        """
+        return datetime.datetime.now(datetime.timezone.utc).astimezone(self.config.tzinfo)
+    
     async def run(self) -> None:
         """
         Run LaTeX Bot.
         """
-        self.start_time = util.current_time()
+        self.start_time = self.current_time()
         util.log(f"LaTeX Bot {self.version} has been started. Initializing...")
         self.update_help()
         self.schedule_daily_message()
@@ -541,6 +546,9 @@ class LatexBot:
                                     if self.analytics:
                                         self.analytics.command(command, args, from_user, to)
                                     util.log("Command processed.")
+                            except CommandError as e:
+                                util.log(f"Command error: {e}")
+                                await to.send_message(f"Error: {e}", bot.msg_creator)
                             except Exception as e: # pylint: disable=broad-except
                                 exc = format_exc()
                                 util.log(f"Exception raised:\n{exc}")

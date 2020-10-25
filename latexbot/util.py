@@ -9,7 +9,6 @@ import json
 import latexbot
 import pyryver
 import re
-import schemas
 import string
 import typing
 from textwrap import dedent
@@ -48,7 +47,7 @@ def log(*args, **kwargs):
     This function uses print() and flushes immediately.
     A timestamp is also added to each message.
     """
-    print(current_time().strftime("%Y-%m-%d %H:%M:%S"), end=" ")
+    print(latexbot.bot.current_time().strftime("%Y-%m-%d %H:%M:%S"), end=" ")
     print(*args, **kwargs, flush=True)
 
 
@@ -224,13 +223,6 @@ def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
     return doc_dict
 
 
-def current_time() -> datetime:
-    """
-    Get the current time in a timezone.
-    """
-    return datetime.datetime.now(datetime.timezone.utc).astimezone(latexbot.bot.config.tzinfo)
-
-
 def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
     """
     Tries to parse the given string with any of the formats listed.
@@ -245,7 +237,7 @@ def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
     return None
 
 
-def format_access_rules(command: str, rule: schemas.AccessRule) -> str:
+def format_access_rules(command: str, rule) -> str:
     """
     Format a command's access rules into a markdown string.
     """

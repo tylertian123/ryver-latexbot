@@ -290,7 +290,7 @@ class Server:
         """
         daily_msg_status = "\U0001F534 NOT SCHEDULED" if self.bot.daily_msg_task.done() else "\U0001F7E2 OK"
         start_time = self.bot.start_time.strftime(util.DATE_FORMAT)
-        uptime = util.current_time() - self.bot.start_time
+        uptime = self.bot.current_time() - self.bot.start_time
         with open("latexbot/html/home.html", "r") as f:
             html = self.format_page(f.read().format(
                 version=self.bot.version, server_status="\U0001F7E2 OK", daily_msg_status=daily_msg_status,

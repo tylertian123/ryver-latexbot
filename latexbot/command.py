@@ -11,6 +11,12 @@ import typing
 import util
 
 
+class CommandError(Exception):
+    """
+    An exception raised by commands when an error occurs.
+    """
+
+
 class Command:
     """
     A LaTeX Bot command.
