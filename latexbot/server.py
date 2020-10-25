@@ -1,6 +1,5 @@
 import aiohttp
 import aiohttp.web
-import config
 import functools
 import github
 import hashlib
@@ -8,6 +7,7 @@ import hmac
 import json
 import os
 import pyryver
+import schemas
 import time
 import trivia
 import typing
@@ -118,9 +118,9 @@ class Server:
         data = json.loads(text)
         event = req.headers["X-GitHub-Event"]
         msg = github.format_gh_json(event, data)
-        if msg and self.bot.gh_updates_chat is not None:
-            await self.bot.gh_updates_chat.send_message(msg, self.bot.msg_creator)
-        elif self.bot.gh_updates_chat is not None:
+        if msg and self.bot.config.gh_updates_chat is not None:
+            await self.bot.config.gh_updates_chat.send_message(msg, self.bot.msg_creator)
+        elif self.bot.config.gh_updates_chat is not None:
             util.log(f"Unhandled GitHub event: {event}")
         
         # Process issues
@@ -205,7 +205,7 @@ class Server:
                     await task.uncomplete()
                     await task.unarchive()
                 elif data["action"] == "assigned":
-                    user = self.bot.ryver.get_user(username=config.gh_users_map.get(data["assignee"]["login"], ""))
+                    user = self.bot.ryver.get_user(username=self.bot.config.gh_users_map.get(data["assignee"]["login"], ""))
                     if not user:
                         util.log(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
                     else:
@@ -214,7 +214,7 @@ class Server:
                             assignees.append(user)
                             await task.edit(assignees=assignees)
                 elif data["action"] == "unassigned":
-                    user = self.bot.ryver.get_user(username=config.gh_users_map.get(data["assignee"]["login"], ""))
+                    user = self.bot.ryver.get_user(username=self.bot.config.gh_users_map.get(data["assignee"]["login"], ""))
                     if not user:
                         util.log(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
                     else:
@@ -302,7 +302,7 @@ class Server:
         """
         Handle a GET request to /config.
         """
-        return aiohttp.web.json_response(config.dump()[0])
+        return aiohttp.web.json_response(schemas.config.dump(self.bot.config))
     
     @basicauth("read", "Roles")
     async def _roles_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument

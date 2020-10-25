@@ -4,11 +4,12 @@ Utility functions and constants.
 
 import aiohttp
 import asyncio
-import config
 import datetime
 import json
+import latexbot
 import pyryver
 import re
+import schemas
 import string
 import typing
 from textwrap import dedent
@@ -225,9 +226,9 @@ def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
 
 def current_time() -> datetime:
     """
-    Get the current time in a timezone specified by string.
+    Get the current time in a timezone.
     """
-    return datetime.datetime.now(datetime.timezone.utc).astimezone(config.timezone)
+    return datetime.datetime.now(datetime.timezone.utc).astimezone(latexbot.bot.config.tzinfo)
 
 
 def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
@@ -244,21 +245,21 @@ def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
     return None
 
 
-def format_access_rules(command: str, rule: typing.Dict[str, typing.Any]) -> str:
+def format_access_rules(command: str, rule: schemas.AccessRule) -> str:
     """
     Format a command's access rules into a markdown string.
     """
     result = f"Rules for command `{command}`:"
-    if "level" in rule:
-        result += f"\n- `level`: {rule['level']}"
-    if "allowUser" in rule:
-        result += f"\n- `allowUser`: {', '.join(rule['allowUser'])}"
-    if "disallowUser" in rule:
-        result += f"\n- `disallowUser`: {', '.join(rule['disallowUser'])}"
-    if "allowRole" in rule:
-        result += f"\n- `allowRole`: {', '.join(rule['allowRole'])}"
-    if "disallowRole" in rule:
-        result += f"\n- `disallowRole`: {', '.join(rule['disallowRole'])}"
+    if rule.level:
+        result += f"\n- Override Level: {rule.level}"
+    if rule.allow_users:
+        result += f"\n- Allow Users: {', '.join(rule.allow_users)}"
+    if rule.disallow_users:
+        result += f"\n- Disallow Users: {', '.join(rule.disallow_users)}"
+    if rule.allow_roles:
+        result += f"\n- Allow Roles: {', '.join(rule.allow_roles)}"
+    if rule.disallow_roles:
+        result += f"\n- Disallow Roles: {', '.join(rule.disallow_roles)}"
     return result
 
 
@@ -266,11 +267,11 @@ async def send_json_data(chat: pyryver.Chat, data: typing.Any, message: str, fil
     """
     Send a JSON to the chat. 
 
-    If the JSON is less than 1000 characters, it will be sent as text.
+    If the JSON is less than 3900 characters, it will be sent as text.
     Otherwise it will be attached as a file.
     """
     json_data = json.dumps(data, indent=2)
-    if len(json_data) < 1000:
+    if len(json_data) < 3900:
         await chat.send_message(f"```json\n{json_data}\n```", msg_creator)
     else:
         file = await chat.get_ryver().upload_file(filename, json_data, "application/json")

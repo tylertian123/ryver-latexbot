@@ -2,12 +2,13 @@ import aiohttp
 import analytics
 import asyncio
 import commands
-import config
 import server
 import json
+import marshmallow
 import os
 import pyryver
 import re
+import schemas
 import time
 import trivia
 import typing # pylint: disable=unused-import
@@ -17,7 +18,6 @@ from cid import CaseInsensitiveDict
 from command import Command, CommandSet
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from gcalendar import Calendar
 from tba import TheBlueAlliance
 from traceback import format_exc
 
@@ -28,10 +28,10 @@ class UserInfo:
     A class for storing additional runtime user info.
     """
 
-    avatar: str = None
-    presence: str = None
+    avatar: typing.Optional[str] = None
+    presence: typing.Optional[str] = None
     last_activity: float = 0
-    muted: typing.Dict[int, asyncio.Task] = None
+    muted: typing.Optional[typing.Dict[int, asyncio.Task]] = None
 
 
 # Global LatexBot instance
@@ -58,14 +58,10 @@ class LatexBot:
         self.user_info = {} # type: typing.Dict[int, UserInfo]
 
         self.config_file = None # type: str
-        self.calendar = None # type: Calendar
-        self.tba = None # type: TheBlueAlliance
-        self.home_chat = None # type: pyryver.Chat
-        self.announcements_chat = None # type: pyryver.Chat
-        self.maintainer = None # type: pyryver.User
-        self.messages_chat = None # type: pyryver.Chat
-        self.gh_updates_chat = None # type: pyryver.Chat
+        self.config = None # type: schemas.Config
         self.gh_issues_board = None # type: pyryver.TaskBoard
+        self.tba = None # type: TheBlueAlliance
+        self.maintainer = None # type: pyryver.User
 
         self.roles_file = None # type: str
         self.roles = CaseInsensitiveDict()
@@ -138,37 +134,34 @@ class LatexBot:
 
         self.init_commands()
     
-    async def reload_config(self) -> None:
+    async def load_config(self, data: typing.Dict[str, typing.Any]) -> typing.Optional[str]:
         """
-        This function should be called whenever the config JSON is updated.
+        Load the config from a dict.
+
+        Returns an error message if there are errors, or None if no errors.
         """
-        self.calendar = Calendar("calendar_credentials.json", config.calendar_id)
+        msg = ""
         try:
-            self.home_chat = util.parse_chat_name(self.ryver, config.home_chat)
-        except ValueError as e:
-            util.log(f"Error looking up home chat: {e}")
-        try:
-            self.announcements_chat = util.parse_chat_name(self.ryver, config.announcements_chat)
-        except ValueError as e:
-            util.log(f"Error looking up announcements chat: {e}")
-        try:
-            self.messages_chat = util.parse_chat_name(self.ryver, config.messages_chat)
-        except ValueError as e:
-            util.log(f"Error looking up messages chat: {e}")
-        try:
-            self.gh_updates_chat = util.parse_chat_name(self.ryver, config.gh_updates_chat)
-        except ValueError as e:
-            util.log(f"Error looking up GitHub updates chat: {e}")
-        try:
-            issues_chat = util.parse_chat_name(self.ryver, config.gh_issues_chat)
-            self.gh_issues_board = await issues_chat.get_task_board()
-            if not self.gh_issues_board:
-                self.gh_issues_board = await issues_chat.create_task_board(pyryver.TaskBoard.BOARD_TYPE_BOARD)
-            if self.gh_issues_board.get_board_type() != pyryver.TaskBoard.BOARD_TYPE_BOARD:
-                self.gh_issues_board = None
-                raise ValueError("Task board must have categories!")
-        except ValueError as e:
-            util.log(f"Error looking up GitHub issues chat: {e}")
+            self.config = schemas.config.load(data)
+        except marshmallow.ValidationError as e:
+            msg += "Encountered errors while loading the config JSON:\n"
+            msg += "\n".join(f"* {k}\n" + "\n".join(f"  * {m}" for m in v) for k, v in e.messages.items())
+            msg += "\n\nConfig will be loaded with those values set to their defaults.\n\n"
+            # Ignore errors by loading only the valid data and allowing partial loads
+            self.config = schemas.config.load(e.valid_data, partial=True)
+        # Extra step: Verify that the GitHub Issues chat has a task board with categories
+        if self.config.gh_issues_chat is not None:
+            self.gh_issues_board = await self.config.gh_issues_chat.get_task_board()
+            # If it does not exist, then create it
+            if self.gh_issues_board is None:
+                self.gh_issues_board = await self.config.gh_issues_chat.create_task_board(pyryver.TaskBoard.BOARD_TYPE_BOARD)
+            else:
+                # If it exists then verify that it has categories
+                if self.gh_issues_board.get_board_type() != pyryver.TaskBoard.BOARD_TYPE_BOARD:
+                    self.gh_issues_board = None
+                    msg += "Invalid GitHub task board: Task board have categories."
+        return msg or None
+
         
     async def load_files(self, config_file: str, roles_file: str, trivia_file: str, watch_file: str) -> None:
         """
@@ -182,17 +175,17 @@ class LatexBot:
         # Load config
         try:
             with open(config_file, "r") as f:
-                config_data = json.load(f)
+                err = await self.load_config(json.load(f))
+            if err:
+                util.log(err)
+                if self.maintainer is not None:
+                    await self.maintainer.send_message(err, self.msg_creator)
         except (json.JSONDecodeError, FileNotFoundError) as e:
-            util.log(f"Error reading config: {e}. Falling back to empty config...")
-            config_data = []
-        
-        err = config.load(config_data, True)
-        await self.reload_config()
-        if err:
-            util.log(err)
+            msg = f"Config does not exist or is not valid json: {e}. Falling back to empty config."
+            util.log(msg)
             if self.maintainer is not None:
-                await self.maintainer.send_message(err, self.msg_creator)
+                await self.maintainer.send_message(msg, self.msg_creator)
+            await self.load_config({})
 
         # Load roles
         try:
@@ -236,7 +229,7 @@ class LatexBot:
         Save the current config to the config JSON.
         """
         with open(self.config_file, "w") as f:
-            json.dump(config.dump()[0], f)
+            f.write(schemas.config.dumps(self.config))
     
     def save_watches(self) -> None:
         """
@@ -279,12 +272,12 @@ class LatexBot:
         if self.daily_msg_task:
             self.daily_msg_task.cancel()
         
-        if not config.daily_msg_time:
+        if self.config.daily_message_time is None:
             util.log("Daily message not scheduled because time isn't defined.")
             return
         now = util.current_time()
         # Get that time, today
-        t = datetime.combine(now, config.daily_msg_time.time(), tzinfo=config.timezone)
+        t = datetime.combine(now, self.config.daily_message_time, tzinfo=self.config.tzinfo)
         # If already passed, get that time the next day
         if t < now:
             t += timedelta(days=1)
@@ -306,10 +299,10 @@ class LatexBot:
                 self.user_info[user["id"]] = UserInfo()
             self.user_info[user["id"]].avatar = user["avatarUrl"]
         # Send welcome message
-        if config.welcome_message:
+        if self.config.welcome_message:
             new_users = [user for user in self.ryver.users if user.get_id() not in old_users]
             for new_user in new_users:
-                msg = config.welcome_message.format(name=new_user.get_name(), username=new_user.get_username())
+                msg = self.config.welcome_message.format(name=new_user.get_name(), username=new_user.get_username())
                 await new_user.send_message(msg, self.msg_creator)
 
     def rebuild_automaton(self) -> None:
@@ -349,7 +342,7 @@ class LatexBot:
             msg_creator = pyryver.Creator(msg_author.get_name(), avatar)
         return msg_creator
 
-    def preprocess_command(self, command: str, is_dm: bool) -> typing.Tuple[str, str]:
+    def preprocess_command(self, command: str, is_dm: bool) -> typing.Optional[typing.Tuple[str, str]]:
         """
         Preprocess a command.
 
@@ -358,7 +351,7 @@ class LatexBot:
 
         If it encouters a recursive alias, it raises ValueError.
         """
-        for prefix in config.prefixes:
+        for prefix in self.config.command_prefixes:
             # Check for a valid command prefix
             if command.startswith(prefix) and len(command) > len(prefix):
                 # Remove the prefix
@@ -395,14 +388,14 @@ class LatexBot:
 
             # Expand aliases
             command = None
-            for alias in config.aliases:
-                if alias["from"] == cmd:
+            for alias in self.config.aliases:
+                if alias.from_ == cmd:
                     # Check for recursion
-                    if alias["from"] in used_aliases:
-                        raise ValueError(f"Recursive alias: '{alias['from']}'!")
-                    used_aliases.add(alias["from"])
+                    if alias.from_ in used_aliases:
+                        raise ValueError(f"Recursive alias: '{alias.from_}'!")
+                    used_aliases.add(alias.from_)
                     # Expand the alias
-                    command = alias["to"] + space_char + args
+                    command = alias.to + space_char + args
                     break
             # No aliases were expanded - return
             if not command:
@@ -570,8 +563,8 @@ class LatexBot:
                     def macro_replace_func(match: re.Match):
                         prefix = match.group(1)
                         macro = match.group(2)
-                        if macro in config.macros:
-                            return prefix + config.macros[macro]
+                        if macro in self.config.macros:
+                            return prefix + self.config.macros[macro]
                         return prefix + "." + macro
                     new_text = util.MENTION_REGEX.sub(role_replace_func, msg.text)
                     new_text = util.MACRO_REGEX.sub(macro_replace_func, new_text)
@@ -663,13 +656,13 @@ class LatexBot:
                     self.user_info[user.get_id()] = UserInfo()
                 self.user_info[user.get_id()].presence = msg.presence
 
-            if not self.debug and self.home_chat is not None:
+            if not self.debug and self.config.home_chat is not None:
                 await asyncio.sleep(5)
                 util.log("Sending startup message...")
                 try:
                     await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
                     util.log("Presence change sent.")
-                    await self.home_chat.send_message(f"LaTeX Bot {self.version} is online!", self.msg_creator)
+                    await self.config.home_chat.send_message(f"LaTeX Bot {self.version} is online!", self.msg_creator)
                 except (pyryver.WSConnectionError, aiohttp.ClientError, asyncio.TimeoutError) as e:
                     util.log(f"Exception during startup routine: {format_exc()}")
 

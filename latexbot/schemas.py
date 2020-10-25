@@ -4,7 +4,9 @@ This module contains marshmallow schemas and classes for objects saved to JSON.
 
 import datetime
 import dateutil
+import gcalendar
 import latexbot
+import os
 import pyryver
 import typing
 import util
@@ -21,15 +23,13 @@ class ChatField(fields.Field):
     """
 
     def _serialize(self, value: pyryver.Chat, attr: str, obj: typing.Any, **kwargs): # pylint: disable=unused-argument
-        if value is None:
-            return None
-        return "id=" + str(value.get_id())
+        return None if value is None else "id=" + str(value.get_id())
     
     def _deserialize(self, value: str, attr: str, data: typing.Any, **kwargs): # pylint: disable=unused-argument
         try:
             return util.parse_chat_name(latexbot.bot.ryver, value)
         except ValueError as e:
-            raise ValidationError("Invalid chat or chat not found") from e
+            raise ValidationError("Invalid chat or chat not found") from e     
 
 
 class Alias:
@@ -71,6 +71,10 @@ class AccessRule:
         self.disallow_users = disallow_users
         self.allow_roles = allow_roles
         self.disallow_roles = disallow_roles
+    
+    def __bool__(self) -> bool:
+        return self.level is not None or self.allow_users is not None or self.disallow_users is not None or \
+            self.allow_roles is not None or self.disallow_roles is not None
 
 
 class AccessRuleSchema(Schema):
@@ -87,6 +91,13 @@ class AccessRuleSchema(Schema):
     @decorators.post_load
     def make_obj(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use, missing-function-docstring
         return AccessRule(**data)
+    
+    @decorators.post_dump
+    def remove_none(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use
+        """
+        Remove fields that are None since they're optional to reduce the final output.
+        """
+        return {k: v for k, v in data.items() if v is not None}
 
 
 class Opinion:
@@ -115,6 +126,13 @@ class OpinionSchema(Schema):
     def make_obj(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use, missing-function-docstring
         return Opinion(**data)
 
+    @decorators.post_dump
+    def remove_none(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use
+        """
+        Remove fields that are None since they're optional to reduce the final output.
+        """
+        return {k: v for k, v in data.items() if v is not None}
+
 
 class Config:
     """
@@ -126,7 +144,7 @@ class Config:
                  "gh_updates_chat", "gh_issues_chat", "gh_users_map",
                  "calendar_id", "daily_message_time", "last_xkcd",
                  "aliases", "access_rules", "macros", "opinions", "command_prefixes",
-                 "tzinfo")
+                 "tzinfo", "calendar")
     
     def __init__(self, admins: typing.List[int], tz_str: str, frc_team: int, welcome_message: str, #NOSONAR
                  home_chat: pyryver.Chat, announcements_chat: pyryver.Chat, messages_chat: pyryver.Chat,
@@ -152,7 +170,14 @@ class Config:
         self.macros = macros
         self.opinions = opinions
         self.command_prefixes = command_prefixes
+        # Fields not directly loaded from JSON
         self.tzinfo = dateutil.tz.gettz(self.tz_str)
+        # Handle the case of an empty env var
+        cal_cred = os.environ.get("LATEXBOT_CALENDAR_CRED_FILE") or "calendar_credentials.json"
+        if not os.path.exists(cal_cred):
+            self.calendar = None
+        else:
+            self.calendar = gcalendar.Calendar(cal_cred, self.calendar_id)
 
 
 class ConfigSchema(Schema):
@@ -161,7 +186,7 @@ class ConfigSchema(Schema):
     """
     # Misc config
     admins = fields.List(fields.Int(), default=[], required=True)
-    tz_str = fields.Str(default="UTC", required=True, data_key="organizationTimeZone")
+    tz_str = fields.Str(default=None, required=True, data_key="organizationTimeZone")
     frc_team = fields.Int(default=None, required=True, data_key="frcTeam")
     welcome_message = fields.Str(default=None, required=True, data_key="welcomeMessage")
     # Chats

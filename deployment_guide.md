@@ -32,6 +32,7 @@ When this is set, LaTeX Bot will highlight rows containing info about your team 
 For Google Calendar Integration to work, you will need to create a Google Cloud project and grant it access to the Google Calendar API.
 Then, create a service account (skip all the optional steps during creation), and create JSON credentials for it. 
 Save these in the root of this repository as `calendar_credentials.json`.
+If you give it a different name or different path you should use the `LATEXBOT_CALENDAR_CRED_FILE` environment variable to give LaTeX Bot its path.
 
 Make sure that you share the calendar to use with the service account.
 After this, go to the settings for the calendar, and copy the calendar ID at the bottom. 
@@ -112,6 +113,7 @@ Unless marked otherwise, they are optional.
 - `LATEXBOT_USER` (**Required**) - The username of the bot account.
 - `LATEXBOT_PASS` (**Required**) - The bot account's password.
 - `LATEXBOT_MAINTAINER_ID` - The user ID of the bot's Maintainer. This user is given access to all commands among other privileges.
+- `LATEXBOT_CALENDAR_CRED_FILE` - The path to the file containing the service account credentials for the calendar. If unset or empty this will default to "calendar_credentials.json".
 - `LATEXBOT_ANALYTICS` - Set to 1 to enable analytics.
 - `LATEXBOT_SERVER_PORT` - The port to host the web server on.
 - `LATEXBOT_SERVER_AUTH_READ` - The password for the "read" account in the web server.

@@ -1,5 +1,9 @@
-import config
+"""
+This module contains the Command class and helpers.
+"""
+
 import functools
+import latexbot
 import os
 import pyryver
 import random
@@ -56,7 +60,7 @@ class Command:
         """
         if user.get_id() == cls.MAINTAINER_ID:
             return cls.ACCESS_LEVEL_MAINTAINER
-        if user.get_id() in config.admins:
+        if user.get_id() in latexbot.bot.config.admins:
             return cls.ACCESS_LEVEL_BOT_ADMIN
         if user.is_admin():
             return cls.ACCESS_LEVEL_ORG_ADMIN
@@ -98,8 +102,10 @@ class Command:
         Note: This access level may have been overridden in the config.
         """
         # Get access rules
-        rules = config.access_rules.get(self._name, {})
-        return rules["level"] if "level" in rules else self._level
+        rules = latexbot.bot.config.access_rules.get(self._name)
+        if rules is None or rules.level is None:
+            return self._level
+        return rules.level
     
     async def is_authorized(self, bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, access_level: int = None) -> bool:
         """
@@ -109,22 +115,23 @@ class Command:
         determine the access level.
         """
         # Get access rules
-        rules = config.access_rules.get(self._name, {})
-        # disallowUser has the highest precedence
-        if util.contains_ignorecase(user.get_username(), rules.get("disallowUser", ())):
-            return False
-        # allowUser is second
-        if util.contains_ignorecase(user.get_username(), rules.get("allowUser", ())):
-            return True
-        # And then disallowRole
-        if any(util.contains_ignorecase(user.get_username(), bot.roles.get(role, ())) for role in rules.get("disallowRole", ())):
-            return False
-        # Finally allowRole
-        if any(util.contains_ignorecase(user.get_username(), bot.roles.get(role, ())) for role in rules.get("allowRole", ())):
-            return True
+        rules = latexbot.bot.config.access_rules.get(self._name)
+        if rules is not None:
+            # disallowUser has the highest precedence
+            if util.contains_ignorecase(user.get_username(), rules.disallow_users or ()):
+                return False
+            # allowUser is second
+            if util.contains_ignorecase(user.get_username(), rules.allow_users or ()):
+                return True
+            # And then disallowRole
+            if any(util.contains_ignorecase(user.get_username(), bot.roles.get(role, ())) for role in rules.disallow_roles or ()):
+                return False
+            # Finally allowRole
+            if any(util.contains_ignorecase(user.get_username(), bot.roles.get(role, ())) for role in rules.allow_roles or ()):
+                return True
         # If none of those are true, check the access level normally
         user_level = access_level if access_level is not None else await Command.get_access_level(chat, user)
-        required_level = rules["level"] if "level" in rules else self._level
+        required_level = self.get_level()
         return user_level >= required_level
     
     async def execute(self, args: str, bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str):
@@ -178,7 +185,7 @@ class CommandSet:
         """
         help_text = {}
         extended_help_text = {}
-        prefix = config.prefixes[0]
+        prefix = latexbot.bot.config.command_prefixes[0]
         for name, cmd in self.commands.items():
             if cmd.get_processor() is None:
                 # Don't generate a warning for commands with no processors
@@ -235,6 +242,3 @@ def command(name: str = None, access_level: int = Command.ACCESS_LEVEL_EVERYONE)
                 raise ValueError("Cannot deduce function name")
         return functools.wraps(func)(Command(name, func, access_level))
     return _command_decor
-
-
-import latexbot # nopep8 # pylint: disable=unused-import

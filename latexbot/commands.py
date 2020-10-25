@@ -4,7 +4,6 @@ This module contains command definitions for LaTeX Bot.
 import aiohttp
 import asyncio
 import command
-import config
 import io
 import json
 import lark
@@ -14,6 +13,7 @@ import re
 import render
 import shlex
 import simplelatex
+import schemas
 import sys
 import textwrap
 import time
@@ -200,11 +200,11 @@ async def command_help(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
                     empty = False
             if not empty:
                 resp += f"\n\n{group_desc}"
-        if config.aliases:
+        if bot.config.aliases:
             resp += "\n\nCurrent Aliases:\n"
-            resp += "\n".join(f"* `{alias['from']}` \u2192 `{alias['to']}`" for alias in config.aliases)
+            resp += "\n".join(f"* `{alias.from_}` \u2192 `{alias.to}`" for alias in bot.config.aliases)
         if all_cmds:
-            admins = ", ".join([bot.ryver.get_user(id=uid).get_name() for uid in config.admins])
+            admins = ", ".join([bot.ryver.get_user(id=uid).get_name() for uid in bot.config.admins])
             if admins:
                 resp += f"\n\nCurrent Bot Admins are: {admins}."
             else:
@@ -281,6 +281,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
     > `@latexbot tba event ONOSH 2020` - Get info about the ONOSH event in 2020.
     > `@latexbot tba eventRankings ONOSH` - Get the rankings for the ONOSH event for the current year.
     """
+    # TODO: Handle when no TBA key is provided
     try:
         args = shlex.split(args)
     except ValueError as e:
@@ -346,8 +347,8 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                 return
             # Get the ranking for the organization team
             team_rank = None
-            if config.frc_team is not None:
-                team_key = "frc" + str(config.frc_team)
+            if bot.config.frc_team is not None:
+                team_key = "frc" + str(bot.config.frc_team)
                 for r in rankings:
                     if team_key == r["team_key"]:
                         team_rank = r
@@ -364,7 +365,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                 return
             title = f"# Rankings for district {args[1]} in {year}:\n"
             if team_rank is not None:
-                title += f"++Team {config.frc_team} ({teams[team_rank['team_key']]['nickname']}) ranked "
+                title += f"++Team {bot.config.frc_team} ({teams[team_rank['team_key']]['nickname']}) ranked "
                 title += f"**{util.ordinal(team_rank['rank'])}** out of {len(teams)} teams"
                 if not rankings[0]["rank"] <= team_rank["rank"] <= rankings[-1]["rank"]:
                     title += " (not included in the table below)"
@@ -380,7 +381,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                         dcmp += r["event_points"][3]["total"]
                     row = f"{r['rank']}|{r['point_total']}|{event1}|{event2}|{dcmp}|{r['rookie_bonus']}|"
                     row += f"{team['team_number']}|[{team['nickname']}]({TheBlueAlliance.TEAM_URL}{team['team_number']})"
-                    if team["team_number"] == config.frc_team:
+                    if team["team_number"] == bot.config.frc_team:
                         row = "|".join(f"=={val}==" for val in row.split("|"))
                     yield row
             for page in util.paginate(rankings_gen(), title, header):
@@ -444,8 +445,8 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                 return
             # Get the ranking for the organization team
             team_rank = None
-            if config.frc_team is not None:
-                team_key = "frc" + str(config.frc_team)
+            if bot.config.frc_team is not None:
+                team_key = "frc" + str(bot.config.frc_team)
                 for r in rankings["rankings"]:
                     if team_key == r["team_key"]:
                         team_rank = r
@@ -463,7 +464,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                 return
             title = f"# Rankings for event [{args[1]}]({TheBlueAlliance.EVENT_URL}{key}#rankings) in {year}:\n"
             if team_rank is not None:
-                title += f"++Team {config.frc_team} ranked **{util.ordinal(team_rank['rank'])}** out of {len(rankings['rankings'])} teams"
+                title += f"++Team {bot.config.frc_team} ranked **{util.ordinal(team_rank['rank'])}** out of {len(rankings['rankings'])} teams"
                 if not team_rankings[0]["rank"] <= team_rank["rank"] <= team_rankings[-1]["rank"]:
                     title += " (not included in the table below)"
                 title += ".++\n"
@@ -478,7 +479,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
                     row += "|".join(str(stat) for stat, _ in zip(r["sort_orders"], rankings["sort_order_info"]))
                     row += f"|{r['record']['wins']}-{r['record']['losses']}-{r['record']['ties']}|{r['dq']}|{r['matches_played']}|"
                     row += "|".join(str(stat) for stat in r["extra_stats"])
-                    if int(r["team_key"][3:]) == config.frc_team:
+                    if int(r["team_key"][3:]) == bot.config.frc_team:
                         row = "|".join(f"=={val}==" for val in row.split("|"))
                     yield row
             for page in util.paginate(rankings_gen(), title, header):
@@ -724,15 +725,15 @@ async def command_what_do_you_think(bot: "latexbot.LatexBot", chat: pyryver.Chat
     """
     args = args.lower()
     # Match configured opinions
-    for opinion in config.opinions:
-        if args in opinion["thing"]:
+    for opinion in bot.config.opinions:
+        if args in opinion.thing:
             # Match user if required
-            if "user" in opinion:
-                if user.get_username() in opinion["user"]:
-                    await chat.send_message(random.choice(opinion["opinion"]), bot.msg_creator)
+            if opinion.user:
+                if util.contains_ignorecase(user.get_username(), opinion.user):
+                    await chat.send_message(random.choice(opinion.opinion), bot.msg_creator)
                     return
             else:
-                await chat.send_message(random.choice(opinion["opinion"]), bot.msg_creator)
+                await chat.send_message(random.choice(opinion.opinion), bot.msg_creator)
                 return
     msgs = NO_MSGS if hash(args) % 2 == 0 else YES_MSGS
     await chat.send_message(random.choice(msgs), bot.msg_creator)
@@ -1714,6 +1715,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     ---
     > `@latexbot events 5` - Get the next 5 events, including ongoing events.
     """
+    # TODO: Make this not crash without a calendar
     try:
         count = int(args) if args else 3
         if count < 1:
@@ -1735,7 +1737,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         # See if the event has started
         # If the date has no timezone info, make it the organization timezone for comparisons
         if not start.tzinfo:
-            start = start.replace(tzinfo=config.timezone)
+            start = start.replace(tzinfo=bot.config.tzinfo)
             # No timezone info means this was created as an all-day event
             has_time = False
         else:
@@ -1899,11 +1901,11 @@ async def command_add_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
         event_body = {
             "start": {
                 "dateTime": start.isoformat(),
-                "timeZone": config.tz_str,
+                "timeZone": bot.config.tz_str,
             },
             "end": {
                 "dateTime": end.isoformat(),
-                "timeZone": config.tz_str,
+                "timeZone": bot.config.tz_str,
             }
         }
     event_body["summary"] = args[0]
@@ -2107,12 +2109,12 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     > `@latexbot alias delete "answer"` - Delete the alias `answer`.
     """
     if args == "":
-        if not config.aliases:
+        if not bot.config.aliases:
             resp = "No aliases have been created."
         else:
             resp = "All aliases:"
-            for alias in config.aliases:
-                resp += f"\n* `{alias['from']}` \u2192 `{alias['to']}`"
+            for alias in bot.config.aliases:
+                resp += f"\n* `{alias.from_}` \u2192 `{alias.to}`"
         await chat.send_message(resp, bot.msg_creator)
         return
 
@@ -2125,10 +2127,7 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         if len(args) != 3:
             await chat.send_message("Invalid syntax. Did you forget the quotes?", bot.msg_creator)
             return
-        config.aliases.append({
-            "from": args[1],
-            "to": args[2],
-        })
+        bot.config.aliases.append(schemas.Alias(args[1], args[2]))
         bot.save_config()
         await chat.send_message(f"Successfully created alias `{args[1]}` \u2192 `{args[2]}`.", bot.msg_creator)
     elif args[0] == "delete":
@@ -2136,9 +2135,9 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
             await chat.send_message("Invalid syntax.", bot.msg_creator)
             return
         
-        for i, alias in enumerate(config.aliases):
-            if alias["from"] == args[1]:
-                del config.aliases[i]
+        for i, alias in enumerate(bot.config.aliases):
+            if alias.from_ == args[1]:
+                del bot.config.aliases[i]
                 bot.save_config()
                 await chat.send_message(f"Successfully deleted alias `{args[1]}`.", bot.msg_creator)
                 return
@@ -2181,11 +2180,11 @@ async def command_macro(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     > `@latexbot macro delete` - Delete the "tableflip" macro.
     """
     if args == "":
-        if not config.macros:
+        if not bot.config.macros:
             resp = "No macros have been created."
         else:
             resp = "All macros:"
-            for macro, expansion in config.macros.items():
+            for macro, expansion in bot.config.macros.items():
                 resp += f"\n* `{macro}` expands to `{expansion}`"
         await chat.send_message(resp, bot.msg_creator)
         return
@@ -2206,7 +2205,7 @@ async def command_macro(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         if not s.issubset(util.MACRO_CHARS):
             await chat.send_message(f"Invalid character(s) for a macro name: {s - util.MACRO_CHARS}", bot.msg_creator)
             return
-        config.macros[args[1]] = args[2]
+        bot.config.macros[args[1]] = args[2]
         bot.save_config()
         await chat.send_message(f"Successfully created macro `{args[1]}` expands to `{args[2]}`.", bot.msg_creator)
     elif args[0] == "delete":
@@ -2216,10 +2215,10 @@ async def command_macro(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         if len(args) != 2:
             await chat.send_message("Invalid syntax.", bot.msg_creator)
             return
-        if args[1] not in config.macros:
+        if args[1] not in bot.config.macros:
             await chat.send_message("Macro not found!", bot.msg_creator)
             return
-        config.macros.pop(args[1])
+        bot.config.macros.pop(args[1])
         bot.save_config()
         await chat.send_message(f"Successfully deleted macro `{args[1]}`.", bot.msg_creator)
     else:
@@ -2237,10 +2236,7 @@ async def command_export_config(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     group: Miscellaneous Commands
     syntax:
     """
-    data, err = config.dump()
-    if err:
-        await chat.send_message(err, bot.msg_creator)
-    await util.send_json_data(chat, data, "Config:", "config.json", bot.user, bot.msg_creator)
+    await util.send_json_data(chat, schemas.config.dump(bot.config), "Config:", "config.json", bot.user, bot.msg_creator)
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
@@ -2248,8 +2244,8 @@ async def command_import_config(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     """
     Import config from JSON.
 
-    Note that although it is encouraged, the config JSON does not have to contain all fields.
-    If a field is not specified, it will just be left unchanged.
+    Changed in 0.9.0: If a config field is not present in the JSON, it will be reset back
+    to its default value.
 
     If a file is attached to this message, the config will always be imported from the file.
     ---
@@ -2257,19 +2253,18 @@ async def command_import_config(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     syntax: <data>
     """
     try:
-        errs = config.load(await util.get_attached_json_data(await pyryver.retry_until_available(
-            chat.get_message, msg_id, timeout=5.0), args))
-        if errs:
-            util.log("Error loading config:", errs)
-        await bot.reload_config()
+        data = await util.get_attached_json_data(await pyryver.retry_until_available(
+            chat.get_message, msg_id, timeout=5.0), args)
+        errs = await bot.load_config(data)
         bot.update_help()
         bot.save_config()
         if errs:
+            util.log(errs)
             await chat.send_message(errs, bot.msg_creator)
         else:
             await chat.send_message("Operation successful.", bot.msg_creator)
-    except ValueError as e:
-        await chat.send_message(str(e), bot.msg_creator)
+    except json.JSONDecodeError as e:
+        await chat.send_message(f"Invalid JSON: {e}", bot.msg_creator)
 
 
 @command.command(access_level=command.Command.ACCESS_LEVEL_ORG_ADMIN)
@@ -2323,10 +2318,10 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     > `@latexbot accessRule ping add disallowUser tylertian` - Disallow tylertian from accessing the ping command regardless of his access level.
     """
     if args == "":
-        if not config.access_rules:
+        if not bot.config.access_rules:
             await chat.send_message("No access rules were created.", bot.msg_creator)
             return
-        resp = "\n\n".join(util.format_access_rules(command, rule) for command, rule in config.access_rules.items())
+        resp = "\n\n".join(util.format_access_rules(command, rule) for command, rule in bot.config.access_rules.items())
         await chat.send_message(resp, bot.msg_creator)
         return
     try:
@@ -2339,8 +2334,8 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
         if args[0] not in bot.commands.commands:
             await chat.send_message("Error: Invalid command.", bot.msg_creator)
             return
-        if args[0] in config.access_rules:
-            await chat.send_message(util.format_access_rules(args[0], config.access_rules[args[0]]), bot.msg_creator)
+        if args[0] in bot.config.access_rules:
+            await chat.send_message(util.format_access_rules(args[0], bot.config.access_rules[args[0]]), bot.msg_creator)
         else:
             await chat.send_message(f"No access rules for command {args[0]}.", bot.msg_creator)
     # If both command name and action are given, then rule type and args must be given
@@ -2363,9 +2358,12 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
             except ValueError:
                 await chat.send_message(f"Error: Invalid access level: {level}. Access levels must be integers. See `@latexbot help accessRule` for details.", bot.msg_creator)
             # Set the rules
-            rules = config.access_rules.get(args[0], {})
-            rules["level"] = level
-            config.access_rules[args[0]] = rules
+            rules = bot.config.access_rules.get(args[0])
+            if rules is None:
+                rules = schemas.AccessRule(level=level)
+            else:
+                rules.level = level
+            bot.config.access_rules[args[0]] = rules
         # Combine the two because they're similar
         elif args[1] == "add" or args[1] == "remove":
             # Verify rule type
@@ -2376,54 +2374,65 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
                 await chat.send_message(f"Error: At least one argument must be supplied for action `{args[1]}`. See `@latexbot help accessRule` for details.", bot.msg_creator)
                 return
             # Set the rules
-            rules = config.access_rules.get(args[0], {})
+            rules = bot.config.access_rules.get(args[0])
+            if rules is None:
+                rules = schemas.AccessRule()
+                bot.config.access_rules[args[0]] = rules
+            attrname = {
+                "allowUser": "allow_users",
+                "disallowUser": "disallow_users",
+                "allowRole": "allow_roles",
+                "disallowRole": "disallow_roles"
+            }[args[2]]
             if args[1] == "add":
                 # Handle @mention syntax usernames
                 items = [item[1:] if item.startswith("@") else item for item in args[3:]]
-                # If there are already items, merge the lists
-                if args[2] in rules:
-                    for item in items:
-                        # Don't allow duplicates
-                        if item in rules[args[2]]:
-                            await chat.send_message(f"Warning: {item} is already in the list for rule {args[2]}.", bot.msg_creator)
-                        else:
-                            rules[args[2]].append(item)
-                # Otherwise directly assign
-                else:
-                    rules[args[2]] = items
+                # Get the attribute to set
+                if getattr(rules, attrname) is None:
+                    setattr(rules, attrname, [])
+                existing = getattr(rules, attrname)
+                existing_set = set(existing)
+                for item in items:
+                    if item in existing_set:
+                        await chat.send_message(f"Warning: {item} is already in the list for rule {args[2]}.", bot.msg_creator)
+                    else:
+                        existing.append(item)
             else:
-                if args[2] not in rules:
+                if getattr(rules, attrname) is None:
                     await chat.send_message(f"Error: Rule {args[2]} is not set for command {args[0]}.", bot.msg_creator)
                     return
+                existing = getattr(rules, attrname)
                 # Remove each one
                 for item in args[3:]:
                     if item.startswith("@"):
                         item = item[1:]
-                    if item not in rules[args[2]]:
+                    if item not in existing:
                         await chat.send_message(f"Warning: {item} is not in the list for rule {args[2]}.", bot.msg_creator)
                     else:
-                        rules[args[2]].remove(item)
-                # Don't leave empty arrays
-                if not rules[args[2]]:
-                    rules.pop(args[2])
-            # Set the field
-            # This is needed in case get() returned the empty dict
-            config.access_rules[args[0]] = rules
+                        existing.remove(item)
+                # Don't leave empty lists
+                if not existing:
+                    setattr(rules, attrname, None)
             # Don't leave empty dicts
-            if not config.access_rules[args[0]]:
-                config.access_rules.pop(args[0])
+            if not rules:
+                bot.config.access_rules.pop(args[0])
         elif args[1] == "delete":
             if len(args) != 3:
                 await chat.send_message("Error: The `delete` action does not take any arguments.", bot.msg_creator)
                 return
-            try:
-                config.access_rules[args[0]].pop(args[2])
-                # Don't leave empty dicts
-                if not config.access_rules[args[0]]:
-                    config.access_rules.pop(args[0])
-            except KeyError:
+            attrname = {
+                "allowUser": "allow_users",
+                "disallowUser": "disallow_users",
+                "allowRole": "allow_roles",
+                "disallowRole": "disallow_roles"
+            }[args[2]]
+            rules = bot.config.access_rules.get(args[0])
+            if rules is None or getattr(rules, attrname) is None:
                 await chat.send_message(f"Error: Command {args[0]} does not have rule {args[2]} set.", bot.msg_creator)
                 return
+            setattr(rules, attrname, None)
+            if not rules:
+                bot.config.access_rules.pop(args[0])
         else:
             await chat.send_message(f"Error: Invalid action: {args[1]}. See `@latexbot help accessRule` for details.", bot.msg_creator)
             return
@@ -2448,11 +2457,11 @@ async def command_set_daily_message_time(bot: "latexbot.LatexBot", chat: pyryver
     > `@latexbot setDailyMessageTime` - Turn off daily messages.
     """
     if args == "" or args.lower() == "off":
-        config.daily_msg_time = None
+        bot.config.daily_message_time = None
     else:
         # Try parse to ensure validity
         try:
-            config.daily_msg_time = datetime.strptime(args, "%H:%M")
+            bot.config.daily_message_time = datetime.strptime(args, "%H:%M").time()
         except ValueError:
             await chat.send_message("Invalid time format.", bot.msg_creator)
             return
@@ -2461,7 +2470,7 @@ async def command_set_daily_message_time(bot: "latexbot.LatexBot", chat: pyryver
     bot.schedule_daily_message()
     
     bot.save_config()
-    if config.daily_msg_time:
+    if bot.config.daily_message_time:
         await chat.send_message(f"Messages will now be sent at {args} daily.", bot.msg_creator)
     else:
         await chat.send_message("Messages have been disabled.", bot.msg_creator)
@@ -2528,14 +2537,14 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
             msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
             await bot.messages_chat.send_message(msg, bot.msg_creator)
     comic = await xkcd.get_comic()
-    if comic['num'] <= config.last_xkcd:
+    if comic['num'] <= bot.config.last_xkcd:
         util.log(f"No new xkcd found (latest is {comic['num']}).")
     else:
         util.log(f"New comic found! (#{comic['num']})")
         xkcd_creator = pyryver.Creator(bot.msg_creator.name, util.XKCD_PROFILE)
         await bot.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
         # Update xkcd number
-        config.last_xkcd = comic['num']
+        bot.config.last_xkcd = comic['num']
         bot.save_config()
 
 

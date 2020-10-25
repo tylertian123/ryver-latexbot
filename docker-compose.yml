@@ -6,7 +6,7 @@ services:
     image: docker-registry.i.mm12.xyz/tex-slave:1.0.0
   latexbot:
     build: .
-    image: docker-registry.i.mm12.xyz/latexbot:0.8.10
+    image: docker-registry.i.mm12.xyz/latexbot:0.9.0
     volumes: 
       - type: volume
         source: latexbot-data
@@ -27,6 +27,7 @@ services:
       - LATEXBOT_SERVER_AUTH_WRITE=${LATEXBOT_SERVER_AUTH_WRITE}
       - LATEXBOT_TBA_KEY=${LATEXBOT_TBA_KEY}
       - LATEXBOT_MAINTAINER_ID=${LATEXBOT_MAINTAINER_ID}
+      - LATEXBOT_CALENDAR_CRED_FILE=${LATEXBOT_CALENDAR_CRED_FILE}
 
 volumes: 
   latexbot-data:
