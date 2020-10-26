@@ -525,35 +525,30 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     > `@latexbot watch activityTimeout 0` - Disable your activity timeout, i.e. sending messages will not affect watch notifications.
     """
     # Made a function because we want a different object every time
-    def get_default_settings_dict():
-        return {
-            "on": True,
-            "activityTimeout": 180.0,
-            "keywords": [],
-        }
+    def get_default_settings():
+        return schemas.KeywordWatch(True, 180.0, [])
 
     try:
         args = shlex.split(args)
     except ValueError as e:
         raise CommandError(f"Invalid syntax: {e}") from e
-    user_id = str(user.get_id())
     if not args:
-        if user_id in bot.keyword_watches:
-            watch = bot.keyword_watches[user_id]
-            if watch["on"]:
+        if user.get_id() in bot.keyword_watches:
+            watches = bot.keyword_watches[user.get_id()]
+            if watches.on:
                 resp = "Your keyword watches notifications are turned **on**."
             else:
                 resp = "Your keyword watches notifications are turned **off**."
-            if time.time() < watch.get("_suppressed", 0):
-                resp += f"\nNotifications are suppressed for the next **{watch['_suppressed'] - time.time():.2f}** seconds."
-            if watch["activityTimeout"] != 0:
-                resp += f"\nYour activity timeout is set to {watch['activityTimeout']} seconds.\n\n"
+            if time.time() < (watches.suppressed or 0):
+                resp += f"\nNotifications are suppressed for the next **{watches.suppressed- time.time():.2f}** seconds."
+            if watches.activity_timeout != 0:
+                resp += f"\nYour activity timeout is set to {watches.activity_timeout} seconds.\n\n"
             else:
                 resp += "\nActivity timeout is disabled.\n\n"
-            if watch["keywords"]:
+            if watches.keywords:
                 resp += "Your keyword watches are:"
-                for i, watch in enumerate(watch["keywords"]):
-                    resp += f"\n{i + 1}. \"{watch['keyword']}\" (match case: {watch['matchCase']}, whole word: {watch['wholeWord']})"
+                for i, keyword in enumerate(watches.keywords):
+                    resp += f"\n{i + 1}. \"{keyword.keyword}\" (match case: {keyword.match_case}, whole word: {keyword.whole_word})"
             else:
                 resp += "You do not have any keyword watches."
         else:
@@ -588,47 +583,39 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         
         if not args[1]:
             raise CommandError("Empty keywords are not allowed.")
-        if user_id not in bot.keyword_watches:
-            bot.keyword_watches[user_id] = get_default_settings_dict()
-        bot.keyword_watches[user_id]["keywords"].append({
-            "keyword": args[1],
-            "wholeWord": whole_word,
-            "matchCase": match_case,
-        })
+        if user.get_id() not in bot.keyword_watches:
+            bot.keyword_watches[user.get_id()] = get_default_settings()
+        bot.keyword_watches[user.get_id()].keywords.append(schemas.Keyword(args[1], whole_word=whole_word, match_case=match_case))
         bot.save_watches()
         bot.rebuild_automaton() # Could be optimized
         resp = f"Added watch for keyword \"{args[1]}\" (match case: {match_case}, whole word: {whole_word})."
-        if not bot.keyword_watches[user_id]["on"]:
+        if not bot.keyword_watches[user.get_id()].on:
             resp += " Note: Your keyword watch notifications are currently off."
         await chat.send_message(resp, bot.msg_creator)
     elif args[0] == "delete":
         if len(args) != 2:
             raise CommandError("Invalid number of arguments. See `@latexbot help watch` for help.")
-        if user_id not in bot.keyword_watches or not bot.keyword_watches[user_id]["keywords"]:
+        if user.get_id() not in bot.keyword_watches or not bot.keyword_watches[user.get_id()].keywords:
             raise CommandError("You have no watches configured.")
         if args[1].lower() == "all":
-            bot.keyword_watches[user_id]["keywords"] = []
-            bot.save_watches()
+            bot.keyword_watches[user.get_id()].keywords = []
             await chat.send_message("Cleared all your keyword watches.", bot.msg_creator)
         else:
             try:
                 n = int(args[1]) - 1
-                if n < 0 or n >= len(bot.keyword_watches[user_id]["keywords"]):
-                    raise ValueError
-            except ValueError:
-                await chat.send_message("Invalid number.", bot.msg_creator)
-            watch = bot.keyword_watches[user_id]["keywords"].pop(n)
-            bot.save_watches()
-            await chat.send_message(f"Removed watch #{n + 1} for keyword \"{watch['keyword']}\" (match case: {watch['matchCase']}, whole word: {watch['wholeWord']}).", bot.msg_creator)
+                keyword = bot.keyword_watches[user.get_id()].keywords.pop(n)
+            except (ValueError, IndexError) as e:
+                raise CommandError("Invalid number.", bot.msg_creator) from e
+            await chat.send_message(f"Removed watch #{n + 1} for keyword \"{keyword.keyword}\" (match case: {keyword.match_case}, whole word: {keyword.whole_word}).", bot.msg_creator)
+        bot.save_watches()
         bot.rebuild_automaton() # Could be optimized
     elif args[0] == "on" or args[0] == "off":
         if len(args) != 1:
             raise CommandError("Invalid number of arguments. See `@latexbot help watch` for help.")
-        if user_id not in bot.keyword_watches:
-            bot.keyword_watches[user_id] = get_default_settings_dict()
-        bot.keyword_watches[user_id]["on"] = True if args[0] == "on" else False
+        if user.get_id() not in bot.keyword_watches:
+            bot.keyword_watches[user.get_id()] = get_default_settings()
+        bot.keyword_watches[user.get_id()].on = True if args[0] == "on" else False
         bot.save_watches()
-        bot.rebuild_automaton()
         await chat.send_message(f"Turned keyword watch notifications **{args[0]}**.", bot.msg_creator)
     elif args[0] == "activityTimeout":
         if len(args) != 2:
@@ -637,9 +624,9 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
             timeout = float(args[1])
         except ValueError as e:
             raise CommandError("Invalid number. Set this to 0 if you want to disable activity timeout.") from e
-        if user_id not in bot.keyword_watches:
-            bot.keyword_watches[user_id] = get_default_settings_dict()
-        bot.keyword_watches[user_id]["activityTimeout"] = timeout
+        if user.get_id() not in bot.keyword_watches:
+            bot.keyword_watches[user.get_id()] = get_default_settings()
+        bot.keyword_watches[user.get_id()].activity_timeout = timeout
         bot.save_watches()
         await chat.send_message("Activity timeout has been " + (f"set to {timeout} seconds." if timeout > 0 else "disabled."), bot.msg_creator)
     elif args[0] == "suppress":
@@ -649,9 +636,9 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
             duration = float(args[1])
         except ValueError as e:
             raise CommandError("Invalid number. Set this to 0 if you want to disable activity timeout.") from e
-        if user_id not in bot.keyword_watches:
-            bot.keyword_watches[user_id] = get_default_settings_dict()
-        bot.keyword_watches[user_id]["_suppressed"] = time.time() + duration
+        if user.get_id() not in bot.keyword_watches:
+            bot.keyword_watches[user.get_id()] = get_default_settings()
+        bot.keyword_watches[user.get_id()].suppressed = time.time() + duration
         bot.save_watches()
         await chat.send_message(f"Keyword watches suppressed for {duration} seconds.", bot.msg_creator)
     else:

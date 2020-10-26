@@ -218,4 +218,61 @@ class ConfigSchema(Schema):
         return Config(**data)
 
 
+class Keyword:
+    """
+    An object holding info about a single keyword for a keyword watch.
+    """
+
+    __slots__ = ("keyword", "whole_word", "match_case")
+
+    def __init__(self, keyword: str, whole_word: bool, match_case: bool):
+        self.keyword = keyword #NOSONAR
+        self.whole_word = whole_word
+        self.match_case = match_case
+
+
+class KeywordSchema(Schema):
+    """
+    Schema for the Keyword object.
+    """
+    
+    keyword = fields.Str(required=True)
+    whole_word = fields.Bool(default=False, required=True, data_key="wholeWord")
+    match_case = fields.Bool(default=False, required=True, data_key="matchCase")
+
+    @decorators.post_load
+    def make_obj(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use, missing-function-docstring
+        return Keyword(**data)
+
+
+class KeywordWatch:
+    """
+    An object holding info about a user's keyword watch settings.
+    """
+
+    __slots__ = ("on", "activity_timeout", "keywords", "suppressed")
+
+    def __init__(self, on: bool, activity_timeout: float, keywords: typing.List[Keyword], _suppressed: float = None):
+        self.on = on
+        self.activity_timeout = activity_timeout
+        self.keywords = keywords
+        self.suppressed = _suppressed
+
+
+class KeywordWatchSchema(Schema):
+    """
+    Schema for the KeywordWatch object.
+    """
+    
+    on = fields.Bool(default=True, required=True)
+    activity_timeout = fields.Float(default=180.0, required=True, data_key="activityTimeout")
+    keywords = fields.List(fields.Nested(KeywordSchema), default=[], required=True)
+    _suppressed = fields.Float(required=False)
+
+    @decorators.post_load
+    def make_obj(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use, missing-function-docstring
+        return KeywordWatch(**data)
+
+
 config = ConfigSchema()
+keyword_watch = KeywordWatchSchema()

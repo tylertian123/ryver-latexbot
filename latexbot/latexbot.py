@@ -1,3 +1,7 @@
+"""
+This module contains the main LatexBot class.
+"""
+
 import aiohttp
 import analytics
 import asyncio
@@ -72,7 +76,7 @@ class LatexBot:
         self.analytics = analytics.Analytics(analytics_file) if analytics_file is not None else None
 
         self.watch_file = None # type: str
-        self.keyword_watches = None # type: typing.Dict[int, typing.Dict[str, typing.Union[typing.List[typing.Dict[str, typing.Any]], typing.Any]]]
+        self.keyword_watches = None # type: typing.Dict[int, schemas.KeywordWatch]
         self.keyword_watches_automaton = None # type: Automaton
 
         self.daily_msg_task = None # type: typing.Awaitable
@@ -162,6 +166,23 @@ class LatexBot:
                     msg += "Invalid GitHub task board: Task board have categories."
         return msg or None
 
+    async def load_watches(self, data: typing.Dict[str, typing.Any]) -> typing.Optional[str]:
+        """
+        Load the keyword watches from a dict.
+
+        Returns an error message if there are errors, or None if no errors.
+        """
+        self.keyword_watches = {}
+        msg = ""
+        for user, watches in data.items():
+            try:
+                self.keyword_watches[int(user)] = schemas.keyword_watch.load(watches)
+            except marshmallow.ValidationError as e:
+                msg += f"Encountered errors while loading keyword watches for user {user}\n"
+                msg += "\n".join(f"* {k}\n" + "\n".join(f"  * {m}" for m in v) for k, v in e.messages.items())
+        self.rebuild_automaton()
+        return msg or None
+
     async def load_files(self, config_file: str, roles_file: str, trivia_file: str, watch_file: str) -> None:
         """
         Load all configuration files, including the config, roles and custom trivia.
@@ -185,6 +206,21 @@ class LatexBot:
             if self.maintainer is not None:
                 await self.maintainer.send_message(msg, self.msg_creator)
             await self.load_config({})
+        
+        # Load watches
+        try:
+            with open(watch_file, "r") as f:
+                err = await self.load_watches(json.load(f))
+            if err:
+                util.log(err)
+                if self.maintainer is not None:
+                    await self.maintainer.send_message(err, self.msg_creator)
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            msg = f"Watches does not exist or is not valid json: {e}. Falling back to empty."
+            util.log(msg)
+            if self.maintainer is not None:
+                await self.maintainer.send_message(msg, self.msg_creator)
+            await self.load_watches({})
 
         # Load roles
         try:
@@ -205,16 +241,12 @@ class LatexBot:
             if self.maintainer is not None:
                 await self.maintainer.send_message(f"Error while loading custom trivia questions: {e}.", self.msg_creator)
 
-        # Load keyword watches
-        try:
-            with open(watch_file, "r") as f:
-                self.keyword_watches = json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError) as e:
-            util.log(f"Error while loading keyword watches: {e}.")
-            if self.maintainer is not None:
-                await self.maintainer.send_message(f"Error while keyword watches: {e}. Defaulting to {{}}.", self.msg_creator)
-            self.keyword_watches = dict()
-        self.rebuild_automaton()
+    def save_config(self) -> None:
+        """
+        Save the current config to the config JSON.
+        """
+        with open(self.config_file, "w") as f:
+            f.write(schemas.config.dumps(self.config))
 
     def save_roles(self) -> None:
         """
@@ -223,19 +255,13 @@ class LatexBot:
         with open(self.roles_file, "w") as f:
             json.dump(self.roles.to_dict(), f)
     
-    def save_config(self) -> None:
-        """
-        Save the current config to the config JSON.
-        """
-        with open(self.config_file, "w") as f:
-            f.write(schemas.config.dumps(self.config))
-    
     def save_watches(self) -> None:
         """
         Save the current keyword watches to the watches JSON.
         """
+        data = {str(user): schemas.keyword_watch.dump(watches) for user, watches in self.keyword_watches.items()}
         with open(self.watch_file, "w") as f:
-            json.dump(self.keyword_watches, f)
+            json.dump(data, f)
     
     def update_help(self) -> None:
         """
@@ -311,15 +337,14 @@ class LatexBot:
         dfa = Automaton()
         keywords = {}
         # Gather up all the keywords
-        for user, watch_config in self.keyword_watches.items():
-            if not watch_config["on"]:
+        for user, watches in self.keyword_watches.items():
+            if not watches.on:
                 continue
-            user = int(user)
-            for watch in watch_config["keywords"]:
-                if watch["keyword"] not in keywords:
-                    keywords[watch["keyword"]] = []
+            for keyword in watches.keywords:
+                if keyword.keyword not in keywords:
+                    keywords[keyword.keyword] = []
                 # Each keyword has a list of users and whether it should match case and whole words
-                keywords[watch["keyword"]].append((user, watch["matchCase"], watch["wholeWord"]))
+                keywords[keyword.keyword].append((user, keyword.match_case, keyword.whole_word))
         for k, v in keywords.items():
             dfa.add_str(k.lower(), (k, v))
         dfa.build_automaton()
@@ -623,7 +648,6 @@ class LatexBot:
                             quoted_msg += "\n> " + line
                         t = time.time()
                         for uid, keywords in notify_users.items():
-                            uid_key = str(uid)
                             # Check if it's from the same user
                             if from_user.get_id() == uid:
                                 continue
@@ -632,10 +656,10 @@ class LatexBot:
                                 if self.user_info[uid].presence == pyryver.RyverWS.PRESENCE_AVAILABLE:
                                     continue
                                 # Check user last activity
-                                if t - self.user_info[uid].last_activity < self.keyword_watches[uid_key]["activityTimeout"]:
+                                if t - self.user_info[uid].last_activity < self.keyword_watches[uid].activity_timeout:
                                     continue
                             # Check suppression
-                            if self.keyword_watches[uid_key].get("_suppressed", 0) > t:
+                            if (self.keyword_watches[uid].suppressed or 0) > t:
                                 continue
                             # Verify that the user is a member of this chat
                             if isinstance(to, pyryver.GroupChat) and await to.get_member(uid) is None:
