@@ -399,4 +399,4 @@ async def process_concurrent(objs: typing.List[typing.Any], process: typing.Call
     async def _proc_range(start, end):
         for i in range(start, end):
             await process(objs[i])
-    await asyncio.gather(*(_proc_range(i * step, min((i + 1) * step, len(objs))) for i in range(workers)))
+    return asyncio.gather(*(_proc_range(i * step, min((i + 1) * step, len(objs))) for i in range(workers)))

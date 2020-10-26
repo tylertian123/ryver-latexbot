@@ -1130,8 +1130,7 @@ async def command_delete_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, 
         # Subtract 1 for 1-based indexing
         msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
     # Use multiple tasks
-    WORKERS = 7
-    await util.process_concurrent(msgs, pyryver.ChatMessage.delete, WORKERS)
+    await util.process_concurrent(msgs, pyryver.ChatMessage.delete, 7)
     await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
 
 
@@ -1191,10 +1190,22 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
         msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
 
     await to.send_message(f"# Begin Moved Message from {chat.get_name()}\n\n---", bot.msg_creator)
-
+    
+    # Delete all the messages asynchronously in the background with multiple workers
+    # This way the only bottleneck is sending the messages
+    delete_task = asyncio.ensure_future(util.process_concurrent(msgs, pyryver.ChatMessage.delete, 7))
+    # Send the messages while merging messages from the same person to reduce the number of requests needed
+    current_creator = None
+    current_message = ""
     for msg in msgs:
-        # Get the creator
         msg_creator = await bot.get_replace_message_creator(msg)
+        # User changed
+        if current_creator is None or current_creator.name != msg_creator.name or current_creator.avatar != msg_creator.avatar:
+            # Send the accumulated message if it is not empty
+            if current_message:
+                await to.send_message(current_message, current_creator)
+            current_creator = msg_creator
+            current_message = ""
 
         msg_body = util.sanitize(msg.get_body())
         # Handle reactions
@@ -1206,21 +1217,29 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
                 # and every user's display name who reacted with the reaction
                 u = [chat.get_ryver().get_user(id=person) for person in people]
                 msg_body += f"\n:{emoji}:: {', '.join([user.get_display_name() if user else 'unknown' for user in u])}"
+        # Merge messages with newlines
+        current_message += "  \n" + msg_body
 
         # Handle file attachments
-        if msg.get_attached_file() is not None:
+        # Skip this part if the destination chat is the same as the origin chat
+        # A 400 will occur while trying to process the attachment when that happens
+        if msg.get_attached_file() is not None and to != chat:
             # Normally if there is a file attachment the message will end with \n\n[filename]
             # It is added automatically by the Ryver client and pyryver; without it the embed doesn't show up
             # But here we should get rid of it to avoid repeating it twice
-            index = msg_body.rfind("\n\n")
+            index = current_message.rfind("\n\n")
             if index != -1:
-                msg_body = msg_body[:index]
-            await to.send_message(msg_body, msg_creator, msg.get_attached_file())
-        else:
-            await to.send_message(msg_body, msg_creator)
-        await msg.delete()
+                current_message = current_message[:index]
+            # Since there can only be one attachment per message we cannot accumulate any more messages
+            await to.send_message(current_message, current_creator, msg.get_attached_file())
+            # No need to reset the user ID and creator
+            current_message = ""
+    # Flush out the remaining message
+    if current_message:
+        await to.send_message(current_message, current_creator)
 
     await to.send_message(f"---\n\n# End Moved Message from {chat.get_name()}", bot.msg_creator)
+    await delete_task
     await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
     await chat.send_message(f"{len(msgs)} messages has been moved to {to.get_name()} from this forum/team.", bot.msg_creator)
 
