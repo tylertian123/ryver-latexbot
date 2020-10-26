@@ -275,7 +275,8 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
     > `@latexbot tba event ONOSH 2020` - Get info about the ONOSH event in 2020.
     > `@latexbot tba eventRankings ONOSH` - Get the rankings for the ONOSH event for the current year.
     """
-    # TODO: Handle when no TBA key is provided
+    if bot.tba is None:
+        raise CommandError("This feature is unavailable because no TBA API key was provided. Please set `LATEXBOT_TBA_KEY` to a TBA key.")
     try:
         args = shlex.split(args)
     except ValueError as e:
@@ -1085,7 +1086,7 @@ async def command_leaderboards(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     syntax:
     """
     if not bot.analytics:
-        raise CommandError("This feature is unavailable because analytics are disabled.")
+        raise CommandError("This feature is unavailable because analytics are disabled. Please set `LATEXBOT_ANALYTICS` to 1.")
     leaderboards = [(int(uid), count) for i, (uid, count) in enumerate(sorted(bot.analytics.message_activity.items(), key=lambda x: x[1], reverse=True)) if i < 20]
     resp = "# Message Activity Leaderboards (Top 20)"
     rank = None
@@ -1631,7 +1632,8 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     ---
     > `@latexbot events 5` - Get the next 5 events, including ongoing events.
     """
-    # TODO: Make this not crash without a calendar
+    if bot.config.calendar is None:
+        raise CommandError("This feature is unavailable because no calendar ID or service account credentials were configured.")
     try:
         count = int(args) if args else 3
         if count < 1:
@@ -1639,7 +1641,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     except ValueError as e:
         raise CommandError("Invalid number.") from e
     
-    events = bot.calendar.get_upcoming_events(count)
+    events = bot.config.calendar.get_upcoming_events(count)
 
     now = bot.current_time()
     ongoing = []
@@ -1717,7 +1719,9 @@ async def command_quick_add_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, 
     ---
     > `@latexbot quickAddEvent Appointment at Somewhere on June 3rd 10am-10:25am`
     """
-    event = bot.calendar.quick_add(args)
+    if bot.config.calendar is None:
+        raise CommandError("This feature is unavailable because no calendar ID or service account credentials were configured.")
+    event = bot.config.calendar.quick_add(args)
     start = Calendar.parse_time(event["start"])
     end = Calendar.parse_time(event["end"])
     # Correctly format based on whether the event is an all-day event
@@ -1757,6 +1761,8 @@ async def command_add_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
     > `@latexbot addEvent "Foo Bar" "Jan 1, 2020" "Jan 2, 2020"` - An alternative syntax for creating the same event.
     > `@latexbot addEvent Foo 2020-01-01 00:00 2020-01-01 12:00` - Add an event named "Foo", starting midnight on 2020-01-01 and ending 12 PM on the same day.
     """
+    if bot.config.calendar is None:
+        raise CommandError("This feature is unavailable because no calendar ID or service account credentials were configured.")
     # If a description is included
     if "\n" in args:
         i = args.index("\n")
@@ -1818,7 +1824,7 @@ async def command_add_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
     event_body["summary"] = args[0]
     if desc:
         event_body["description"] = desc
-    event = bot.calendar.add_event(event_body)
+    event = bot.config.calendar.add_event(event_body)
     start_str = datetime.strftime(start, util.DATETIME_DISPLAY_FORMAT if len(args) == 5 else util.DATE_DISPLAY_FORMAT)
     end_str = datetime.strftime(end, util.DATETIME_DISPLAY_FORMAT if len(args) == 5 else util.DATE_DISPLAY_FORMAT)
     if not desc:
@@ -1845,8 +1851,10 @@ async def command_delete_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     ---
     > `@latexbot deleteEvent Foo Bar` - Remove the event "Foo Bar".
     """
+    if bot.config.calendar is None:
+        raise CommandError("This feature is unavailable because no calendar ID or service account credentials were configured.")
     args = args.lower()
-    events = bot.calendar.get_upcoming_events()
+    events = bot.config.calendar.get_upcoming_events()
     matched_event = None
     
     for event in events:
@@ -1856,7 +1864,7 @@ async def command_delete_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
             break
     
     if matched_event:
-        bot.calendar.remove_event(matched_event["id"])
+        bot.config.calendar.remove_event(matched_event["id"])
         # Format the start and end of the event into strings
         start = Calendar.parse_time(matched_event["start"])
         end = Calendar.parse_time(matched_event["end"])
@@ -2378,27 +2386,29 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
         bot.analytics.save()
     await bot.update_cache()
     now = bot.current_time()
-    events = bot.calendar.get_today_events(now)
-    if events:
-        resp = "Reminder: These events are happening today:"
-        for event in events:
-            start = Calendar.parse_time(event["start"])
-            end = Calendar.parse_time(event["end"])
 
-            # The event has a time, and it starts today (not already started)
-            if start.tzinfo and start > now:
-                resp += f"\n# {event['summary']} today at *{start.strftime(util.TIME_DISPLAY_FORMAT)}*"
-            else:
-                # Otherwise format like normal
-                start_str = start.strftime(util.DATETIME_DISPLAY_FORMAT if start.tzinfo else util.DATE_DISPLAY_FORMAT)
-                end_str = end.strftime(util.DATETIME_DISPLAY_FORMAT if end.tzinfo else util.DATE_DISPLAY_FORMAT)
-                resp += f"\n# {event['summary']} (*{start_str}* to *{end_str}*)"
+    if bot.config.calendar is not None:
+        events = bot.config.calendar.get_today_events(now)
+        if events:
+            resp = "Reminder: These events are happening today:"
+            for event in events:
+                start = Calendar.parse_time(event["start"])
+                end = Calendar.parse_time(event["end"])
 
-            # Add description if there is one
-            if "description" in event and event["description"] != "":
-                # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
-                resp += f"\u200B:\n{markdownify(event['description'])}"
-        await bot.announcements_chat.send_message(resp, bot.msg_creator)
+                # The event has a time, and it starts today (not already started)
+                if start.tzinfo and start > now:
+                    resp += f"\n# {event['summary']} today at *{start.strftime(util.TIME_DISPLAY_FORMAT)}*"
+                else:
+                    # Otherwise format like normal
+                    start_str = start.strftime(util.DATETIME_DISPLAY_FORMAT if start.tzinfo else util.DATE_DISPLAY_FORMAT)
+                    end_str = end.strftime(util.DATETIME_DISPLAY_FORMAT if end.tzinfo else util.DATE_DISPLAY_FORMAT)
+                    resp += f"\n# {event['summary']} (*{start_str}* to *{end_str}*)"
+
+                # Add description if there is one
+                if "description" in event and event["description"] != "":
+                    # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+                    resp += f"\u200B:\n{markdownify(event['description'])}"
+            await bot.announcements_chat.send_message(resp, bot.msg_creator)
     
     url = f"https://www.checkiday.com/api/3/?d={now.strftime('%Y/%m/%d')}"
     async with aiohttp.request("GET", url) as resp:
