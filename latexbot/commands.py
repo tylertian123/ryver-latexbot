@@ -1178,6 +1178,8 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
         to = util.parse_chat_name(chat.get_ryver(), to_chat) # type: pyryver.Chat
         if not to:
             raise CommandError("Chat not found.")
+        if isinstance(to, pyryver.User):
+            raise CommandError("Can't move messages to a DM.")
     except ValueError as e:
         raise CommandError(str(e)) from e
 
@@ -1542,7 +1544,7 @@ async def command_remove_from_role(bot: "latexbot.LatexBot", chat: pyryver.Chat,
             bot.roles[role].remove(username)
 
         # Delete empty roles
-        if bot.roles[role]:
+        if not bot.roles[role]:
             bot.roles.pop(role)
     bot.save_roles()
 
@@ -2414,7 +2416,7 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
                 if "description" in event and event["description"] != "":
                     # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
                     resp += f"\u200B:\n{markdownify(event['description'])}"
-            await bot.announcements_chat.send_message(resp, bot.msg_creator)
+            await bot.config.announcements_chat.send_message(resp, bot.msg_creator)
     
     url = f"https://www.checkiday.com/api/3/?d={now.strftime('%Y/%m/%d')}"
     async with aiohttp.request("GET", url) as resp:
@@ -2426,19 +2428,19 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
         else:
             data = await resp.json()
     if data["error"] != "none":
-        await bot.messages_chat.send_message(f"Error while trying to check today's holidays: {data['error']}", bot.msg_creator)
+        await bot.config.messages_chat.send_message(f"Error while trying to check today's holidays: {data['error']}", bot.msg_creator)
     else:
         if data.get("holidays", None):
             msg = "Here is a list of all the holidays today:\n"
             msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
-            await bot.messages_chat.send_message(msg, bot.msg_creator)
+            await bot.config.messages_chat.send_message(msg, bot.msg_creator)
     comic = await xkcd.get_comic()
     if comic['num'] <= bot.config.last_xkcd:
         util.log(f"No new xkcd found (latest is {comic['num']}).")
     else:
         util.log(f"New comic found! (#{comic['num']})")
         xkcd_creator = pyryver.Creator(bot.msg_creator.name, util.XKCD_PROFILE)
-        await bot.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
+        await bot.config.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
         # Update xkcd number
         bot.config.last_xkcd = comic['num']
         bot.save_config()
