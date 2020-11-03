@@ -342,13 +342,17 @@ def parse_args(args: typing.Iterable[str], *syntax: typing.Union[typing.Tuple[st
     return results
 
 
-def paginate(text: typing.Iterable[str], title: str = "", header: str = "", limit: int = 3900) -> typing.Generator[str, str, None]: 
+def paginate(text: typing.Iterable[str], title: str = "", header: str = "", sep: str = "\n", limit: int = 3900) -> typing.Generator[str, str, None]: 
     """ 
     Break up rows of text into pages. 
  
     Only the first page will have the title, while the header is added to every page. 
     The length of each page will not exceed the limit, excluding the page number message 
     at the end. Page numbers will not be added if there is only one page.
+    
+    The separator will be inserted between every pair of consecutive lines. By default a
+    newline is used. No separator is inserted between the title and header or header and
+    content.
     """ 
     pages = [] 
     page = None
@@ -357,7 +361,7 @@ def paginate(text: typing.Iterable[str], title: str = "", header: str = "", limi
             page = title + header
             new_page = page + row
         else:
-            new_page = page + "\n" + row
+            new_page = page + sep + row
         if len(new_page) < limit: 
             page = new_page 
         else: 

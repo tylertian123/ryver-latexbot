@@ -2097,12 +2097,10 @@ async def command_macro(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     """
     if args == "":
         if not bot.config.macros:
-            resp = "No macros have been created."
+            await chat.send_message("No macros have been created.", bot.msg_creator)
         else:
-            resp = "All macros:"
-            for macro, expansion in bot.config.macros.items():
-                resp += f"\n* `{macro}` expands to `{expansion}`"
-        await chat.send_message(resp, bot.msg_creator)
+            for page in util.paginate((f"* `{k}` expands to `{v}`" for k, v in bot.config.macros.items()), "All macros:\n"):
+                await chat.send_message(page, bot.msg_creator)
         return
 
     try:
@@ -2228,9 +2226,10 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     """
     if args == "":
         if not bot.config.access_rules:
-            raise CommandError("No access rules were created.")
-        resp = "\n\n".join(util.format_access_rules(command, rule) for command, rule in bot.config.access_rules.items())
-        await chat.send_message(resp, bot.msg_creator)
+            await chat.send_message("No access rules were created.", bot.msg_creator)
+        else:
+            for page in util.paginate((util.format_access_rules(k, v) for k, v in bot.config.access_rules.items()), "All access rules:\n", sep="\n\n"):
+                await chat.send_message(page, bot.msg_creator)
         return
     try:
         args = shlex.split(args)
