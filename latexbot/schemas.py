@@ -2,6 +2,7 @@
 This module contains marshmallow schemas and classes for objects saved to JSON.
 """
 
+import analytics as aly
 import datetime
 import dateutil
 import gcalendar
@@ -276,5 +277,19 @@ class KeywordWatchSchema(Schema):
         return KeywordWatch(**data)
 
 
+class AnalyticsSchema(Schema):
+    """
+    Schema for the Analytics object (defined in analytics.py).
+    """
+
+    command_usage = fields.Dict(fields.Str(), fields.Dict(fields.Int(), fields.Int()), default={}, required=True, data_key="commandUsage")
+    message_activity = fields.Dict(fields.Int(), fields.Int(), default={}, required=True, data_key="messageActivity")
+    shutdowns = fields.List(fields.Int(), default=[], required=True)
+
+    @decorators.post_load
+    def make_obj(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use, missing-function-docstring
+        return aly.Analytics(**data)
+
 config = ConfigSchema()
 keyword_watch = KeywordWatchSchema()
+analytics = AnalyticsSchema()

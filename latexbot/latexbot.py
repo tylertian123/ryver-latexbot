@@ -5,6 +5,7 @@ This module contains the main LatexBot class.
 import aiohttp
 import analytics
 import asyncio
+import atexit
 import commands
 import datetime
 import json
@@ -12,8 +13,9 @@ import marshmallow
 import os
 import pyryver
 import re
-import server
 import schemas
+import server
+import signal
 import time
 import trivia
 import typing # pylint: disable=unused-import
@@ -47,7 +49,7 @@ class LatexBot:
     An instance of LaTeX Bot.
     """
 
-    def __init__(self, version: str, analytics_file: str = None, debug: bool = False):
+    def __init__(self, version: str, debug: bool = False):
         self.debug = debug
         if debug:
             self.version = version + f" (DEBUG: pyryver v{pyryver.__version__})"
@@ -72,8 +74,9 @@ class LatexBot:
 
         self.trivia_file = None # type: str
         self.trivia_games = {} # type: typing.Dict[int, trivia.LatexBotTriviaGame]
-
-        self.analytics = analytics.Analytics(analytics_file) if analytics_file is not None else None
+        
+        self.analytics_file = None # type: str
+        self.analytics = None # type: analytics.Analytics
 
         self.watch_file = None # type: str
         self.keyword_watches = None # type: typing.Dict[int, schemas.KeywordWatch]
@@ -149,10 +152,14 @@ class LatexBot:
             self.config = schemas.config.load(data)
         except marshmallow.ValidationError as e:
             msg += "Encountered errors while loading the config JSON:\n"
-            msg += "\n".join(f"* {k}\n" + "\n".join(f"  * {m}" for m in v) for k, v in e.messages.items())
+            msg += util.format_validation_error(e)
             msg += "\n\nConfig will be loaded with those values set to their defaults.\n\n"
-            # Ignore errors by loading only the valid data and allowing partial loads
-            self.config = schemas.config.load(e.valid_data, partial=True)
+            try:
+                # Ignore errors by loading only the valid data and allowing partial loads
+                self.config = schemas.config.load(e.valid_data, partial=True)
+            except marshmallow.ValidationError:
+                msg += "\n\nEncountered more errors trying to load the valid fields. Falling back to empty config."
+                self.config = schemas.config.load({}, partial=True)
         # Extra step: Verify that the GitHub Issues chat has a task board with categories
         if self.config.gh_issues_chat is not None:
             self.gh_issues_board = await self.config.gh_issues_chat.get_task_board()
@@ -178,18 +185,18 @@ class LatexBot:
             try:
                 self.keyword_watches[int(user)] = schemas.keyword_watch.load(watches)
             except marshmallow.ValidationError as e:
-                msg += f"Encountered errors while loading keyword watches for user {user}\n"
-                msg += "\n".join(f"* {k}\n" + "\n".join(f"  * {m}" for m in v) for k, v in e.messages.items())
+                msg += f"Encountered errors while loading keyword watches for user {user}:\n{util.format_validation_error(e)}"
         self.rebuild_automaton()
         return msg or None
-
-    async def load_files(self, config_file: str, roles_file: str, trivia_file: str, watch_file: str) -> None:
+    
+    async def load_files(self, config_file: str, roles_file: str, trivia_file: str, analytics_file: str, watch_file: str) -> None:
         """
         Load all configuration files, including the config, roles and custom trivia.
         """
         self.config_file = config_file
         self.roles_file = roles_file
         self.trivia_file = trivia_file
+        self.analytics_file = analytics_file
         self.watch_file = watch_file
 
         # Load config
@@ -232,6 +239,37 @@ class LatexBot:
                 await self.maintainer.send_message(f"Error while loading roles: {e}. Defaulting to {{}}.", self.msg_creator)
             self.roles = CaseInsensitiveDict()
         
+        # Load analytics
+        if os.environ.get("LATEXBOT_ANALYTICS") == "1":
+            try:
+                with open(analytics_file, "r") as f:
+                    self.analytics = schemas.analytics.load(json.load(f))
+            except marshmallow.ValidationError as e:
+                msg = f"Encountered errors while loading analytics:\n{util.format_validation_error(e)}"
+                msg += "\n\nAnalytics data will be loaded with those values set to their defaults.\n\n"
+                try:
+                    self.analytics = schemas.analytics.load(e.valid_data, partial=True)
+                except marshmallow.ValidationError:
+                    msg += "\n\nEncountered more errors trying to load the valid fields. Falling back to empty data."
+                    self.analytics = schemas.analytics.load({}, partial=True)
+                util.log(msg)
+                if self.maintainer is not None:
+                    await self.maintainer.send_message(msg, self.msg_creator)
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                msg = f"Analytics data does not exist or is not valid json: {e}. Falling back to empty."
+                util.log(msg)
+                if self.maintainer is not None:
+                    await self.maintainer.send_message(msg, self.msg_creator)
+                self.analytics = analytics.Analytics({}, {}, [])
+            # Register atexit and signal handlers for saving the analytics data
+            # so no data loss occurs when latexbot is terminated unexpectedly
+            atexit.register(self.save_analytics)
+            def signal_handler(num, frame): # pylint: disable=unused-argument
+                self.save_analytics()
+                exit()
+            signal.signal(signal.SIGABRT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
+        
         # Load trivia
         try:
             with open(trivia_file, "r") as f:
@@ -254,6 +292,13 @@ class LatexBot:
         """
         with open(self.roles_file, "w") as f:
             json.dump(self.roles.to_dict(), f)
+    
+    def save_analytics(self) -> None:
+        """
+        Save the analytics data to JSON.
+        """
+        with open(self.analytics_file, "w") as f:
+            f.write(self.analytics.dumps())
     
     def save_watches(self) -> None:
         """

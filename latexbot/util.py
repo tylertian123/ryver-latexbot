@@ -7,6 +7,7 @@ import asyncio
 import datetime
 import json
 import latexbot
+import marshmallow
 import pyryver
 import re
 import string
@@ -404,3 +405,10 @@ async def process_concurrent(objs: typing.List[typing.Any], process: typing.Call
         for i in range(start, end):
             await process(objs[i])
     return asyncio.gather(*(_proc_range(i * step, min((i + 1) * step, len(objs))) for i in range(workers)))
+
+
+def format_validation_error(e: marshmallow.ValidationError) -> str:
+    """
+    Format a marshmallow ValidationError into a nice markdown string.
+    """
+    return "\n".join(f"* {k}\n" + "\n".join(f"  * {m}" for m in v) for k, v in e.messages.items())
