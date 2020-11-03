@@ -124,10 +124,10 @@ class Command:
         rules = latexbot.bot.config.access_rules.get(self._name)
         if rules is not None:
             # disallowUser has the highest precedence
-            if util.contains_ignorecase(user.get_username(), rules.disallow_users or ()):
+            if user.get_id() in (rules.disallow_users or ()):
                 return False
             # allowUser is second
-            if util.contains_ignorecase(user.get_username(), rules.allow_users or ()):
+            if user.get_id() in (rules.allow_users or ()):
                 return True
             # And then disallowRole
             if any(user.get_id() in bot.roles.get(role, ()) for role in rules.disallow_roles or ()):

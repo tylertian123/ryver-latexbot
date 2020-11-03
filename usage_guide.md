@@ -668,8 +668,8 @@ Below is an illustration of the JSON config file format:
   "accessRules": { // All command Access Rules. See the Access Rules section for details
     "ping": { // The Access Rules for a particular command, in this case ping
       "level": 1, // Override the Access Level of this command - see Access Levels and Access Rules
-      "allowUser": ["foo", "bar"], // A list of users to give access to regardless of level
-      "disallowUser": ["baz"], // A list of users to disallow regardless of level
+      "allowUser": [1234567], // A list of user IDs to give access to regardless of level - Changed in 0.9.0, used to be a list of usernames
+      "disallowUser": [7654321], // A list of user IDs to disallow regardless of level - Changed in 0.9.0, used to be a list of usernames
       "allowRole": ["Pingers"], // A list of roles to give access to regardless of level
       "disallowRole": ["NoPing"] // A list of roles to disallow regardless of level
     }

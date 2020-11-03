@@ -245,9 +245,9 @@ def format_access_rules(command: str, rule) -> str:
     if rule.level:
         result += f"\n- Override Level: {rule.level}"
     if rule.allow_users:
-        result += f"\n- Allow Users: {', '.join(rule.allow_users)}"
+        result += f"\n- Allow Users: {', '.join(latexbot.bot.ryver.get_user(id=uid).get_username() for uid in rule.allow_users)}"
     if rule.disallow_users:
-        result += f"\n- Disallow Users: {', '.join(rule.disallow_users)}"
+        result += f"\n- Disallow Users: {', '.join(latexbot.bot.ryver.get_user(id=uid).get_username() for uid in rule.disallow_users)}"
     if rule.allow_roles:
         result += f"\n- Allow Roles: {', '.join(rule.allow_roles)}"
     if rule.disallow_roles:

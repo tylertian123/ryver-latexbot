@@ -2293,9 +2293,18 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
                 "allowRole": "allow_roles",
                 "disallowRole": "disallow_roles"
             }[args[2]]
+            # Handle @mention syntax usernames
+            items = [item[1:] if item.startswith("@") else item for item in args[3:]]
+            if args[2] in ("allowUser", "disallowUser"):
+                new_items = []
+                for username in items:
+                    user = bot.ryver.get_user(username=username)
+                    if user is None:
+                        await chat.send_message(f"Warning: User `{username}` not found. Try updating the cache.", bot.msg_creator)
+                    else:
+                        new_items.append(user.get_id())
+                items = new_items
             if args[1] == "add":
-                # Handle @mention syntax usernames
-                items = [item[1:] if item.startswith("@") else item for item in args[3:]]
                 # Get the attribute to set
                 if getattr(rules, attrname) is None:
                     setattr(rules, attrname, [])
@@ -2311,9 +2320,7 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
                     raise CommandError(f"Rule {args[2]} is not set for command {args[0]}.")
                 existing = getattr(rules, attrname)
                 # Remove each one
-                for item in args[3:]:
-                    if item.startswith("@"):
-                        item = item[1:]
+                for item in items:
                     if item not in existing:
                         await chat.send_message(f"Warning: {item} is not in the list for rule {args[2]}.", bot.msg_creator)
                     else:

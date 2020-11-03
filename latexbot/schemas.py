@@ -26,6 +26,8 @@ class ChatField(fields.Field):
         return None if value is None else "id=" + str(value.get_id())
     
     def _deserialize(self, value: str, attr: str, data: typing.Any, **kwargs): # pylint: disable=unused-argument
+        if value is None:
+            return None
         try:
             return util.parse_chat_name(latexbot.bot.ryver, value)
         except ValueError as e:
@@ -64,7 +66,7 @@ class AccessRule:
 
     __slots__ = ("level", "allow_users", "disallow_users", "allow_roles", "disallow_roles")
 
-    def __init__(self, level: int = None, allow_users: typing.List[str] = None, disallow_users: typing.List[str] = None,
+    def __init__(self, level: int = None, allow_users: typing.List[int] = None, disallow_users: typing.List[int] = None,
                  allow_roles: typing.List[str] = None, disallow_roles: typing.List[str] = None):
         self.level = level
         self.allow_users = allow_users
@@ -83,8 +85,8 @@ class AccessRuleSchema(Schema):
     """
 
     level = fields.Int(required=False)
-    allow_users = fields.List(fields.Str(), required=False, data_key="allowUser")
-    disallow_users = fields.List(fields.Str(), required=False, data_key="disallowUser")
+    allow_users = fields.List(fields.Int(), required=False, data_key="allowUser")
+    disallow_users = fields.List(fields.Int(), required=False, data_key="disallowUser")
     allow_roles = fields.List(fields.Str(), required=False, data_key="allowRole")
     disallow_roles = fields.List(fields.Str(), required=False, data_key="disallowRole")
 
@@ -186,20 +188,20 @@ class ConfigSchema(Schema):
     """
     # Misc config
     admins = fields.List(fields.Int(), default=[], required=True)
-    tz_str = fields.Str(default=None, required=True, data_key="organizationTimeZone")
-    frc_team = fields.Int(default=None, required=True, data_key="frcTeam")
-    welcome_message = fields.Str(default=None, required=True, data_key="welcomeMessage")
+    tz_str = fields.Str(default=None, allow_none=True, required=True, data_key="organizationTimeZone")
+    frc_team = fields.Int(default=None, allow_none=True, required=True, data_key="frcTeam")
+    welcome_message = fields.Str(default=None, allow_none=True, required=True, data_key="welcomeMessage")
     # Chats
-    home_chat = ChatField(default=None, required=True, data_key="homeChat")
-    announcements_chat = ChatField(default=None, required=True, data_key="announcementsChat")
-    messages_chat = ChatField(default=None, required=True, data_key="messagesChat")
+    home_chat = ChatField(default=None, allow_none=True, required=True, data_key="homeChat")
+    announcements_chat = ChatField(default=None, allow_none=True, required=True, data_key="announcementsChat")
+    messages_chat = ChatField(default=None, allow_none=True, required=True, data_key="messagesChat")
     # GitHub integration
-    gh_updates_chat = ChatField(default=None, required=True, data_key="ghUpdatesChat")
-    gh_issues_chat = ChatField(default=None, required=True, data_key="ghIssuesChat")
+    gh_updates_chat = ChatField(default=None, allow_none=True, required=True, data_key="ghUpdatesChat")
+    gh_issues_chat = ChatField(default=None, allow_none=True, required=True, data_key="ghIssuesChat")
     gh_users_map = fields.Dict(fields.Str(), fields.Str(), default={}, required=True, data_key="ghUsersMap")
     # Google Calendar integration & daily message
-    calendar_id = fields.Str(default=None, required=True, data_key="googleCalendarId")
-    daily_message_time = fields.Time(default=None, required=True, data_key="dailyMessageTime")
+    calendar_id = fields.Str(default=None, allow_none=True, required=True, data_key="googleCalendarId")
+    daily_message_time = fields.Time(default=None, allow_none=True, required=True, data_key="dailyMessageTime")
     last_xkcd = fields.Int(default=0, required=True, data_key="lastXKCD")
     # Advanced config
     aliases = fields.List(fields.Nested(AliasSchema), default=[], required=True)
