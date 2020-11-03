@@ -1355,8 +1355,10 @@ async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
             if user_level <= mute_level:
                 raise CommandError(f"You cannot mute this user because they can also use mute and have a higher access level than you ({mute_level} >= {user_level}).")
     uid = mute_user.get_id()
-    if uid not in bot.user_info or bot.user_info[uid].muted is None:
+    if uid not in bot.user_info:
         bot.user_info[uid] = latexbot.UserInfo(muted={})
+    elif bot.user_info[uid].muted is None:
+        bot.user_info[uid].muted = {}
     muted = bot.user_info[uid].muted
     # Remove the previous unmute task if it exists
     task = muted.get(chat.get_id())
