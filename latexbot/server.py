@@ -395,10 +395,10 @@ class Server:
             return aiohttp.web.Response(text="Analytics are not enabled.", status=404)
         cmd_usage = {
             cmd: {
-                self.bot.ryver.get_user(id=int(user)).get_username(): count
+                self.bot.ryver.get_user(id=user).get_username(): count
                 for user, count in usage.items()}
             for cmd, usage in self.bot.analytics.command_usage.items()}
-        msg_activity = {self.bot.ryver.get_user(id=int(user)).get_username(): size
+        msg_activity = {self.bot.ryver.get_user(id=user).get_username(): size
             for user, size in self.bot.analytics.message_activity.items()}
         with open("latexbot/html/analytics-ui.html", "r") as f, open("latexbot/html/analytics-ui-script.js") as s:
             html = self.format_page(f.read().format(data={

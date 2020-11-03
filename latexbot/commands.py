@@ -1075,7 +1075,7 @@ async def command_leaderboards(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     """
     if not bot.analytics:
         raise CommandError("This feature is unavailable because analytics are disabled. Please set `LATEXBOT_ANALYTICS` to 1.")
-    leaderboards = [(int(uid), count) for i, (uid, count) in enumerate(sorted(bot.analytics.message_activity.items(), key=lambda x: x[1], reverse=True)) if i < 20]
+    leaderboards = [item for i, item in enumerate(sorted(bot.analytics.message_activity.items(), key=lambda x: x[1], reverse=True)) if i < 20]
     resp = "# Message Activity Leaderboards (Top 20)"
     rank = None
     score = None
