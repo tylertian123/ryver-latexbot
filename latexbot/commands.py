@@ -837,9 +837,10 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             raise CommandError("You are not authorized to do that.")
 
     try:
-        args = shlex.split(args)
+        sub_args = shlex.split(sub_args)
     except ValueError as e:
         raise CommandError(f"Invalid syntax: {e}") from e
+    
     if cmd == "games":
         if not bot.trivia_games:
             await chat.send_message("No games are ongoing.", bot.msg_creator)
