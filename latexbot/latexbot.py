@@ -591,7 +591,7 @@ class LatexBot:
                         prefix = match.group(1)
                         name = match.group(2)
                         if name in self.roles:
-                            name = " @".join(self.roles[name])
+                            name = " @".join(self.ryver.get_user(id=user).get_username() for user in self.roles[name])
                         return prefix + name
                     def macro_replace_func(match: re.Match):
                         prefix = match.group(1)

@@ -1440,7 +1440,7 @@ async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     if args == "":
         if bot.roles:
             roles_str = "\n".join(
-                f"**{role}**: {', '.join(usernames)}" for role, usernames in bot.roles.items())
+                f"**{role}**: {', '.join(bot.ryver.get_user(id=user).get_username() for user in users)}" for role, users in bot.roles.items())
             await chat.send_message(f"All roles:\n{roles_str}", bot.msg_creator)
     else:
         # A mention
@@ -1448,18 +1448,20 @@ async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
             args = args[1:]
         # A role
         if args in bot.roles:
-            users = "\n".join(bot.roles[args])
+            users = "\n".join(bot.ryver.get_user(id=uid).get_username() for uid in bot.roles[args])
             await chat.send_message(f"These users have the role '{args}':\n{users}", bot.msg_creator)
         # Check if it's a username
-        elif chat.get_ryver().get_user(username=args):
-            roles = "\n".join(role for role, usernames in bot.roles.items() if util.contains_ignorecase(args, usernames))
-            if roles:
-                await chat.send_message(
-                    f"User '{args}' has the following roles:\n{roles}", bot.msg_creator)
-            else:
-                await chat.send_message(f"User '{args}' has no roles.", bot.msg_creator)
         else:
-            raise CommandError(f"'{args}' is not a valid username or role name.")
+            user = chat.get_ryver().get_user(username=args)
+            if user is not None:
+                roles = "\n".join(role for role, uids in bot.roles.items() if user.get_id() in uids)
+                if roles:
+                    await chat.send_message(
+                        f"User '{args}' has the following roles:\n{roles}", bot.msg_creator)
+                else:
+                    await chat.send_message(f"User '{args}' has no roles.", bot.msg_creator)
+            else:
+                raise CommandError(f"'{args}' is not a valid username or role name.")
 
 
 @command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
@@ -1473,7 +1475,7 @@ async def command_add_to_role(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
     ---
     group: Roles Commands
-    syntax: <role1>[,<role2>...] [@]<username1>[,[@]<username2>...]
+    syntax: <role1>[,<role2>...] [@]<username1> [[@]<username2>...]
     ---
     > `@latexbot addToRole Foo tylertian` - Give Tyler the "Foo" role.
     > `@latexbot addToRole Foo,Bar tylertian latexbot` Give Tyler and LaTeX Bot the "Foo" and "Bar" roles.
@@ -1493,16 +1495,19 @@ async def command_add_to_role(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
         if " " in role or "," in role:
             await chat.send_message(f"Invalid role: {role}. Role names must not contain spaces or commas. Skipping...", bot.msg_creator)
             continue
-        # Role already exists
-        if role in bot.roles:
-            for username in usernames:
-                if username in bot.roles[role]:
-                    await chat.send_message(
-                        f"Warning: User '{username}' already has role '{role}'.", bot.msg_creator)
-                else:
-                    bot.roles[role].append(username)
-        else:
-            bot.roles[role] = usernames
+        if role not in bot.roles:
+            bot.roles[role] = []
+
+        for username in usernames:
+            user = bot.ryver.get_user(username=username)
+            if user is None:
+                await chat.send_message(f"Warning: User `{username}` not found. Try updating the cache.", bot.msg_creator)
+                continue
+            if user.get_id() in bot.roles[role]:
+                await chat.send_message(
+                    f"Warning: User `{username}` already has role '{role}'.", bot.msg_creator)
+            else:
+                bot.roles[role].append(user.get_id())
     bot.save_roles()
 
     await chat.send_message("Operation successful.", bot.msg_creator)
@@ -1516,7 +1521,7 @@ async def command_remove_from_role(bot: "latexbot.LatexBot", chat: pyryver.Chat,
     Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
     ---
     group: Roles Commands
-    syntax: <role1>[,<role2>...] [@]<username1>[,[@]<username2>...]
+    syntax: <role1>[,<role2>...] [@]<username1> [[@]<username2>...]
     ---
     > `@latexbot removeFromRole Foo tylertian` - Remove Tyler from the "Foo" role.
     > `@latexbot removeFromRole Foo,Bar tylertian latexbot` Remove Tyler and LaTeX Bot from the "Foo" and "Bar" roles.
@@ -1533,16 +1538,19 @@ async def command_remove_from_role(bot: "latexbot.LatexBot", chat: pyryver.Chat,
         "@") else username for username in args[1:]]
 
     for role in roles:
-        if not role in bot.roles:
+        if role not in bot.roles:
             await chat.send_message(f"Error: The role {role} does not exist. Skipping...", bot.msg_creator)
             continue
         
         for username in usernames:
-            if not username in bot.roles[role]:
-                await chat.send_message(
-                    f"Warning: User {username} does not have the role {role}.", bot.msg_creator)
+            user = bot.ryver.get_user(username=username)
+            if user is None:
+                await chat.send_message(f"Warning: User `{username}` not found. Try updating the cache.", bot.msg_creator)
                 continue
-            bot.roles[role].remove(username)
+            if user.get_id() not in bot.roles[role]:
+                await chat.send_message(f"Warning: User `{username}`` does not have the role {role}.", bot.msg_creator)
+                continue
+            bot.roles[role].remove(user.get_id())
 
         # Delete empty roles
         if not bot.roles[role]:

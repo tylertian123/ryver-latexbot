@@ -130,10 +130,10 @@ class Command:
             if util.contains_ignorecase(user.get_username(), rules.allow_users or ()):
                 return True
             # And then disallowRole
-            if any(util.contains_ignorecase(user.get_username(), bot.roles.get(role, ())) for role in rules.disallow_roles or ()):
+            if any(user.get_id() in bot.roles.get(role, ()) for role in rules.disallow_roles or ()):
                 return False
             # Finally allowRole
-            if any(util.contains_ignorecase(user.get_username(), bot.roles.get(role, ())) for role in rules.allow_roles or ()):
+            if any(user.get_id() in bot.roles.get(role, ()) for role in rules.allow_roles or ()):
                 return True
         # If none of those are true, check the access level normally
         user_level = access_level if access_level is not None else await Command.get_access_level(chat, user)
