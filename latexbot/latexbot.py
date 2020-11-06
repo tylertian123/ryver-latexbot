@@ -12,6 +12,7 @@ import json
 import marshmallow
 import os
 import pyryver
+import random
 import re
 import schemas
 import server
@@ -572,7 +573,8 @@ class LatexBot:
                     # Processing for re-enabling after disable
                     if (command == "setEnabled" and args == "true") or command == "wakeUp":
                         if not await self.commands.commands["setEnabled"].is_authorized(self, to, from_user):
-                            await to.send_message(Command.get_access_denied_message(), self.msg_creator)
+                            message = random.choice(self.config.access_denied_messages) if self.config.access_denied_messages else "Access denied."
+                            await to.send_message(message, self.msg_creator)
                             return
                         if self.analytics:
                             self.analytics.command(command, args, from_user, to)
@@ -587,7 +589,8 @@ class LatexBot:
                         return
                     elif command == "setEnabled" and args == "false" and self.enabled:
                         if not await self.commands.commands["setEnabled"].is_authorized(self, to, from_user):
-                            await to.send_message(Command.get_access_denied_message(), self.msg_creator)
+                            message = random.choice(self.config.access_denied_messages) if self.config.access_denied_messages else "Access denied."
+                            await to.send_message(message, self.msg_creator)
                             return
                         if self.analytics:
                             self.analytics.command(command, args, from_user, to)
@@ -610,7 +613,8 @@ class LatexBot:
                                 self.analytics.message(msg.text, from_user)
                             try:
                                 if not await self.commands.process(command, args, self, to, from_user, msg.message_id):
-                                    await to.send_message(Command.get_access_denied_message(), self.msg_creator)
+                                    message = random.choice(self.config.access_denied_messages) if self.config.access_denied_messages else "Access denied."
+                                    await to.send_message(message, self.msg_creator)
                                     util.log("Access Denied")
                                 else:
                                     if self.analytics:

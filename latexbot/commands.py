@@ -645,25 +645,6 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         raise CommandError("Invalid sub-command. See `@latexbot help watch` for help.")
 
 
-YES_MSGS = [
-    "Yes.",
-    "I like it!",
-    "Brilliant!",
-    "Genius!",
-    "Do it!",
-    "It's good.",
-    ":thumbsup:",
-]
-NO_MSGS = [
-    "No.",
-    ":thumbsdown:",
-    "I hate it.",
-    "Please no.",
-    "It's bad.",
-    "It's stupid.",
-]
-
-
 @command(access_level=Command.ACCESS_LEVEL_EVERYONE)
 async def command_what_do_you_think(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
@@ -674,7 +655,7 @@ async def command_what_do_you_think(bot: "latexbot.LatexBot", chat: pyryver.Chat
     group: Entertainment Commands
     syntax: <thing>
     ---
-    > `@latexbot whatDoYouThink <insert controversial topic here>`
+    > `@latexbot whatDoYouThink <topic>`
     """
     args = args.lower()
     # Match configured opinions
@@ -688,8 +669,11 @@ async def command_what_do_you_think(bot: "latexbot.LatexBot", chat: pyryver.Chat
             else:
                 await chat.send_message(random.choice(opinion.opinion), bot.msg_creator)
                 return
-    msgs = NO_MSGS if hash(args) % 2 == 0 else YES_MSGS
-    await chat.send_message(random.choice(msgs), bot.msg_creator)
+    if hash(args) %2 == 0:
+        message = random.choice(bot.config.wdyt_no_messages) if bot.config.wdyt_no_messages else ":thumbsdown:"
+    else:
+        message = random.choice(bot.config.wdyt_yes_messages) if bot.config.wdyt_yes_messages else ":thumbsup:"
+    await chat.send_message(message, bot.msg_creator)
 
 
 @command(access_level=Command.ACCESS_LEVEL_EVERYONE)

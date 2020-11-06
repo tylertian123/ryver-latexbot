@@ -37,24 +37,6 @@ class Command:
         ACCESS_LEVEL_BOT_ADMIN: "**Accessible to Bot Admins only.**",
         ACCESS_LEVEL_MAINTAINER: "**Accessible to my Maintainer only.**"
     }
-
-    ACCESS_DENIED_MESSAGES = [
-        "I'm sorry Dave, I'm afraid I can't do that.",
-        "ACCESS DENIED",
-        "![NO](https://i.kym-cdn.com/photos/images/original/001/483/348/bdd.jpg)",
-        "This operation requires a higher access level. Please ask an admin.",
-        "Nice try.",
-        "![Access Denied](https://cdn.windowsreport.com/wp-content/uploads/2018/08/fix-access-denied-error-windows-10.jpg)",
-        "![No.](https://i.imgur.com/DKUR9Tk.png)",
-        "![No](https://pics.me.me/thumb_no-no-meme-face-hot-102-7-49094780.png)",
-    ]
-
-    @classmethod
-    def get_access_denied_message(cls) -> str:
-        """
-        Get an "access denied" message randomly chosen from ACCESS_DENIED_MESSAGES.
-        """
-        return cls.ACCESS_DENIED_MESSAGES[random.randrange(len(cls.ACCESS_DENIED_MESSAGES))]
     
     @classmethod
     async def get_access_level(cls, chat: pyryver.Chat, user: pyryver.User) -> int:

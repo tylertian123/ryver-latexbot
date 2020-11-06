@@ -143,6 +143,7 @@ class Config:
     """
 
     __slots__ = ("admins", "tz_str", "frc_team", "welcome_message",
+                 "access_denied_messages", "wdyt_yes_messages", "wdyt_no_messages",
                  "home_chat", "announcements_chat", "messages_chat",
                  "gh_updates_chat", "gh_issues_chat", "gh_users_map",
                  "calendar_id", "daily_message_time", "last_xkcd",
@@ -150,15 +151,19 @@ class Config:
                  "tzinfo", "calendar")
     
     def __init__(self, admins: typing.List[int], tz_str: str, frc_team: int, welcome_message: str, #NOSONAR
-                 home_chat: pyryver.Chat, announcements_chat: pyryver.Chat, messages_chat: pyryver.Chat,
-                 gh_updates_chat: pyryver.Chat, gh_issues_chat: pyryver.Chat, gh_users_map: typing.Dict[str, str],
-                 calendar_id: str, daily_message_time: datetime.time, last_xkcd: int,
-                 aliases: typing.List[Alias], access_rules: typing.Dict[str, AccessRule],
+                 access_denied_messages: typing.List[str], wdyt_yes_messages: typing.List[str],
+                 wdyt_no_messages: typing.List[str], home_chat: pyryver.Chat, announcements_chat: pyryver.Chat,
+                 messages_chat: pyryver.Chat, gh_updates_chat: pyryver.Chat, gh_issues_chat: pyryver.Chat,
+                 gh_users_map: typing.Dict[str, str], calendar_id: str, daily_message_time: datetime.time,
+                 last_xkcd: int, aliases: typing.List[Alias], access_rules: typing.Dict[str, AccessRule], 
                  macros: typing.Dict[str, str], opinions: typing.List[Opinion], command_prefixes: typing.List[str]):
         self.admins = admins
         self.tz_str = tz_str
         self.frc_team = frc_team
         self.welcome_message = welcome_message
+        self.access_denied_messages = access_denied_messages
+        self.wdyt_yes_messages = wdyt_yes_messages
+        self.wdyt_no_messages = wdyt_no_messages
         self.home_chat = home_chat
         self.announcements_chat = announcements_chat
         self.messages_chat = messages_chat
@@ -192,6 +197,9 @@ class ConfigSchema(Schema):
     tz_str = fields.Str(default=None, allow_none=True, required=True, data_key="organizationTimeZone")
     frc_team = fields.Int(default=None, allow_none=True, required=True, data_key="frcTeam")
     welcome_message = fields.Str(default=None, allow_none=True, required=True, data_key="welcomeMessage")
+    access_denied_messages = fields.List(fields.Str(), default=None, allow_none=True, required=True, data_key="accessDeniedMessages")
+    wdyt_yes_messages = fields.List(fields.Str(), default=None, allow_none=True, required=True, data_key="wdytYesMessages")
+    wdyt_no_messages = fields.List(fields.Str(), default=None, allow_none=True, required=True, data_key="wdytNoMessages")
     # Chats
     home_chat = ChatField(default=None, allow_none=True, required=True, data_key="homeChat")
     announcements_chat = ChatField(default=None, allow_none=True, required=True, data_key="announcementsChat")
