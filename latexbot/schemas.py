@@ -193,31 +193,31 @@ class ConfigSchema(Schema):
     Schema for the Config object.
     """
     # Misc config
-    admins = fields.List(fields.Int(), default=[], required=True)
-    tz_str = fields.Str(default=None, allow_none=True, required=True, data_key="organizationTimeZone")
-    frc_team = fields.Int(default=None, allow_none=True, required=True, data_key="frcTeam")
-    welcome_message = fields.Str(default=None, allow_none=True, required=True, data_key="welcomeMessage")
-    access_denied_messages = fields.List(fields.Str(), default=None, allow_none=True, required=True, data_key="accessDeniedMessages")
-    wdyt_yes_messages = fields.List(fields.Str(), default=None, allow_none=True, required=True, data_key="wdytYesMessages")
-    wdyt_no_messages = fields.List(fields.Str(), default=None, allow_none=True, required=True, data_key="wdytNoMessages")
+    admins = fields.List(fields.Int(), missing=[])
+    tz_str = fields.Str(missing=None, allow_none=True, data_key="organizationTimeZone")
+    frc_team = fields.Int(missing=None, allow_none=True, data_key="frcTeam")
+    welcome_message = fields.Str(missing=None, allow_none=True, data_key="welcomeMessage")
+    access_denied_messages = fields.List(fields.Str(), missing=None, allow_none=True, data_key="accessDeniedMessages")
+    wdyt_yes_messages = fields.List(fields.Str(), missing=None, allow_none=True, data_key="wdytYesMessages")
+    wdyt_no_messages = fields.List(fields.Str(), missing=None, allow_none=True, data_key="wdytNoMessages")
     # Chats
-    home_chat = ChatField(default=None, allow_none=True, required=True, data_key="homeChat")
-    announcements_chat = ChatField(default=None, allow_none=True, required=True, data_key="announcementsChat")
-    messages_chat = ChatField(default=None, allow_none=True, required=True, data_key="messagesChat")
+    home_chat = ChatField(missing=None, allow_none=True, data_key="homeChat")
+    announcements_chat = ChatField(missing=None, allow_none=True, data_key="announcementsChat")
+    messages_chat = ChatField(missing=None, allow_none=True, data_key="messagesChat")
     # GitHub integration
-    gh_updates_chat = ChatField(default=None, allow_none=True, required=True, data_key="ghUpdatesChat")
-    gh_issues_chat = ChatField(default=None, allow_none=True, required=True, data_key="ghIssuesChat")
-    gh_users_map = fields.Dict(fields.Str(), fields.Str(), default={}, required=True, data_key="ghUsersMap")
+    gh_updates_chat = ChatField(missing=None, allow_none=True, data_key="ghUpdatesChat")
+    gh_issues_chat = ChatField(missing=None, allow_none=True, data_key="ghIssuesChat")
+    gh_users_map = fields.Dict(fields.Str(), fields.Str(), missing={}, data_key="ghUsersMap")
     # Google Calendar integration & daily message
-    calendar_id = fields.Str(default=None, allow_none=True, required=True, data_key="googleCalendarId")
-    daily_message_time = fields.Time(default=None, allow_none=True, required=True, data_key="dailyMessageTime")
-    last_xkcd = fields.Int(default=0, required=True, data_key="lastXKCD")
+    calendar_id = fields.Str(missing=None, allow_none=True, data_key="googleCalendarId")
+    daily_message_time = fields.Time(missing=None, allow_none=True, data_key="dailyMessageTime")
+    last_xkcd = fields.Int(missing=0, data_key="lastXKCD")
     # Advanced config
-    aliases = fields.List(fields.Nested(AliasSchema), default=[], required=True)
-    access_rules = fields.Dict(fields.Str(), fields.Nested(AccessRuleSchema), default={}, required=True, data_key="accessRules")
-    macros = fields.Dict(fields.Str(), fields.Str(), default={}, required=True)
-    opinions = fields.List(fields.Nested(OpinionSchema), default=[], required=True)
-    command_prefixes = fields.List(fields.Str(), default=["@latexbot "], required=True, data_key="commandPrefixes")
+    aliases = fields.List(fields.Nested(AliasSchema), missing=[])
+    access_rules = fields.Dict(fields.Str(), fields.Nested(AccessRuleSchema), missing={}, data_key="accessRules")
+    macros = fields.Dict(fields.Str(), fields.Str(), missing={})
+    opinions = fields.List(fields.Nested(OpinionSchema), missing=[])
+    command_prefixes = fields.List(fields.Str(), missing=["@latexbot "], data_key="commandPrefixes")
 
     @decorators.validates("tz_str")
     def validate_tz(self, value: str): # pylint: disable=no-self-use, missing-function-docstring
@@ -248,8 +248,8 @@ class KeywordSchema(Schema):
     """
     
     keyword = fields.Str(required=True)
-    whole_word = fields.Bool(default=False, required=True, data_key="wholeWord")
-    match_case = fields.Bool(default=False, required=True, data_key="matchCase")
+    whole_word = fields.Bool(missing=False, data_key="wholeWord")
+    match_case = fields.Bool(missing=False, data_key="matchCase")
 
     @decorators.post_load
     def make_obj(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use, missing-function-docstring
@@ -275,9 +275,9 @@ class KeywordWatchSchema(Schema):
     Schema for the KeywordWatch object.
     """
     
-    on = fields.Bool(default=True, required=True)
-    activity_timeout = fields.Float(default=180.0, required=True, data_key="activityTimeout")
-    keywords = fields.List(fields.Nested(KeywordSchema), default=[], required=True)
+    on = fields.Bool(missing=True)
+    activity_timeout = fields.Float(missing=180.0, data_key="activityTimeout")
+    keywords = fields.List(fields.Nested(KeywordSchema), missing=[])
     _suppressed = fields.Float(required=False)
 
     @decorators.post_load
@@ -290,9 +290,9 @@ class AnalyticsSchema(Schema):
     Schema for the Analytics object (defined in analytics.py).
     """
 
-    command_usage = fields.Dict(fields.Str(), fields.Dict(fields.Int(), fields.Int()), default={}, required=True, data_key="commandUsage")
-    message_activity = fields.Dict(fields.Int(), fields.Int(), default={}, required=True, data_key="messageActivity")
-    shutdowns = fields.List(fields.Int(), default=[], required=True)
+    command_usage = fields.Dict(fields.Str(), fields.Dict(fields.Int(), fields.Int()), missing={}, data_key="commandUsage")
+    message_activity = fields.Dict(fields.Int(), fields.Int(), missing={}, data_key="messageActivity")
+    shutdowns = fields.List(fields.Int(), missing=[])
 
     @decorators.post_load
     def make_obj(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use, missing-function-docstring

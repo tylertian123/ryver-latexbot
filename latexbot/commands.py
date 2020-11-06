@@ -2146,9 +2146,6 @@ async def command_import_config(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     """
     Import config from JSON.
 
-    Changed in 0.9.0: If a config field is not present in the JSON, it will be reset back
-    to its default value.
-
     If a file is attached to this message, the config will always be imported from the file.
     ---
     group: Miscellaneous Commands

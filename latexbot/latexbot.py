@@ -156,11 +156,11 @@ class LatexBot:
             msg += util.format_validation_error(e)
             msg += "\n\nConfig will be loaded with those values set to their defaults.\n\n"
             try:
-                # Ignore errors by loading only the valid data and allowing partial loads
-                self.config = schemas.config.load(e.valid_data, partial=True)
+                # Ignore errors by loading only the valid data
+                self.config = schemas.config.load(e.valid_data)
             except marshmallow.ValidationError:
                 msg += "\n\nEncountered more errors trying to load the valid fields. Falling back to empty config."
-                self.config = schemas.config.load({}, partial=True)
+                self.config = schemas.config.load({})
         # Extra step: Verify that the GitHub Issues chat has a task board with categories
         if self.config.gh_issues_chat is not None:
             self.gh_issues_board = await self.config.gh_issues_chat.get_task_board()
@@ -224,7 +224,7 @@ class LatexBot:
                 if self.maintainer is not None:
                     await self.maintainer.send_message(err, self.msg_creator)
         except (json.JSONDecodeError, FileNotFoundError) as e:
-            msg = f"Watches does not exist or is not valid json: {e}. Falling back to empty."
+            msg = f"Watches do not exist or is not valid json: {e}. Falling back to empty."
             util.log(msg)
             if self.maintainer is not None:
                 await self.maintainer.send_message(msg, self.msg_creator)
@@ -249,10 +249,10 @@ class LatexBot:
                 msg = f"Encountered errors while loading analytics:\n{util.format_validation_error(e)}"
                 msg += "\n\nAnalytics data will be loaded with those values set to their defaults.\n\n"
                 try:
-                    self.analytics = schemas.analytics.load(e.valid_data, partial=True)
+                    self.analytics = schemas.analytics.load(e.valid_data)
                 except marshmallow.ValidationError:
                     msg += "\n\nEncountered more errors trying to load the valid fields. Falling back to empty data."
-                    self.analytics = schemas.analytics.load({}, partial=True)
+                    self.analytics = schemas.analytics.load({})
                 util.log(msg)
                 if self.maintainer is not None:
                     await self.maintainer.send_message(msg, self.msg_creator)
