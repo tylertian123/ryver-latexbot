@@ -688,9 +688,21 @@ Below is an illustration of the JSON config file format:
     // ...
   },
   "macros": { // A mapping of macro names to expansions
-    ".shrug": "\u00af\\\\_(\u30c4)\\_/\u00af",
+    "shrug": "\u00af\\\\_(\u30c4)\\_/\u00af",
     // ...
-  }
+  },
+  "accessDeniedMessages": [ // A list of possible responses when a user tries to access an inaccessible command
+    "I'm sorry Dave, I'm afraid I can't do that.",
+    // ...
+  ],
+  "wdytYesMessages": [ // A list of possible positive responses for the whatDoYouThink command
+    ":thumbsup:",
+    // ...
+  ],
+  "wdytNoMessages": [ // A list of possible negative responses for the whatDoYouThink command
+    ":thumbsup:",
+    // ...
+  ]
 }
 ```
 

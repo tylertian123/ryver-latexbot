@@ -14,6 +14,7 @@ There are a lot of other neat features:
 - Toggleable daily events reminders, new xkcd and holidays checks
 - Built-in singleplayer or multiplayer trivia game
 - Flexible command access management with Access Levels and Access Rules
+- Macros in chat messages
 
 For an (almost) complete list of what LaTeX Bot can do, check out `usage_guide.md`.
 
@@ -44,7 +45,6 @@ This project is powered by:
 - Checkiday (https://www.checkiday.com)
 - The Blue Alliance (https://www.thebluealliance.com)
 - Open Trivia Database (https://opentdb.com)
-- ~~QuickLaTeX (https://quicklatex.com/)~~ (Before v0.5.0)
 - Google Calendar
 - GitHub
 
@@ -53,61 +53,11 @@ And uses the following open-source libraries:
 - [`markdownify`](https://pypi.org/project/markdownify/)
 - [`python-dateutil`](https://pypi.org/project/python-dateutil/)
 - [`google-api-python-client` (+Friends)](https://pypi.org/project/google-api-python-client/)
+- [`lark-parser`](https://pypi.org/project/lark-parser/)
+- [`marshmallow`](https://pypi.org/project/marshmallow/)
 - [`pyryver`](https://pypi.org/project/pyryver/)
 
-Many thanks to the developers of these services and APIs for making LaTeX Bot possible.
-
-# Commands
-Here is a list of commands supported by LaTeX Bot (auto generated, as of commit `35f1c5f`):
-
-General Commands:
-  - `@latexbot render <formula>` - Render a LaTeX formula. 
-  - `@latexbot chem <formula>` - Render a chemical formula. 
-  - `@latexbot renderSimple <expression>` - Render a "simple" mathematical expression. 
-  - `@latexbot help [command]` - Get a list of all the commands, or details about a command. 
-  - `@latexbot ping` - I will respond with 'Pong' if I'm here. 
-  - `@latexbot whatDoYouThink <thing>` - Ask my opinion of a thing! 
-  - `@latexbot xkcd [number]` - Get the latest xkcd or a specific xkcd by number. 
-  - `@latexbot checkiday [date]` - Get a list of today's holidays or holidays for any date. 
-  - `@latexbot tba <sub-command> [args]` - Query TheBlueAlliance. 
-  - `@latexbot trivia <sub-command> [args]` - Play a game of trivia. See extended description for details. 
-  - `@latexbot watch [sub-command] [args]` - Configure your keyword watches. 
-
-Administrative Commands:
-  - `@latexbot deleteMessages [<start>-]<end|count>` - Delete messages. **Accessible to Forum, Org and Bot Admins only.**
-  - `@latexbot moveMessages [<start>-]<end|count> [(name|nickname|username|email|id|jid)=][+|@]<forum|team|user>` - Move messages to another forum or team. **Accessible to Forum, Org and Bot Admins only.**
-  - `@latexbot countMessagesSince <pattern>` - Count the number of messages since the first message that matches a pattern. **Accessible to Forum, Org and Bot Admins only.**
-
-Roles Commands:
-  - `@latexbot roles [user|role]` - Get information about roles. 
-  - `@latexbot addToRole <roles> <people>` - Add people to a role. **Accessible to Org and Bot Admins only.**
-  - `@latexbot removeFromRole <roles> <people>` - Remove people from a role. **Accessible to Org and Bot Admins only.**
-  - `@latexbot deleteRole <roles>` - Completely delete a role, removing all users from that role. **Accessible to Org and Bot Admins only.**
-  - `@latexbot exportRoles` - Export roles data as a JSON. 
-  - `@latexbot importRoles <data|fileattachment>` - Import JSON roles data from the message, or from a file attachment. **Accessible to Org and Bot Admins only.**
-
-Events/Google Calendar Commands:
-  - `@latexbot events [count]` - Display information about ongoing and upcoming events from Google Calendar. 
-  - `@latexbot addEvent <name> <startdate> [starttime] <enddate> [endtime] [description on a new line]` - Add an event to Google Calendar. **Accessible to Org and Bot Admins only.**
-  - `@latexbot quickAddEvent <event>` - Add an event to Google Calendar based on a simple text string. **Accessible to Org and Bot Admins only.**
-  - `@latexbot deleteEvent <name>` - Delete an event by name from Google Calendar. **Accessible to Org and Bot Admins only.**
-
-Developer Commands:
-  - `@latexbot setEnabled true|false` - Enable or disable me. **Accessible to Bot Admins only.**
-  - `@latexbot kill` - Kill me (:fearful:). **Accessible to Bot Admins only.**
-  - `@latexbot sleep <seconds>` - Put me to sleep. **Accessible to Bot Admins only.**
-  - `@latexbot execute <code>` - Execute arbitrary Python code. **Accessible to Bot Admins only.**
-  - `@latexbot updateChats` - Update the cached list of forums/teams and users. **Accessible to Forum, Org and Bot Admins only.**
-
-Miscellaneous Commands:
-  - `@latexbot alias [create|delete] [args]` - Manage aliases. **Accessible to Org and Bot Admins only.**
-  - `@latexbot exportConfig` - Export config as a JSON. 
-  - `@latexbot importConfig <data>` - Import config from JSON. **Accessible to Org and Bot Admins only.**
-  - `@latexbot accessRule [command] [action] [ruletype] [args]` - View or modify access rules. **Accessible to Org and Bot Admins only.**
-  - `@latexbot setDailyMessageTime [time]` - Set the time daily messages are sent each day or turn them on/off. **Accessible to Org and Bot Admins only.**
-  - `@latexbot dailyMessage` - Send the daily message. **Accessible to Forum, Org and Bot Admins only.**
-
-For more details, see `usage_guide.md`.
+Many thanks to the developers of these services, libraries and APIs for making LaTeX Bot possible.
 
 # Feature Showcase
 Rendering LaTeX and simple equations:  
