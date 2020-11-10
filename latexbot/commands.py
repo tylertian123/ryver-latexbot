@@ -615,6 +615,7 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
         if user.get_id() not in bot.keyword_watches:
             bot.keyword_watches[user.get_id()] = get_default_settings()
         bot.keyword_watches[user.get_id()].on = True if args[0] == "on" else False
+        bot.rebuild_automaton()
         bot.save_watches()
         await chat.send_message(f"Turned keyword watch notifications **{args[0]}**.", bot.msg_creator)
     elif args[0] == "activityTimeout":
@@ -2389,7 +2390,7 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     > `@latexbot dailyMessage` - Send the daily message.
     """
     if bot.analytics:
-        bot.analytics.save()
+        bot.save_analytics()
     await bot.update_cache()
     now = bot.current_time()
 

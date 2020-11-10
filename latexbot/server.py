@@ -347,16 +347,7 @@ class Server:
         """
         if self.bot.analytics is None:
             return aiohttp.web.Response(text="Analytics are not enabled.", status=404)
-        try:
-            with open(self.bot.analytics.file, "r") as f:
-                data = f.read()
-        except FileNotFoundError:
-            data = json.dumps({
-                "commandUsage": self.bot.analytics.command_usage,
-                "shutdowns": self.bot.analytics.shutdowns,
-                "messageActivity": self.bot.analytics.message_activity,
-            })
-        return aiohttp.web.Response(text=data, status=200, content_type="application/json")
+        return aiohttp.web.Response(text=self.bot.analytics.dumps(), status=200, content_type="application/json")
     
     @basicauth("write", "Message Sending")
     async def _message_handler_post(self, req: aiohttp.web.Request):
