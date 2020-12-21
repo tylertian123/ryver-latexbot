@@ -1166,6 +1166,8 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
             raise CommandError("Chat not found.")
         if isinstance(to, pyryver.User):
             raise CommandError("Can't move messages to a DM.")
+        if await to.get_member(user) is None:
+            raise CommandError("Can't move messages to a forum/team you're not a part of.")
     except ValueError as e:
         raise CommandError(str(e)) from e
 

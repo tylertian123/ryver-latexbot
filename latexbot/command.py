@@ -179,7 +179,7 @@ class CommandSet:
                 # Don't generate a warning for commands with no processors
                 continue
 
-            if cmd.get_processor().__doc__ == "":
+            if cmd.get_processor().__doc__ is None or cmd.get_processor().__doc__ == "":
                 util.log(f"Warning: Command {name} has no documentation, skipped")
                 continue
 
