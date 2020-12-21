@@ -45,7 +45,7 @@ You can either use an organization webhook or a repository webhook, although an 
 Follow [this guide](https://developer.github.com/webhooks/creating/) to set up a webhook for LaTeX Bot.
 
 By default, LaTeX Bot will host the server on port 80.
-This can be changed using the `LATEXBOT_SERVER_PORT` env var.
+This can be changed using the `LATEXBOT_SERVER_PORT` env var (note this affects the container, modify the compose file to change the port on the host).
 The endpoint for the webhook is at `/github`.
 The payload must be set as `application/json` and not `application/x-www-form-urlencoded`.
 
@@ -76,17 +76,16 @@ Additionally, in order for assignment/unassignment to work, the assigned GitHub 
 
 ## Building
 
-Once you have completed the above steps, use `docker-compose build` and `docker-compose push` to build and push your images to the registry you named in the above section. Make sure the
-`calendar_credentials.json` file is present for this step.
+Once you have completed the above steps, use `docker-compose build` and `docker-compose push` to build and push your images to the registry you named in the above section. Make sure the`calendar_credentials.json` file is present for this step if you're building it into the container and not loading it via a secret and  `LATEXBOT_CALENDAR_CRED_FILE`.
 
-Do note that the `tex-slave` image, used to render all LaTeX is rather large, usually around a gigabyte in size.
+Do note that the `tex-slave` image, used to render all LaTeX, is rather large, usually around a gigabyte in size.
 
 ## Deploying
 
-If you use a management UI for your swarm which does not allow you to set environment variables, such as Swarmpit, you should change the `LATEXBOT_ORG`, `LATEXBOT_USER` and `LATEXBOT_PASS` variables
+If you use a management UI for your swarm which does not allow you to set environment variables, such as Swarmpit, you should change at minimum the `LATEXBOT_ORG`, `LATEXBOT_USER` and `LATEXBOT_PASS` variables
 in the `docker-compose.yml` file to appropriate values (see below).
 
-If you are deploying directly from the terminal, first set the following environment variables:
+If you are deploying directly from the terminal, first set at minimum the following environment variables:
 
 - `LATEXBOT_ORG`: your organization's name, as seen in the URL
 - `LATEXBOT_USER`: the username of the account set aside for LaTeX Bot
