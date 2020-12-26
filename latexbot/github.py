@@ -208,7 +208,7 @@ def format_event_pull_request_review(data: typing.Dict[str, typing.Any]) -> str:
         state = "approving"
     elif data["review"]["state"] == "changes_requested":
         state = "requesting changes to"
-    
+
     if data['action'] == "submitted":
         resp += f"submitted [a review]({data['review']['html_url']}) **{state}** pull request {description}:\n\n"
         resp += markdownify(data["review"]["body"])

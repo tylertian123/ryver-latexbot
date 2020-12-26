@@ -3,9 +3,12 @@ This module contains command definitions for LaTeX Bot.
 """
 import aiohttp
 import asyncio
+import binascii
 import io
 import json
 import lark
+import nffu
+import os
 import pyryver
 import random
 import re
@@ -85,15 +88,15 @@ async def command_render_simple(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     Simple math expressions are designed to be easy to read and type, especially when compared to the
     verbosity of LaTeX. For example, the expression `sin(sqrt(e^x + a) / 2)` is much easier to read than
     `\sin\left(\frac{\sqrt{e^{x}+a}}{2}\right)`. Most of the supported operations are pretty intuitive,
-    such as entering a basic expression with brackets and arithmetic operations. Some things that may not 
+    such as entering a basic expression with brackets and arithmetic operations. Some things that may not
     be immediately obvious are outlined below.
 
     Divisions are automatically converted into fractions and will follow order of operations.
     Use brackets if you wish to make a large fraction, e.g. `(sinx+cos^2x)^2/(y+1)`.
-    
+
     In expressions where brackets are unnecessary, such as fractions, powers, subscripts, etc, the outermost
-    brackets will be stripped away if there is a pair. This means that in many cases you can add brackets to 
-    clarify exactly what you mean, without having those brackets clutter up the final output. 
+    brackets will be stripped away if there is a pair. This means that in many cases you can add brackets to
+    clarify exactly what you mean, without having those brackets clutter up the final output.
 
     The `%` operator is a modulo. The `**` operator can be used for exponentiation in place of `^`.
     There are also comparison operators, including `=`, `!=` (not equal), `>`, `<`, `>=` (greater than or
@@ -107,7 +110,7 @@ async def command_render_simple(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     and the x is left as the argument to sin.
 
     When implicitly multiplying a variable and a function, there needs to be a space between them. E.g. `x sinx`
-    and not `xsinx`, as the latter will get parsed as a single variable. There does not need to be a space 
+    and not `xsinx`, as the latter will get parsed as a single variable. There does not need to be a space
     between the function name and its argument, even when not using brackets.
 
     To do a square root, cube root, or nth root use `sqrt x`, `cbrt x`, and `root[n] x` respectively.
@@ -128,7 +131,7 @@ async def command_render_simple(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     You can insert subscripts explicitly with `_`, e.g. `x_i`, or automatically by putting a number right
     after a letter, e.g. `x1`.
 
-    You can use `inf` or `oo` for an infinity symbol and `...` for an ellipsis. 
+    You can use `inf` or `oo` for an infinity symbol and `...` for an ellipsis.
 
     Factorials (`!`), primes (`'`, `''`, ...) are also supported, along with square braces, curly braces and
     absolute values.
@@ -138,7 +141,7 @@ async def command_render_simple(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     e.g. `sin\theta`.
 
     *It should be noted that because of grammar ambiguities, expression parsing can take a long time for large
-    expressions or expressions with many possible interpretations. For this reason, if the conversion from 
+    expressions or expressions with many possible interpretations. For this reason, if the conversion from
     simple expression to LaTeX expression does not finish in 20 seconds, it will time out.*
     ---
     group: General Commands
@@ -186,6 +189,7 @@ async def command_help(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
             level = await Command.get_access_level(chat, user)
             resp = "Showing commands that you have access to."
         else:
+            level = None # Wont be used
             resp = "Showing all commands."
         for group, commands in bot.help.items():
             group_desc = group + ":"
@@ -251,9 +255,9 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
     Note that districts and events are specified by code and not name, e.g. "ONT", "ONOSH" (case-insensitive).
 
     For all commands, the word "team" can be abbreviated as "t", "district(s)" can be abbreviated as "d",
-    "event(s)" can be abbreviated as "e", and "ranking(s)" can be abbreviated as "r". They are also 
+    "event(s)" can be abbreviated as "e", and "ranking(s)" can be abbreviated as "r". They are also
     case-insensitive.
-    E.g. `districtEvents` can be abbreviated as `dEvents`, `districtE` or `dE`. 
+    E.g. `districtEvents` can be abbreviated as `dEvents`, `districtE` or `dE`.
 
     Some of these commands make use of *ranges*. A range can be one of the following:
     - A single number, e.g. "10" for the top 10 results.
@@ -271,7 +275,7 @@ async def command_tba(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryve
     > `@latexbot tba districts` - Get the districts for the current year.
     > `@latexbot tba districtRankings ONT 2020 30` - Get the top 30 ranked teams in the ONT district in 2020.
     > `@latexbot tba districtEvents ONT` - Get the events in the ONT district for the current year.
-    > `@latexbot tba districtEvents ONT 2020 2` - Get all week 2 events in the ONT district in 2020. 
+    > `@latexbot tba districtEvents ONT 2020 2` - Get all week 2 events in the ONT district in 2020.
     > `@latexbot tba event ONOSH 2020` - Get info about the ONOSH event in 2020.
     > `@latexbot tba eventRankings ONOSH` - Get the rankings for the ONOSH event for the current year.
     """
@@ -500,7 +504,7 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     specify whether the keyword is case-sensitive and should match whole words only, and can be
     "true"/"false" or "yes"/"no". Both are false by default.
     - `delete <keyword-number>` - Delete a keyword *by number*. Keyword numbers can be obtained by
-    listing them through `@latexbot watch`. 
+    listing them through `@latexbot watch`.
     - `delete all` - Delete *all* of your keyword watches.
     - `on`, `off` - Turn keyword watch notifications on or off.
     - `activityTimeout <seconds>` - Set your activity timeout. This is the duration in seconds that
@@ -559,7 +563,7 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     if args[0] == "add":
         if not 2 <= len(args) <= 4:
             raise CommandError("Invalid number of arguments. See `@latexbot help watch` for help.")
-    
+
         if len(args) >= 3:
             arg = args[2].lower()
             if arg == "true" or arg == "yes":
@@ -580,7 +584,7 @@ async def command_watch(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
                 raise CommandError("Invalid argument for whole word option. See `@latexbot help watch` for help.")
         else:
             whole_word = False
-        
+
         if not args[1]:
             raise CommandError("Empty keywords are not allowed.")
         if user.get_id() not in bot.keyword_watches:
@@ -696,7 +700,7 @@ async def command_xkcd(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
             raise CommandError("Invalid number.") from e
     else:
         number = None
-    
+
     try:
         comic = await xkcd.get_comic(number)
         if not comic:
@@ -739,10 +743,10 @@ async def command_checkiday(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
 @command(access_level=Command.ACCESS_LEVEL_EVERYONE)
 async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
-    Play a game of trivia. See extended description for details. 
-    
+    Play a game of trivia. See extended description for details.
+
     Powered by [Open Trivia Database](https://opentdb.com/).
-    
+
     The trivia command has several sub-commands. Here are each one of them:
     - `categories` - Get all the categories and their IDs, which are used later to start a game.
     - `start [category] [difficulty] [type]` - Start a game with an optional category, difficulty and type. The category can be an ID, a name from the `categories` command, 'all' (all regular questions, no custom), or 'custom' (all custom questions, no regular). If the name contains a space, it must be surrounded with quotes. The difficulty can be "easy", "medium" or "hard". The type can be either "true/false" or "multiple-choice". You can also specify "all" for any of the categories.
@@ -762,7 +766,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     - The participants use `@latexbot trivia scores` to check the scores during the game
     - The "host" uses `@latexbot trivia end` to end the game
 
-    Since LaTeX Bot v0.6.0, there can be multiple games per organization. 
+    Since LaTeX Bot v0.6.0, there can be multiple games per organization.
     However, there can still only be one game per chat. This also includes your private messages with LaTeX Bot.
     After 15 minutes of inactivity, the game will end automatically.
 
@@ -801,10 +805,10 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     else:
         cmd = args
         sub_args = ""
-    
+
     if cmd == "exportCustomQuestions":
         if await bot.commands.commands["trivia exportCustomQuestions"].is_authorized(bot, chat, user):
-            await util.send_json_data(chat, trivia.CUSTOM_TRIVIA_QUESTIONS, "Custom Questions:", 
+            await util.send_json_data(chat, trivia.CUSTOM_TRIVIA_QUESTIONS, "Custom Questions:",
                                       "trivia.json", bot.user, bot.msg_creator)
             return
         else:
@@ -825,7 +829,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         sub_args = shlex.split(sub_args)
     except ValueError as e:
         raise CommandError(f"Invalid syntax: {e}") from e
-    
+
     if cmd == "games":
         if not bot.trivia_games:
             await chat.send_message("No games are ongoing.", bot.msg_creator)
@@ -845,11 +849,11 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     elif cmd == "start":
         if len(sub_args) > 3:
             raise CommandError("Invalid syntax. See `@latexbot help trivia` for details.")
-        
+
         if chat.get_id() in bot.trivia_games:
             game = bot.trivia_games[chat.get_id()]
             raise CommandError(f"A game started by {game.get_user_name(game.game.host)} already exists in this chat.")
-        
+
         # Try parsing the category
         if len(sub_args) >= 1:
             try:
@@ -890,7 +894,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             category = None
             difficulty = None
             question_type = None
-        
+
         # Try parsing the difficulty
         if len(sub_args) >= 2:
             try:
@@ -905,7 +909,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
         else:
             difficulty = None
             question_type = None
-        
+
         # Try parsing the type
         if len(sub_args) >= 3:
             try:
@@ -918,7 +922,7 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
                 raise CommandError("Invalid question type! Allowed types are 'true/false', 'multiple-choice' or 'all'.") from e
         else:
             question_type = None
-        
+
         # Start the game!
         game = trivia.TriviaGame()
         game.set_category(category)
@@ -939,11 +943,11 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             raise CommandError("Invalid syntax. See `@latexbot help trivia` for details.")
         if chat.get_id() not in bot.trivia_games:
             raise CommandError("Game not started! Use `@latexbot trivia start [category] [difficulty] [type]` to start a game.")
-        
+
         game = bot.trivia_games[chat.get_id()]
         if game.game.current_question["answered"]:
             raise CommandError("The current question has already been answered. Use `@latexbot trivia question` to get the next question.")
-        
+
         try:
             # Subtract 1 for correct indexing
             answer = int(sub_args[0]) - 1
@@ -960,10 +964,10 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
                     raise CommandError("Please answer 'true' or 'false' or an option number!") from e
             else:
                 raise CommandError("Answer must be an option number, not text!") from e
-        
+
         if answer < 0 or answer >= len(game.game.current_question["answers"]):
             raise CommandError("Invalid answer number!")
-        
+
         await game.answer(answer, user.get_id())
     elif cmd == "scores":
         if chat.get_id() not in bot.trivia_games:
@@ -1011,7 +1015,7 @@ async def reaction_trivia(bot: "latexbot.LatexBot", ryver: pyryver.Ryver, sessio
             user = ryver.get_user(id=data["userId"])
             if user == bot.user:
                 return
-                
+
             # Scoreboard
             if data["reaction"] == "trophy":
                 await game.send_scores()
@@ -1042,7 +1046,7 @@ async def reaction_trivia(bot: "latexbot.LatexBot", ryver: pyryver.Ryver, sessio
                     answer = 1
                 else:
                     return
-            
+
             await game.answer(answer, data["userId"])
             break
 
@@ -1180,7 +1184,7 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
         msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
 
     await to.send_message(f"# Begin Moved Message from {chat.get_name()}\n\n---", bot.msg_creator)
-    
+
     # Delete all the messages asynchronously in the background with multiple workers
     # This way the only bottleneck is sending the messages
     delete_task = asyncio.ensure_future(util.process_concurrent(msgs, pyryver.ChatMessage.delete, 7))
@@ -1405,9 +1409,9 @@ async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     """
     Get information about roles.
 
-    The roles system allow you to mention a group of people at once through 
+    The roles system allow you to mention a group of people at once through
     Discord-style role mentions like @RoleName. When a mention like this is
-    detected, LaTeX Bot will automatically replace it with mentions for the 
+    detected, LaTeX Bot will automatically replace it with mentions for the
     people with that role. Note that role names work like Ryver usernames, ie
     they can only contain alphanumeric characters and underscores, and are
     case-insensitive.
@@ -1458,7 +1462,7 @@ async def command_add_to_role(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     """
     Add people to a role.
 
-    Note that role names work like Ryver usernames, ie they can only contain 
+    Note that role names work like Ryver usernames, ie they can only contain
     alphanumeric characters and underscores, and are case-insensitive.
 
     Roles are in a comma-separated list, e.g. Foo,Bar,Baz.
@@ -1530,7 +1534,7 @@ async def command_remove_from_role(bot: "latexbot.LatexBot", chat: pyryver.Chat,
         if role not in bot.roles:
             await chat.send_message(f"Error: The role {role} does not exist. Skipping...", bot.msg_creator)
             continue
-        
+
         for username in usernames:
             user = bot.ryver.get_user(username=username)
             if user is None:
@@ -1577,7 +1581,7 @@ async def command_delete_role(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
 @command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
 async def command_export_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
-    Export roles data as a JSON. 
+    Export roles data as a JSON.
 
     If the data is less than 3900 characters long, it will be sent as a chat message.
     Otherwise it will be sent as a file attachment.
@@ -1616,7 +1620,7 @@ async def command_import_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
             raise CommandError(f"File needs to be encoded with utf-8! The following decode error occurred: {e}") from e
     else:
         data = args
-    
+
     try:
         bot.roles = CaseInsensitiveDict(json.loads(data))
         bot.save_roles()
@@ -1630,7 +1634,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     """
     Display information about ongoing and upcoming events from Google Calendar.
 
-    If the count is not specified, this command will display the next 3 events. 
+    If the count is not specified, this command will display the next 3 events.
     This number includes ongoing events.
     ---
     group: Events/Google Calendar Commands
@@ -1646,13 +1650,13 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             raise ValueError
     except ValueError as e:
         raise CommandError("Invalid number.") from e
-    
+
     events = bot.config.calendar.get_upcoming_events(count)
 
     now = bot.current_time()
     ongoing = []
     upcoming = []
-    
+
     # Process all the events
     for event in events:
         start = Calendar.parse_time(event["start"])
@@ -1782,7 +1786,7 @@ async def command_add_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
         raise CommandError(f"Invalid syntax: {e}") from e
     if len(args) != 3 and len(args) != 5:
         raise CommandError("Invalid syntax. Check `@latexbot help addEvent` for help. You may have to use quotes if any of the parameters contain spaces.")
-    
+
     # No times specified
     if len(args) == 3:
         start = util.tryparse_datetime(args[1], util.ALL_DATE_FORMATS)
@@ -1813,7 +1817,7 @@ async def command_add_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
         end_time = util.tryparse_datetime(args[4], util.ALL_TIME_FORMATS)
         if not end_time:
             raise CommandError(f"The time {args[4]} uses an invalid format. Check `@latexbot help addEvent` for valid formats.")
-        
+
         # Merge to get datetimes
         start = datetime.combine(start_date, start_time.time())
         end = datetime.combine(end_date, end_time.time())
@@ -1862,13 +1866,13 @@ async def command_delete_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     args = args.lower()
     events = bot.config.calendar.get_upcoming_events()
     matched_event = None
-    
+
     for event in events:
         # Found a match
         if args in event["summary"].lower():
             matched_event = event
             break
-    
+
     if matched_event:
         bot.config.calendar.remove_event(matched_event["id"])
         # Format the start and end of the event into strings
@@ -2047,7 +2051,7 @@ async def command_alias(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     elif args[0] == "delete":
         if len(args) != 2:
             raise CommandError("Invalid syntax.")
-        
+
         for i, alias in enumerate(bot.config.aliases):
             if alias.from_ == args[1]:
                 del bot.config.aliases[i]
@@ -2177,7 +2181,7 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     Access rules are a powerful and flexible way of controlling access to commands.
     They work together with access levels to grant and restrict access.
 
-    Each command may have a number of access rules associated with it. 
+    Each command may have a number of access rules associated with it.
     Here are all the types of access rules:
     - `level`: Override the access level of the command. Each access level is represented by a number. See [the usage guide](https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md#access-levels) for more details.
     - `allowUser`: Allow a user to access the command regardless of their access level.
@@ -2204,7 +2208,7 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
     The rule type is one of the 5 access rule types mentioned above (`level`, `allowUser`, etc).
     The argument(s) are one or more values for the operation, e.g. users to add to the allow list.
     Note that the `set` action can only take one argument.
-    
+
     See the examples below.
     ---
     group: Miscellaneous Commands
@@ -2253,7 +2257,7 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
             try:
                 level = int(args[3])
             except ValueError as e:
-                raise CommandError(f"Invalid access level: {level}. Access levels must be integers. See `@latexbot help accessRule` for details.") from e
+                raise CommandError(f"Invalid access level: {args}. Access levels must be integers. See `@latexbot help accessRule` for details.") from e
             # Set the rules
             rules = bot.config.access_rules.get(args[0])
             if rules is None:
@@ -2334,7 +2338,7 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
                 bot.config.access_rules.pop(args[0])
         else:
             raise CommandError(f"Error: Invalid action: {args[1]}. See `@latexbot help accessRule` for details.")
-        
+
         bot.update_help()
         bot.save_config()
         await chat.send_message("Operation successful.", bot.msg_creator)
@@ -2362,10 +2366,10 @@ async def command_set_daily_message_time(bot: "latexbot.LatexBot", chat: pyryver
             bot.config.daily_message_time = datetime.strptime(args, "%H:%M").time()
         except ValueError as e:
             raise CommandError("Invalid time format.") from e
-    
+
     # Schedule or unschedule the daily message task
     bot.schedule_daily_message()
-    
+
     bot.save_config()
     if bot.config.daily_message_time:
         await chat.send_message(f"Messages will now be sent at {args} daily.", bot.msg_creator)
@@ -2418,7 +2422,7 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
                     # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
                     resp += f"\u200B:\n{markdownify(event['description'])}"
             await bot.config.announcements_chat.send_message(resp, bot.msg_creator)
-    
+
     url = f"https://www.checkiday.com/api/3/?d={now.strftime('%Y/%m/%d')}"
     async with aiohttp.request("GET", url) as resp:
         if resp.status != 200:
@@ -2445,6 +2449,24 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
         # Update xkcd number
         bot.config.last_xkcd = comic['num']
         bot.save_config()
+
+
+@command(access_level=Command.ACCESS_LEVEL_BOT_ADMIN)
+async def command_nffu_code(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Generate an nffu signup code.
+    ---
+    group: Miscellaneous Commands
+    syntax:
+    """
+    NFFU_URL = "https://nffu-staging.i.mm12.xyz"
+    try:
+        code = nffu.generate_signup_code(binascii.unhexlify(os.environ["LATEXBOT_NFFU_HMAC"]), int(time.time()))
+        await chat.send_message(f"Sign up at {NFFU_URL}/signup with code `{code}`, or at {NFFU_URL}/signup/with/{code}.", bot.msg_creator)
+    except KeyError as e:
+        raise CommandError("This feature is unavailable because no nffu HMAC secret was provided. Please contact an admin for help.") from e
+    except binascii.Error as e:
+        raise CommandError("This feature is unavailable because the nffu HMAC secret is invalid. Please contact an admin for help.") from e
 
 
 @command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)

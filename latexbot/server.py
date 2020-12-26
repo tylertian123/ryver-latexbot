@@ -45,7 +45,7 @@ def basicauth(level: str, realm: str = None):
                                     authorized = True
                 except ValueError:
                     pass
-            
+
             if not authorized:
                 if authenticated:
                     return aiohttp.web.Response(body="You need a higher access level for this resource.", status=403)
@@ -75,7 +75,7 @@ class Server:
             self.icon_href = self.bot.user_info[self.bot.user.get_id()].avatar or ""
         else:
             self.icon_href = ""
-    
+
     async def start(self, port: int = 80):
         """
         Start the server.
@@ -97,13 +97,13 @@ class Server:
         self.site = aiohttp.web.TCPSite(self.runner, "0.0.0.0", port)
         await self.site.start()
         util.log(f"Started web server on port {port}.")
-    
+
     async def stop(self):
         """
         Stop the server.
         """
         await self.runner.cleanup()
-    
+
     async def _github_handler(self, req: aiohttp.web.Request):
         """
         Handle a POST request coming from GitHub.
@@ -122,7 +122,7 @@ class Server:
             await self.bot.config.gh_updates_chat.send_message(msg, self.bot.msg_creator)
         elif self.bot.config.gh_updates_chat is not None:
             util.log(f"Unhandled GitHub event: {event}")
-        
+
         # Process issues
         if self.bot.gh_issues_board:
             def format_task() -> typing.Tuple[str, str]:
@@ -140,7 +140,7 @@ class Server:
                 title = f"(#{obj['number']}) {obj['title']}"
                 body = markdownify(obj["body"]) + f"\n\n*This {obj_type} is from [GitHub]({obj['html_url']}).*"
                 return (title, body)
-            
+
             def format_comment() -> str:
                 """
                 Format an issue or PR comment into a task comment body.
@@ -156,10 +156,10 @@ class Server:
                 async for category in self.bot.gh_issues_board.get_categories():
                     if category.get_name() == data["repository"]["name"]:
                         return category
-                
+
                 # Create the category
                 return await self.bot.gh_issues_board.create_category(data["repository"]["name"])
-            
+
             async def find_or_create_task(category: pyryver.TaskCategory) -> pyryver.Task:
                 """
                 Find or create the task for this issue.
@@ -168,7 +168,7 @@ class Server:
                 async for task in category.get_tasks():
                     if "latexbot-github" in task.get_tags() and task.get_subject().startswith(f"(#{number})"):
                         return task
-                        
+
                 # Create the task if it doesn't already exist
                 title, body = format_task()
                 tag = "issue" if "issue" in data else "pull-request"
@@ -181,7 +181,7 @@ class Server:
                     obj_type = "Issue"
                 else:
                     obj_type = "Pull Request"
-                
+
                 # This will create the task if it doesn't already exist
                 # so no need to handle the "created" action
                 task = await find_or_create_task(category)
@@ -283,7 +283,7 @@ class Server:
                     body += f"dismissed {github.format_author(data['review']['user'])}'s [review]({data['review']['html_url']}).*"
                     await task.comment(body)
         return aiohttp.web.Response(status=204)
-    
+
     async def _homepage_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /.
@@ -296,14 +296,14 @@ class Server:
                 version=self.bot.version, server_status="\U0001F7E2 OK", daily_msg_status=daily_msg_status,
                 start_time=start_time, uptime=uptime))
         return aiohttp.web.Response(text=html, status=200, content_type="text/html")
-    
+
     @basicauth("read", "Configuration")
     async def _config_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /config.
         """
         return aiohttp.web.json_response(schemas.config.dump(self.bot.config))
-    
+
     @basicauth("read", "Roles")
     async def _roles_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
@@ -315,7 +315,7 @@ class Server:
         except FileNotFoundError:
             data = json.dumps(self.bot.roles.to_dict())
         return aiohttp.web.Response(text=data, status=200, content_type="application/json")
-    
+
     @basicauth("read", "Custom Trivia Questions")
     async def _trivia_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
@@ -327,7 +327,7 @@ class Server:
         except FileNotFoundError:
             data = json.dumps(trivia.CUSTOM_TRIVIA_QUESTIONS)
         return aiohttp.web.Response(text=data, status=200, content_type="application/json")
-    
+
     @basicauth("read", "Keyword Watches")
     async def _keyword_watches_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
@@ -339,7 +339,7 @@ class Server:
         except FileNotFoundError:
             data = json.dumps(self.bot.keyword_watches)
         return aiohttp.web.Response(text=data, status=200, content_type="application/json")
-    
+
     @basicauth("read", "Analytics")
     async def _analytics_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
@@ -348,7 +348,7 @@ class Server:
         if self.bot.analytics is None:
             return aiohttp.web.Response(text="Analytics are not enabled.", status=404)
         return aiohttp.web.Response(text=self.bot.analytics.dumps(), status=200, content_type="application/json")
-    
+
     @basicauth("write", "Message Sending")
     async def _message_handler_post(self, req: aiohttp.web.Request):
         """
@@ -361,13 +361,13 @@ class Server:
             chat = util.parse_chat_name(self.bot.ryver, args["chat"])
         except ValueError as e:
             return aiohttp.web.Response(body=str(e), status=400)
-        
+
         if not chat:
             return aiohttp.web.Response(body="Chat not found", status=404)
-        
+
         msg_id = await chat.send_message(args["message"])
         return aiohttp.web.Response(body=msg_id, status=200)
-    
+
     @basicauth("write", "Message Sending")
     async def _message_handler_get(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
@@ -376,7 +376,7 @@ class Server:
         with open("latexbot/html/message.html", "r") as f:
             html = self.format_page(f.read(), "Send a message")
         return aiohttp.web.Response(text=html, status=200, content_type="text/html")
-    
+
     @basicauth("read", "Analytics UI")
     async def _analytics_ui_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
         """
@@ -399,7 +399,7 @@ class Server:
                 "timestamp": int(time.time())
             }, script=s.read()), "Analytics")
         return aiohttp.web.Response(text=html, status=200, content_type="text/html")
-    
+
     @classmethod
     def verify_signature(cls, secret: str, signature: str, data: str) -> bool:
         """
@@ -409,7 +409,7 @@ class Server:
             signature = signature[5:]
         digest = hmac.HMAC(secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha1).hexdigest()
         return hmac.compare_digest(digest, signature)
-    
+
     def format_page(self, body: str, title: str = None):
         """
         Format the HTML for a page.

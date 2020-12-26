@@ -250,10 +250,10 @@ def str_to_latex(expr: str) -> str:
 
     Divisions are automatically converted into fractions and will follow order of operations.
     Use brackets if you wish to make a large fraction, e.g. `(sinx+cos^2x)^2/(y+1)`.
-    
+
     In expressions where brackets are unnecessary, such as fractions, powers, subscripts, etc, the outermost
-    brackets will be stripped away if there is a pair. This means that in many cases you can add brackets to 
-    clarify exactly what you mean, without having those brackets clutter up the final output. 
+    brackets will be stripped away if there is a pair. This means that in many cases you can add brackets to
+    clarify exactly what you mean, without having those brackets clutter up the final output.
 
     The `%` operator is a modulo. The `**` operator can be used for exponentiation in place of `^`.
     There are also comparison operators, including `=`, `!=` (not equal), `>`, `<`, `>=` (greater than or
@@ -267,7 +267,7 @@ def str_to_latex(expr: str) -> str:
     and the x is left as the argument to sin.
 
     When implicitly multiplying a variable and a function, there needs to be a space between them. E.g. `x sinx`
-    and not `xsinx`, as the latter will get parsed as a single variable. There does not need to be a space 
+    and not `xsinx`, as the latter will get parsed as a single variable. There does not need to be a space
     between the function name and its argument, even when not using brackets.
 
     To do a square root, cube root, or nth root use `sqrt x`, `cbrt x`, and `root[n] x` respectively.
@@ -288,7 +288,7 @@ def str_to_latex(expr: str) -> str:
     You can insert subscripts explicitly with `_`, e.g. `x_i`, or automatically by putting a number right
     after a letter, e.g. `x1`.
 
-    You can use `inf` or `oo` for an infinity symbol and `...` for an ellipsis. 
+    You can use `inf` or `oo` for an infinity symbol and `...` for an ellipsis.
 
     Factorials (`!`), primes (`'`, `''`, ...) are also supported, along with square braces, curly braces and
     absolute values.

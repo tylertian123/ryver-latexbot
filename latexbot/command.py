@@ -37,7 +37,7 @@ class Command:
         ACCESS_LEVEL_BOT_ADMIN: "**Accessible to Bot Admins only.**",
         ACCESS_LEVEL_MAINTAINER: "**Accessible to my Maintainer only.**"
     }
-    
+
     @classmethod
     async def get_access_level(cls, chat: pyryver.Chat, user: pyryver.User) -> int:
         """
@@ -62,27 +62,27 @@ class Command:
         if is_forum_admin:
             return cls.ACCESS_LEVEL_FORUM_ADMIN
         return cls.ACCESS_LEVEL_EVERYONE
-    
+
     def __init__(self, name: str, processor: typing.Callable[..., typing.Awaitable], access_level: int):
         self._name = name
         self._processor = processor
         self._level = access_level
-    
+
     def __call__(self, *args, **kwargs):
         return self._processor(*args, **kwargs)
-    
+
     def get_name(self) -> str:
         """
         Get the name of this command.
         """
         return self._name
-    
+
     def get_processor(self) -> typing.Callable[..., typing.Awaitable]:
         """
         Get the command processor for this command.
         """
         return self._processor
-    
+
     def get_level(self) -> int:
         """
         Get the access level of this command.
@@ -94,7 +94,7 @@ class Command:
         if rules is None or rules.level is None:
             return self._level
         return rules.level
-    
+
     async def is_authorized(self, bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, access_level: int = None) -> bool:
         """
         Test if a user is authorized to use this command.
@@ -121,7 +121,7 @@ class Command:
         user_level = access_level if access_level is not None else await Command.get_access_level(chat, user)
         required_level = self.get_level()
         return user_level >= required_level
-    
+
     async def execute(self, args: str, bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str):
         """
         Execute the command (run its handler).
@@ -138,13 +138,13 @@ class CommandSet:
 
     def __init__(self):
         self.commands = {} # type: typing.Dict[str, Command]
-    
+
     def add_command(self, cmd: Command) -> None:
         """
         Add a command to the set.
         """
         self.commands[cmd.get_name()] = cmd
-    
+
     async def process(self, name: str, args: str, bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str) -> bool:
         """
         Try to process a command.
@@ -162,7 +162,7 @@ class CommandSet:
             return False
         await cmd.execute(args, bot, chat, user, msg_id)
         return True
-    
+
     def generate_help_text(self, ryver: pyryver.Ryver) -> typing.Tuple[typing.Dict[str, typing.List[typing.Tuple[str, str]]], typing.Dict[str, str]]: # pylint: disable=unused-argument
         """
         Generate help text and extended help text for each command.

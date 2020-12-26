@@ -5,7 +5,7 @@ Send a POST request to /render with a JSON payload of the format:
 
 {
     "format": "png", // string, default "png", one of "pdf", "svg" or "png" -- the format of the resulting payload
-    "header_includes": [], // list of string, optional; extra lines to add to the beginning of the rendered document's preamble. 
+    "header_includes": [], // list of string, optional; extra lines to add to the beginning of the rendered document's preamble.
     "extra_packages": [], // list of string, optional; extra packages to include, helper for header_includes. e.g. "mhchem".
     "source": "\\frac{1}{2}", // required, text to render
     "wrap_in_equation": true, // optional, defaults to true, whether or not to automatically enter math mode
@@ -18,7 +18,7 @@ It will return JSON of the format
 
 {
     "status": "ok", // or error in error
-    
+
     // if ok
 
     "content_type": "image/png", // content MIME type

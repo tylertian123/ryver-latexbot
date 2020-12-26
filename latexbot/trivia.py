@@ -39,7 +39,7 @@ class TriviaSession:
     def __init__(self):
         self._session = aiohttp.ClientSession()
         self._token = None
-    
+
     async def start(self, use_token: bool = True):
         """
         Start the session.
@@ -49,7 +49,7 @@ class TriviaSession:
         """
         if use_token:
             self._token = await self.retrieve_token()
-    
+
     async def close(self):
         """
         Close the session.
@@ -58,7 +58,7 @@ class TriviaSession:
 
     async def retrieve_token(self) -> str:
         """
-        Retrieve a session token. 
+        Retrieve a session token.
 
         Session tokens are used to ensure no duplicate questions are retrieved.
         They expire after 6 hours of inactivity.
@@ -129,12 +129,12 @@ class CustomTriviaSession:
     """
     A trivia session using only custom questions.
     """
-    
+
     def __init__(self):
         self._questions = []
         self._index = 0
         self._category = None
-    
+
     def start(self, category: str = None):
         """
         Start the session.
@@ -152,7 +152,7 @@ class CustomTriviaSession:
             raise ValueError("Error trying to load questions") from e
         self._index = 0
         random.shuffle(self._questions)
-    
+
     def get_question(self, difficulty: str = None, question_type: str = None):
         """
         Get a question.
@@ -184,7 +184,7 @@ class TriviaGame:
         self.current_question = None
         self.host = None
         self.scores = {}
-    
+
     async def start(self, host: typing.Any = None):
         """
         Start the game.
@@ -204,7 +204,7 @@ class TriviaGame:
             await self._session.start()
         if host is not None:
             self.host = host
-    
+
     async def end(self):
         """
         End the game.
@@ -213,7 +213,7 @@ class TriviaGame:
             await self._session.close()
             self._session = None
         self._custom_session = None
-    
+
     def set_category(self, category: typing.Union[int, str]):
         """
         Set the category.
@@ -222,19 +222,19 @@ class TriviaGame:
         If the category is "custom", then all custom categories will be included.
         """
         self.category = category
-    
+
     def set_difficulty(self, difficulty: str):
         """
         Set the difficulty.
         """
         self.difficulty = difficulty
-    
+
     def set_type(self, question_type: str):
         """
         Set the question type (True/False or Multiple Choice).
         """
         self.question_type = question_type
-    
+
     async def get_categories(self) -> typing.List[typing.Dict[str, typing.Any]]:
         """
         Get all the categories and their IDs.
@@ -244,8 +244,8 @@ class TriviaGame:
     async def next_question(self):
         """
         Move on to the next question.
-        
-        This changes the value of self.current_question. 
+
+        This changes the value of self.current_question.
         The current question has the following format:
         - "category": The category (str)
         - "type": The question type (str, one of TriviaSession.TYPE_TRUE_OR_FALSE or TriviaSession.TYPE_MULTIPLE_CHOICE)
@@ -259,7 +259,7 @@ class TriviaGame:
             question = self._custom_session.get_question(difficulty=self.difficulty, question_type=self.question_type)
         else:
             question = (await self._session.get_questions(1, category=self.category, difficulty=self.difficulty, question_type=self.question_type))[0]
-        
+
         self.current_question = {
             "category": question["category"],
             "type": question["type"],
@@ -281,7 +281,7 @@ class TriviaGame:
             answers.insert(index, question["correct_answer"])
             self.current_question["answers"] = answers
             self.current_question["correct_answer"] = index
-    
+
     def answer(self, answer: int, user: typing.Any = None, points: int = None) -> bool:
         """
         Answer the current question.
@@ -295,7 +295,7 @@ class TriviaGame:
         """
         if answer >= len(self.current_question["answers"]):
             raise ValueError("Answer out of range")
-        
+
         self.current_question["answered"] = True
         if answer == self.current_question["correct_answer"]:
             if user is not None and points is not None:
@@ -365,7 +365,7 @@ def order_scores(scores: typing.Dict[_T, int]) -> typing.Dict[int, typing.List[_
 
 class LatexBotTriviaGame:
     """
-    A game of trivia in latexbot. 
+    A game of trivia in latexbot.
     """
 
     TRIVIA_NUMBER_EMOJIS = ["one", "two", "three", "four", "five", "six", "seven", "eight"]
@@ -407,12 +407,12 @@ class LatexBotTriviaGame:
                 await self.end()
         except asyncio.CancelledError:
             pass
-    
+
     def refresh_timeout(self, delay: float = 15 * 60):
         if self.timeout_task_handle is not None:
             self.timeout_task_handle.cancel()
         self.timeout_task_handle = asyncio.create_task(self._timeout(delay))
-    
+
     async def _try_get_next(self) -> bool:
         """
         Try to get the next trivia question while handling errors.
@@ -444,7 +444,7 @@ class LatexBotTriviaGame:
             # Try to get the next question
             if self.game.current_question["answered"] and not await self._try_get_next():
                 return
-        
+
             formatted_question = self.format_question(self.game.current_question)
             # Send the message
             # First send an empty message to get the reactions
@@ -462,7 +462,7 @@ class LatexBotTriviaGame:
             # Now edit the message to show the actual question contents
             await msg.edit(formatted_question)
             self.question_msg = msg
-    
+
     async def send_scores(self):
         """
         Send the scoreboard to the chat.
@@ -477,7 +477,7 @@ class LatexBotTriviaGame:
             # because you can't skip numbers in markdown lists in Ryver
             resp = "\n".join(f"{rank}\\. **{', '.join(self.get_user_name(player) for player in players)}** with a score of {score}!" for rank, (players, score) in scores.items())
             await self.chat.send_message(resp, self.msg_creator)
-    
+
     async def answer(self, answer: int, user: int):
         """
         Answer the current question.
@@ -490,7 +490,7 @@ class LatexBotTriviaGame:
                 await self.chat.send_message(f"Correct answer! **{name}** earned {points} points!", self.msg_creator)
             else:
                 await self.chat.send_message(f"Wrong answer! The correct answer was option number {self.game.current_question['correct_answer'] + 1}. **{name}** did not get any points for that.", self.msg_creator)
-    
+
     async def end(self):
         """
         End the game and clean up.
@@ -500,14 +500,14 @@ class LatexBotTriviaGame:
             if self.timeout_task_handle is not None:
                 self.timeout_task_handle.cancel()
             await self.game.end()
-    
+
     def get_user_name(self, user_id: int) -> str:
         """
         Get the name of a user specified by ID.
         """
         user = self.chat.get_ryver().get_user(id=user_id)
         return user.get_name() if user is not None else "Unknown User"
-    
+
     @classmethod
     def format_question(cls, question: typing.Dict[str, typing.Any]) -> str:
         """

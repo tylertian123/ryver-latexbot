@@ -18,7 +18,7 @@ class Node:
         self.parent = parent
         self.char = char
         self.fail = None
-        
+
     def __repr__(self):
         return f"Node(leaf={self.leaf_value}, char={self.char})"
 
@@ -34,7 +34,7 @@ class Automaton:
         self.trie_root = Node(None, None)
         self.trie_root.fail = self.trie_root
         self.leaves = []
-    
+
     def trie_find(self, s: str) -> typing.Optional[Node]:
         """
         Find the leaf node representing a string in the trie.
@@ -48,7 +48,7 @@ class Automaton:
             else:
                 return None
         return node
-    
+
     def add_str(self, s: str, value: typing.Any = None) -> None:
         """
         Add a string to the trie with an optional value.
@@ -59,7 +59,7 @@ class Automaton:
                 node.next[c] = Node(node, c)
             node = node.next[c]
         node.leaf_value = value if value is not None else s
-    
+
     def del_str(self, s: str) -> None:
         """
         Delete a string from the trie.
@@ -74,7 +74,7 @@ class Automaton:
             node = node.parent
             if node.next:
                 break
-    
+
     def get_failure_link(self, node: Node) -> Node:
         """
         Get the failure link (build it if necessary) for the given node.
@@ -94,7 +94,7 @@ class Automaton:
                         node.fail = self.trie_root
                         return node.fail
         return node.fail
-    
+
     def build_automaton(self) -> None:
         """
         Build/rebuild the automaton from the trie.
@@ -108,7 +108,7 @@ class Automaton:
             self.get_failure_link(node)
             for n in node.next.values():
                 d.append(n)
-    
+
     def find_all(self, s: str) -> typing.Iterable[typing.Tuple[int, typing.Any]]:
         """
         Iterate over all matches for a given string.

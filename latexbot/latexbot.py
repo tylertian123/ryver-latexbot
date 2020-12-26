@@ -75,7 +75,7 @@ class LatexBot:
 
         self.trivia_file = None # type: str
         self.trivia_games = {} # type: typing.Dict[int, trivia.LatexBotTriviaGame]
-        
+
         self.analytics_file = None # type: str
         self.analytics = None # type: analytics.Analytics
 
@@ -88,7 +88,7 @@ class LatexBot:
         self.commands = None # type: CommandSet
         self.help = None # typing.Dict[str, typing.List[typing.Tuple[str, str]]]
         self.command_help = {} # type: typing.Dict[str, str]
-       
+
         self.msg_creator = pyryver.Creator("LaTeX Bot " + self.version)
 
         self.webhook_server = None # type: server.Webhooks
@@ -97,7 +97,7 @@ class LatexBot:
 
         global bot # pylint: disable=global-statement
         bot = self
-    
+
     def init_commands(self) -> None:
         """
         Initialize the command set.
@@ -119,7 +119,7 @@ class LatexBot:
         """
         Initialize LaTeX Bot.
 
-        Note: This does not load the configuration files. 
+        Note: This does not load the configuration files.
         The files should be loaded with load_files() before run() is called.
         """
         self.username = user
@@ -141,7 +141,7 @@ class LatexBot:
             self.tba = TheBlueAlliance(os.environ.get("LATEXBOT_TBA_KEY"))
 
         self.init_commands()
-    
+
     async def load_config(self, data: typing.Dict[str, typing.Any]) -> typing.Optional[str]:
         """
         Load the config from a dict.
@@ -189,7 +189,7 @@ class LatexBot:
                 msg += f"Encountered errors while loading keyword watches for user {user}:\n{util.format_validation_error(e)}"
         self.rebuild_automaton()
         return msg or None
-    
+
     async def load_files(self, config_file: str, roles_file: str, trivia_file: str, analytics_file: str, watch_file: str) -> None:
         """
         Load all configuration files, including the config, roles and custom trivia.
@@ -214,7 +214,7 @@ class LatexBot:
             if self.maintainer is not None:
                 await self.maintainer.send_message(msg, self.msg_creator)
             await self.load_config({})
-        
+
         # Load watches
         try:
             with open(watch_file, "r") as f:
@@ -239,7 +239,7 @@ class LatexBot:
             if self.maintainer is not None:
                 await self.maintainer.send_message(f"Error while loading roles: {e}. Defaulting to {{}}.", self.msg_creator)
             self.roles = CaseInsensitiveDict()
-        
+
         # Load analytics
         if os.environ.get("LATEXBOT_ANALYTICS") == "1":
             try:
@@ -270,7 +270,7 @@ class LatexBot:
                 exit()
             signal.signal(signal.SIGABRT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)
-        
+
         # Load trivia
         try:
             with open(trivia_file, "r") as f:
@@ -293,14 +293,14 @@ class LatexBot:
         """
         with open(self.roles_file, "w") as f:
             json.dump(self.roles.to_dict(), f)
-    
+
     def save_analytics(self) -> None:
         """
         Save the analytics data to JSON.
         """
         with open(self.analytics_file, "w") as f:
             f.write(self.analytics.dumps())
-    
+
     def save_watches(self) -> None:
         """
         Save the current keyword watches to the watches JSON.
@@ -308,13 +308,13 @@ class LatexBot:
         data = {str(user): schemas.keyword_watch.dump(watches) for user, watches in self.keyword_watches.items()}
         with open(self.watch_file, "w") as f:
             json.dump(data, f)
-    
+
     def update_help(self) -> None:
         """
         Re-generate the help text.
         """
         self.help, self.command_help = self.commands.generate_help_text(self.ryver)
-    
+
     async def _daily_msg(self, init_delay: float = 0):
         """
         A task that sends the daily message after a delay.
@@ -335,14 +335,14 @@ class LatexBot:
         finally:
             if not cancelled:
                 self.schedule_daily_message()
-    
+
     def schedule_daily_message(self):
         """
         Start the daily message task with the correct delay.
         """
         if self.daily_msg_task:
             self.daily_msg_task.cancel()
-        
+
         if self.config.daily_message_time is None:
             util.log("Daily message not scheduled because time isn't defined.")
             return
@@ -355,7 +355,7 @@ class LatexBot:
         init_delay = (t - now).total_seconds()
         self.daily_msg_task = asyncio.create_task(self._daily_msg(init_delay))
         util.log(f"Daily message re-scheduled, starting after {init_delay} seconds.")
-    
+
     async def update_cache(self) -> None:
         """
         Update cached chat data.
@@ -395,7 +395,7 @@ class LatexBot:
             dfa.add_str(k.lower(), (k, v))
         dfa.build_automaton()
         self.keyword_watches_automaton = dfa
-    
+
     async def get_replace_message_creator(self, msg: pyryver.Message) -> pyryver.Creator:
         """
         Get the Creator object that can be used for replacing a message.
@@ -416,7 +416,7 @@ class LatexBot:
         """
         Preprocess a command.
 
-        Separate the command into the command name and args and resolve aliases 
+        Separate the command into the command name and args and resolve aliases
         if it is a command. Otherwise return None.
 
         If it encouters a recursive alias, it raises ValueError.
@@ -433,7 +433,7 @@ class LatexBot:
             # DMs don't require command prefixes
             elif not is_dm:
                 return None
-        
+
         # Repeat until all aliases are expanded
         used_aliases = set()
         while True:
@@ -448,7 +448,7 @@ class LatexBot:
                     space = i
                     space_char = c
                     break
-            
+
             if space:
                 cmd = command[:space]
                 args = command[space + 1:]
@@ -471,13 +471,13 @@ class LatexBot:
             if not command:
                 return (cmd.strip(), args.strip())
             # Otherwise go again until no more expansion happens
-    
+
     def current_time(self) -> datetime.datetime:
         """
         Get the current time in the organization's timezone.
         """
         return datetime.datetime.now(datetime.timezone.utc).astimezone(self.config.tzinfo)
-    
+
     async def run(self) -> None:
         """
         Run LaTeX Bot.
@@ -501,15 +501,15 @@ class LatexBot:
         async with self.ryver.get_live_session(auto_reconnect=True) as session: # type: pyryver.RyverWS
             util.log("Initializing live session")
             self.session = session
-            
+
             @session.on_connection_loss
             async def _on_conn_loss():
                 util.log("Error: Connection lost!")
-            
+
             @session.on_reconnect
             async def _on_reconnect():
                 util.log("Reconnected!")
-            
+
             @session.on_chat
             async def _on_chat(msg: pyryver.WSChatMessageData):
                 # Ignore non-chat messages
@@ -530,11 +530,11 @@ class LatexBot:
                     if to is None or from_user is None:
                         util.log("Error: Still not found after cache update. Command skipped.")
                         return
-                
+
                 # Ignore messages sent by us
                 if from_user.get_username() == self.username:
                     return
-                
+
                 # Record activity
                 if from_user.get_id() not in self.user_info:
                     self.user_info[from_user.get_id()] = UserInfo()
@@ -556,7 +556,7 @@ class LatexBot:
                         msg_obj = await pyryver.retry_until_available(to.get_message, msg.message_id, retry_delay=0.1)
                         await msg_obj.delete()
                         return
-                
+
                 if not is_dm and self.analytics is not None:
                     self.analytics.message(msg.text, from_user)
 
@@ -567,7 +567,7 @@ class LatexBot:
                     if self.enabled:
                         await to.send_message(f"Cannot process command: {e}", self.msg_creator)
                     return
-                
+
                 if preprocessed:
                     command, args = preprocessed
                     # Processing for re-enabling after disable
@@ -662,7 +662,7 @@ class LatexBot:
                         # Can't delete the other person's messages in DMs, so skip
                         if not is_dm:
                             await msg_obj.delete()
-                    
+
                     # Search for keyword matches
                     notify_users = dict() # type: typing.Dict[int, typing.Set[str]]
                     for i, (keyword, users) in self.keyword_watches_automaton.find_all(msg.text.lower()):
@@ -716,19 +716,19 @@ class LatexBot:
                             user = self.ryver.get_user(id=uid)
                             resp = "The following message matched your watches for the keyword(s) " + ", ".join(f"\"**{w}**\"""" for w in keywords) + ":"
                             await user.send_message(resp + "\n" + quoted_msg, self.msg_creator)
-            
+
             @session.on_chat_updated
             async def _on_chat_updated(msg: pyryver.WSChatUpdatedData):
                 # Sometimes updates are sent for things other than message edits
                 if msg.text is None:
                     return
                 await _on_chat(msg)
-            
+
             @session.on_event(pyryver.RyverWS.EVENT_REACTION_ADDED)
             async def _on_reaction_added(msg: pyryver.WSEventData):
                 # Extra processing for interfacing trivia with reactions
                 await commands.reaction_trivia(self, self.ryver, session, msg.event_data)
-            
+
             @session.on_presence_changed
             async def _on_presence_changed(msg: pyryver.WSPresenceChangedData):
                 # Keep track of user presences
@@ -749,7 +749,7 @@ class LatexBot:
 
             util.log("LaTeX Bot is running!")
             await session.run_forever()
-    
+
     async def shutdown(self):
         """
         Stop running LaTeX Bot.

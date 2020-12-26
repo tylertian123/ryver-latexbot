@@ -152,7 +152,7 @@ def split_list(l: typing.List[_T], v: _T) -> typing.List[typing.List[_T]]:
 
 def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
     """
-    Parse command documentation into a dictionary. 
+    Parse command documentation into a dictionary.
 
     Format:
 
@@ -203,12 +203,12 @@ def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
                 p += line
             paras.append(p)
         long_desc = '\n\n'.join(paras)
-    
+
     if examples:
         # Strip to remove possible leading space
         # Only count lines starting with >
         examples = [ex[1:].strip() for ex in examples.strip().splitlines() if ex.startswith(">")]
-    
+
     doc_dict = {
         "short_desc": short_desc,
         "long_desc": long_desc,
@@ -258,7 +258,7 @@ def format_access_rules(command: str, rule) -> str:
 
 async def send_json_data(chat: pyryver.Chat, data: typing.Any, message: str, filename: str, from_user: pyryver.User, msg_creator: pyryver.Creator):
     """
-    Send a JSON to the chat. 
+    Send a JSON to the chat.
 
     If the JSON is less than 3900 characters, it will be sent as text.
     Otherwise it will be attached as a file.
@@ -291,7 +291,7 @@ async def get_attached_json_data(msg: pyryver.ChatMessage, msg_contents: str) ->
             raise ValueError(f"File needs to be encoded with utf-8! The following decode error occurred: {e}") from e
     else:
         data = msg_contents
-    
+
     try:
         return json.loads(data)
     except json.JSONDecodeError as e:
@@ -318,7 +318,7 @@ def slice_range(l: typing.List[_T], r: str) -> typing.List[_T]:
 
 def parse_args(args: typing.Iterable[str], *syntax: typing.Union[typing.Tuple[str, typing.Callable[[str], typing.Any]], typing.Tuple[str, typing.Callable[[str], typing.Any], typing.Any]]) -> typing.List[typing.Any]:
     """
-    Parse arguments. 
+    Parse arguments.
 
     The args should be an iterable of strings representing the values of the args.
     The syntax should each be tuples of either 2 or 3 elements, containing
@@ -343,19 +343,19 @@ def parse_args(args: typing.Iterable[str], *syntax: typing.Union[typing.Tuple[st
     return results
 
 
-def paginate(text: typing.Iterable[str], title: str = "", header: str = "", sep: str = "\n", limit: int = 3900) -> typing.Generator[str, str, None]: 
-    """ 
-    Break up rows of text into pages. 
- 
-    Only the first page will have the title, while the header is added to every page. 
-    The length of each page will not exceed the limit, excluding the page number message 
+def paginate(text: typing.Iterable[str], title: str = "", header: str = "", sep: str = "\n", limit: int = 3900) -> typing.Generator[str, str, None]:
+    """
+    Break up rows of text into pages.
+
+    Only the first page will have the title, while the header is added to every page.
+    The length of each page will not exceed the limit, excluding the page number message
     at the end. Page numbers will not be added if there is only one page.
-    
+
     The separator will be inserted between every pair of consecutive lines. By default a
     newline is used. No separator is inserted between the title and header or header and
     content.
-    """ 
-    pages = [] 
+    """
+    pages = []
     page = None
     for row in text:
         if page is None:
@@ -363,12 +363,12 @@ def paginate(text: typing.Iterable[str], title: str = "", header: str = "", sep:
             new_page = page + row
         else:
             new_page = page + sep + row
-        if len(new_page) < limit: 
-            page = new_page 
-        else: 
-            pages.append(page) 
-            page = header + row 
-    pages.append(page) 
+        if len(new_page) < limit:
+            page = new_page
+        else:
+            pages.append(page)
+            page = header + row
+    pages.append(page)
     for i, page in enumerate(pages):
         if len(pages) == 1:
             yield page

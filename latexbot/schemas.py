@@ -18,21 +18,21 @@ class ChatField(fields.Field):
     """
     A field containing a pyryver Chat.
 
-    The field will be serialized and deserialized as a string in the form 
+    The field will be serialized and deserialized as a string in the form
     [(name|nickname|username|email|id|jid)=][+|@]<forum|team|user>, parseable
     with util.parse_chat_name(). The serialized string specifies the chat by ID.
     """
 
     def _serialize(self, value: pyryver.Chat, attr: str, obj: typing.Any, **kwargs): # pylint: disable=unused-argument
         return None if value is None else "id=" + str(value.get_id())
-    
+
     def _deserialize(self, value: str, attr: str, data: typing.Any, **kwargs): # pylint: disable=unused-argument
         if value is None:
             return None
         try:
             return util.parse_chat_name(latexbot.bot.ryver, value)
         except ValueError as e:
-            raise ValidationError("Invalid chat or chat not found") from e     
+            raise ValidationError("Invalid chat or chat not found") from e
 
 
 class Alias:
@@ -41,7 +41,7 @@ class Alias:
     """
 
     __slots__ = ("from_", "to")
-    
+
     def __init__(self, from_: str, to: str):
         self.from_ = from_
         self.to = to
@@ -74,7 +74,7 @@ class AccessRule:
         self.disallow_users = disallow_users
         self.allow_roles = allow_roles
         self.disallow_roles = disallow_roles
-    
+
     def __bool__(self) -> bool:
         return self.level is not None or self.allow_users is not None or self.disallow_users is not None or \
             self.allow_roles is not None or self.disallow_roles is not None
@@ -94,7 +94,7 @@ class AccessRuleSchema(Schema):
     @decorators.post_load
     def make_obj(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use, missing-function-docstring
         return AccessRule(**data)
-    
+
     @decorators.post_dump
     def remove_none(self, data, **kwargs): # pylint: disable=unused-argument, no-self-use
         """
@@ -149,13 +149,13 @@ class Config:
                  "calendar_id", "daily_message_time", "last_xkcd",
                  "aliases", "access_rules", "macros", "opinions", "command_prefixes",
                  "tzinfo", "calendar")
-    
+
     def __init__(self, admins: typing.List[int], tz_str: str, frc_team: int, welcome_message: str, #NOSONAR
                  access_denied_messages: typing.List[str], wdyt_yes_messages: typing.List[str],
                  wdyt_no_messages: typing.List[str], home_chat: pyryver.Chat, announcements_chat: pyryver.Chat,
                  messages_chat: pyryver.Chat, gh_updates_chat: pyryver.Chat, gh_issues_chat: pyryver.Chat,
                  gh_users_map: typing.Dict[str, str], calendar_id: str, daily_message_time: datetime.time,
-                 last_xkcd: int, aliases: typing.List[Alias], access_rules: typing.Dict[str, AccessRule], 
+                 last_xkcd: int, aliases: typing.List[Alias], access_rules: typing.Dict[str, AccessRule],
                  macros: typing.Dict[str, str], opinions: typing.List[Opinion], command_prefixes: typing.List[str]):
         self.admins = admins
         self.tz_str = tz_str
@@ -246,7 +246,7 @@ class KeywordSchema(Schema):
     """
     Schema for the Keyword object.
     """
-    
+
     keyword = fields.Str(required=True)
     whole_word = fields.Bool(missing=False, data_key="wholeWord")
     match_case = fields.Bool(missing=False, data_key="matchCase")
@@ -274,7 +274,7 @@ class KeywordWatchSchema(Schema):
     """
     Schema for the KeywordWatch object.
     """
-    
+
     on = fields.Bool(missing=True)
     activity_timeout = fields.Float(missing=180.0, data_key="activityTimeout")
     keywords = fields.List(fields.Nested(KeywordSchema), missing=[])

@@ -15,7 +15,7 @@ class Analytics:
         self.message_activity = message_activity
         self.shutdowns = shutdowns
         self.shutdowns.append(int(time.time()) << 1 | 0x1)
-    
+
     def command(self, cmd: str, args: str, user: pyryver.User, chat: pyryver.Chat) -> None: # pylint: disable=unused-argument
         """
         Record a command.
@@ -26,7 +26,7 @@ class Analytics:
             self.command_usage[cmd][user.get_id()] += 1
         else:
             self.command_usage[cmd][user.get_id()] = 1
-    
+
     def message(self, body: str, user: pyryver.User) -> None:
         """
         Record a message.
@@ -36,7 +36,7 @@ class Analytics:
                 self.message_activity[user.get_id()] += len(body)
             else:
                 self.message_activity[user.get_id()] = len(body)
-    
+
     def dumps(self) -> str:
         """
         Serialize into a JSON string that can be written to a file.

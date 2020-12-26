@@ -13,7 +13,7 @@ class TheBlueAlliance:
 
     TEAM_URL = "https://www.thebluealliance.com/team/"
     EVENT_URL = "https://www.thebluealliance.com/event/"
-    
+
     def __init__(self, read_key: str):
         """
         Construct a new session.
@@ -25,7 +25,7 @@ class TheBlueAlliance:
         }
         self._session = aiohttp.ClientSession(headers=headers, raise_for_status=True)
         self._url_prefix = "https://www.thebluealliance.com/api/v3/"
-    
+
     async def close(self):
         """
         Close this session.
@@ -38,13 +38,13 @@ class TheBlueAlliance:
         """
         async with self._session.get(self._url_prefix + endpoint) as resp:
             return await resp.json()
-    
+
     async def get_team(self, num: int) -> JSONObj:
         """
         Get basic team info.
         """
         return await self._get_json("team/frc" + str(num))
-    
+
     async def get_team_events(self, num: int, year: int = None) -> typing.List[JSONObj]:
         """
         Get a team's events for a year or all years.
@@ -53,19 +53,19 @@ class TheBlueAlliance:
         if year is not None:
             endpoint += f"/{year}"
         return await self._get_json(endpoint)
-    
+
     async def get_team_events_statuses(self, num: int, year: int) -> JSONObj:
         """
         Get a team's events statuses for a year.
         """
         return await self._get_json(f"team/frc{num}/events/{year}/statuses")
-    
+
     async def get_districts(self, year: int) -> JSONObjList:
         """
         Get the districts for a given year.
         """
         return await self._get_json(f"districts/{year}")
-    
+
     async def get_district_rankings(self, district: str) -> JSONObjList:
         """
         Get the rankings for a district for a given year.
@@ -73,7 +73,7 @@ class TheBlueAlliance:
         The district is provided as a district code.
         """
         return await self._get_json(f"district/{district}/rankings")
-    
+
     async def get_district_teams(self, district: str) -> JSONObjList:
         """
         Get the teams for a district for a given year.
@@ -81,7 +81,7 @@ class TheBlueAlliance:
         The district is provided as a district code.
         """
         return await self._get_json(f"district/{district}/teams")
-    
+
     async def get_district_events(self, district: str) -> JSONObjList:
         """
         Get the events for a district for a given year.
@@ -89,7 +89,7 @@ class TheBlueAlliance:
         The district is provided as a district code.
         """
         return await self._get_json(f"district/{district}/events")
-    
+
     async def get_event(self, event: str) -> JSONObj:
         """
         Get info about an event.
@@ -97,7 +97,7 @@ class TheBlueAlliance:
         The event is provided as a event code.
         """
         return await self._get_json(f"event/{event}")
-    
+
     async def get_event_rankings(self, event: str) -> JSONObj:
         """
         Get info about an event's rankings.
@@ -105,7 +105,7 @@ class TheBlueAlliance:
         The event is provided as a event code.
         """
         return await self._get_json(f"event/{event}/rankings")
-    
+
     async def get_event_teams(self, event: str) -> JSONObjList:
         """
         Get info about the teams in an event.
@@ -113,7 +113,7 @@ class TheBlueAlliance:
         The event is provided as a event code.
         """
         return await self._get_json(f"event/{event}/teams")
-        
+
     @classmethod
     def format_addr(cls, addr: JSONObj) -> str:
         """
@@ -144,7 +144,7 @@ class TheBlueAlliance:
         if team["website"]:
             msg += f"  \nWebsite: {team['website']}"
         return msg
-    
+
     @classmethod
     def format_event(cls, event: JSONObj) -> str:
         """
