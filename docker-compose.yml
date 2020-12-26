@@ -5,16 +5,20 @@ services:
     build: ./tex-slave
     image: docker-registry.i.mm12.xyz/tex-slave:1.0.0
   latexbot:
-    build: .
-    image: docker-registry.i.mm12.xyz/latexbot:0.9.0
-    volumes: 
+    build: ./latexbot
+    image: docker-registry.i.mm12.xyz/latexbot:0.10.0
+    volumes:
       - type: volume
         source: latexbot-data
-        target: /usr/src/latexbot/data
-    ports: 
+        target: /latexbot-data
+      - type: bind
+        source: ./latexbot/latexbot
+        target: /usr/local/lib/python3.9/site-packages/latexbot
+    ports:
       - "80:80"
     environment: 
       - PYTHONHASHSEED=0
+      - LATEXBOT_DATA_DIR=/latexbot-data
       - LATEXBOT_ORG=${LATEXBOT_ORG}
       - LATEXBOT_USER=${LATEXBOT_USER}
       - LATEXBOT_PASS=${LATEXBOT_PASS}

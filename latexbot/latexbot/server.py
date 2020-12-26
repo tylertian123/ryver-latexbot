@@ -1,18 +1,15 @@
 import aiohttp
 import aiohttp.web
 import functools
-import github
 import hashlib
 import hmac
 import json
 import os
 import pyryver
-import schemas
 import time
-import trivia
 import typing
-import util
 from markdownify import markdownify
+from . import github, schemas, trivia, util
 
 
 def basicauth(level: str, realm: str = None):

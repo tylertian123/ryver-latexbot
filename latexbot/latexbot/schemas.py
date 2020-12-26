@@ -2,16 +2,13 @@
 This module contains marshmallow schemas and classes for objects saved to JSON.
 """
 
-import analytics as aly
 import datetime
 import dateutil
-import gcalendar
-import latexbot
 import os
 import pyryver
 import typing
-import util
 from marshmallow import fields, decorators, Schema, ValidationError
+from . import analytics as aly, gcalendar, latexbot, util
 
 
 class ChatField(fields.Field):

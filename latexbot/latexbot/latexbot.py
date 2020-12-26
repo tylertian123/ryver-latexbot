@@ -3,10 +3,8 @@ This module contains the main LatexBot class.
 """
 
 import aiohttp
-import analytics
 import asyncio
 import atexit
-import commands
 import datetime
 import json
 import marshmallow
@@ -14,19 +12,16 @@ import os
 import pyryver
 import random
 import re
-import schemas
-import server
 import signal
 import time
-import trivia
 import typing # pylint: disable=unused-import
-import util
-from aho_corasick import Automaton
-from cid import CaseInsensitiveDict
-from command import Command, CommandSet, CommandError
 from dataclasses import dataclass
-from tba import TheBlueAlliance
 from traceback import format_exc
+from . import analytics, commands, schemas, server, trivia, util
+from .aho_corasick import Automaton
+from .cid import CaseInsensitiveDict
+from .command import Command, CommandSet, CommandError
+from .tba import TheBlueAlliance
 
 
 @dataclass(unsafe_hash=True, eq=False)

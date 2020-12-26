@@ -1,26 +1,23 @@
 """
 The entry point of LaTeX Bot.
-
-Having a separate main.py to start running the application allows the latexbot
-module to be fully loaded, which avoids some problems with circular dependencies.
 """
 
-import asyncio
-import latexbot
 import os
-import util
+from . import latexbot, util
 
 
-__version__ = "v0.9.0-dev"
+__version__ = "v0.10.0-dev"
 
-DATA_DIR = "data/"
+DATA_DIR = os.environ["LATEXBOT_DATA_DIR"]
+if not DATA_DIR.endswith("/"):
+    DATA_DIR += "/"
 CONFIG_FILE = DATA_DIR + "config.json"
 ROLES_FILE = DATA_DIR + "roles.json"
 TRIVIA_FILE = DATA_DIR + "trivia.json"
 ANALY_FILE = DATA_DIR + "analytics.json"
 WATCH_FILE = DATA_DIR + "keyword_watches.json"
 
-async def main():
+async def main_coro():
     """
     Main LaTeX Bot coroutine.
     """
@@ -31,6 +28,3 @@ async def main():
     await bot.load_files(CONFIG_FILE, ROLES_FILE, TRIVIA_FILE, ANALY_FILE, WATCH_FILE)
     await bot.run()
     util.log("LaTeX Bot has been shut down. Goodbye.")
-
-if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())

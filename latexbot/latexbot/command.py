@@ -3,12 +3,10 @@ This module contains the Command class and helpers.
 """
 
 import functools
-import latexbot
 import os
 import pyryver
-import random
 import typing
-import util
+from . import latexbot, util
 
 
 class CommandError(Exception):

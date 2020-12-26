@@ -6,13 +6,13 @@ import aiohttp
 import asyncio
 import datetime
 import json
-import latexbot
 import marshmallow
 import pyryver
 import re
 import string
 import typing
 from textwrap import dedent
+from . import latexbot
 
 
 DATE_FORMAT = "%Y-%m-%d %H:%M"

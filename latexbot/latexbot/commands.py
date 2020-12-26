@@ -7,29 +7,23 @@ import binascii
 import io
 import json
 import lark
-import nffu
 import os
 import pyryver
 import random
 import re
-import render
 import shlex
-import simplelatex
-import schemas
 import sys
 import textwrap
 import time
-import trivia
 import typing
-import util
-import xkcd
-from cid import CaseInsensitiveDict
-from command import command, Command, CommandError
 from datetime import datetime
-from gcalendar import Calendar
 from markdownify import markdownify
-from tba import TheBlueAlliance
 from traceback import format_exc
+from . import latexbot, nffu, render, schemas, simplelatex, trivia, util, xkcd
+from .cid import CaseInsensitiveDict
+from .command import command, Command, CommandError
+from .gcalendar import Calendar
+from .tba import TheBlueAlliance
 
 
 @command(access_level=Command.ACCESS_LEVEL_EVERYONE)
@@ -2491,6 +2485,3 @@ async def command_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: py
     if to is None:
         raise CommandError("Chat not found.")
     await to.send_message(msg, bot.msg_creator)
-
-
-import latexbot # nopep8 # pylint: disable=unused-import

@@ -1,7 +1,7 @@
 import pyryver
-import schemas
 import time
 import typing
+from . import schemas
 
 
 class Analytics:
