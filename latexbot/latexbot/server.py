@@ -10,7 +10,7 @@ import time
 import typing
 from aiohttp import web
 from markdownify import markdownify
-from . import github, schemas, trivia, util
+from . import github, latexbot, schemas, trivia, util
 
 
 logger = logging.getLogger("latexbot")
@@ -317,11 +317,9 @@ class Server:
         """
         try:
             with open(self.bot.roles_file, "r") as f:
-                data = f.read()
+                return web.Response(text=f.read(), status=200, content_type="application/json")
         except FileNotFoundError:
-            data = json.dumps(self.bot.roles.to_dict())
-        # TODO: Use web.json_response()
-        return web.Response(text=data, status=200, content_type="application/json")
+            return web.json_response(self.bot.roles.to_dict(), status=200)
 
     @basicauth("read", "Custom Trivia Questions")
     async def _trivia_handler(self, req: web.Request): # pylint: disable=unused-argument
@@ -330,10 +328,9 @@ class Server:
         """
         try:
             with open(self.bot.trivia_file, "r") as f:
-                data = f.read()
+                return web.Response(text=f.read(), status=200, content_type="application/json")
         except FileNotFoundError:
-            data = json.dumps(trivia.CUSTOM_TRIVIA_QUESTIONS)
-        return web.Response(text=data, status=200, content_type="application/json")
+            return web.json_response(trivia.CUSTOM_TRIVIA_QUESTIONS, status=200)
 
     @basicauth("read", "Keyword Watches")
     async def _keyword_watches_handler(self, req: web.Request): # pylint: disable=unused-argument
@@ -342,10 +339,9 @@ class Server:
         """
         try:
             with open(self.bot.watch_file, "r") as f:
-                data = f.read()
+                return web.Response(text=f.read(), status=200, content_type="application/json")
         except FileNotFoundError:
-            data = json.dumps(self.bot.keyword_watches)
-        return web.Response(text=data, status=200, content_type="application/json")
+            return web.json_response(self.bot.keyword_watches, status=200)
 
     @basicauth("read", "Analytics")
     async def _analytics_handler(self, req: web.Request): # pylint: disable=unused-argument
@@ -427,6 +423,3 @@ class Server:
             title = "LaTeX Bot " + self.bot.version
         with open(os.path.join(RESOURCE_DIR, "template.html"), "r") as f:
             return f.read().format(title=title, icon_href=self.icon_href, body=body)
-
-
-import latexbot # nopep8 # pylint: disable=unused-import

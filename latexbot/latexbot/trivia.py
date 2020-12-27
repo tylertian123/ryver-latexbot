@@ -339,7 +339,7 @@ def set_custom_trivia_questions(questions):
     CUSTOM_TRIVIA_QUESTIONS = questions
 
 
-_T = typing.TypeVar("T")
+_T = typing.TypeVar("_T")
 def order_scores(scores: typing.Dict[_T, int]) -> typing.Dict[int, typing.List[_T]]:
     """
     Order a dict of {player: score} to produce a ranking.
@@ -520,6 +520,3 @@ class LatexBotTriviaGame:
         answers = "\n".join(f"{i + 1}. {answer}" for i, answer in enumerate(question["answers"]))
         result += "\n" + answers
         return result
-
-
-import latexbot # nopep8 # pylint: disable=unused-import
