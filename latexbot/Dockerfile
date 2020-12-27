@@ -7,7 +7,7 @@ WORKDIR /usr/src/latexbot
 COPY requirements.txt .
 RUN pip install -r requirements.txt && apk del gcc musl-dev
 
-COPY setup.py .
+COPY setup.py MANIFEST.in ./
 COPY latexbot/ ./latexbot
 RUN pip install . && rm -rf *
 

@@ -11,5 +11,7 @@ setup(
     install_requires=install_requires,
     python_requires=">=3.6",
     include_package_data=True,
+    package_dir={"latexbot": "./latexbot"},
+    package_data={"latexbot": ["static/*"]},
     zip_safe=False
 )
