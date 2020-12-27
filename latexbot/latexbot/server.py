@@ -58,6 +58,9 @@ def basicauth(level: str, realm: str = None):
     return _basicauth_decor
 
 
+RESOURCE_DIR = os.path.join(os.path.dirname(__file__), "static")
+
+
 class Server:
     """
     A class that starts a web server and processes webhooks.
@@ -267,6 +270,8 @@ class Server:
                     state = "approving these changes"
                 elif data["review"]["state"] == "changes_requested":
                     state = "requesting changes"
+                else:
+                    state = "unknown action"
                 body = f"*{github.format_author(data['sender'])} "
                 if data["action"] == "submitted":
                     body += f"submitted [a review]({data['review']['html_url']}) "
@@ -288,7 +293,7 @@ class Server:
         daily_msg_status = "\U0001F534 NOT SCHEDULED" if self.bot.daily_msg_task.done() else "\U0001F7E2 OK"
         start_time = self.bot.start_time.strftime(util.DATE_FORMAT)
         uptime = self.bot.current_time() - self.bot.start_time
-        with open("latexbot/html/home.html", "r") as f:
+        with open(os.path.join(RESOURCE_DIR, "home.html"), "r") as f:
             html = self.format_page(f.read().format(
                 version=self.bot.version, server_status="\U0001F7E2 OK", daily_msg_status=daily_msg_status,
                 start_time=start_time, uptime=uptime))
@@ -370,7 +375,7 @@ class Server:
         """
         Handle a GET request to /message.
         """
-        with open("latexbot/html/message.html", "r") as f:
+        with open(os.path.join(RESOURCE_DIR, "message.html"), "r") as f:
             html = self.format_page(f.read(), "Send a message")
         return aiohttp.web.Response(text=html, status=200, content_type="text/html")
 
@@ -388,7 +393,7 @@ class Server:
             for cmd, usage in self.bot.analytics.command_usage.items()}
         msg_activity = {self.bot.ryver.get_user(id=user).get_username(): size
             for user, size in self.bot.analytics.message_activity.items()}
-        with open("latexbot/html/analytics-ui.html", "r") as f, open("latexbot/html/analytics-ui-script.js") as s:
+        with open(os.path.join(RESOURCE_DIR, "analytics-ui.html"), "r") as f, open(os.path.join(RESOURCE_DIR, "analytics-ui.js")) as s:
             html = self.format_page(f.read().format(data={
                 "commandUsage": cmd_usage,
                 "shutdowns": self.bot.analytics.shutdowns,
@@ -415,7 +420,7 @@ class Server:
             title = title + " | LaTeX Bot " + self.bot.version
         else:
             title = "LaTeX Bot " + self.bot.version
-        with open("latexbot/html/template.html", "r") as f:
+        with open(os.path.join(RESOURCE_DIR, "template.html"), "r") as f:
             return f.read().format(title=title, icon_href=self.icon_href, body=body)
 
 
