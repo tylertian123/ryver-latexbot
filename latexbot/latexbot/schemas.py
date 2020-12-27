@@ -4,11 +4,16 @@ This module contains marshmallow schemas and classes for objects saved to JSON.
 
 import datetime
 import dateutil
+import logging
 import os
 import pyryver
 import typing
 from marshmallow import fields, decorators, Schema, ValidationError
+# TODO: remove latexbot or util dependency
 from . import analytics as aly, gcalendar, latexbot, util
+
+
+logger = logging.getLogger("latexbot")
 
 
 class ChatField(fields.Field):
@@ -180,7 +185,7 @@ class Config:
         # Handle the case of an empty env var
         cal_cred = os.environ.get("LATEXBOT_CALENDAR_CREDENTIALS") or "calendar_credentials.json"
         if not os.path.exists(cal_cred):
-            util.log(f"Warning: Calendar credentials file does not exist: {cal_cred}")
+            logger.warning(f"Calendar credentials file does not exist: {cal_cred}")
             self.calendar = None
         else:
             self.calendar = gcalendar.Calendar(cal_cred, self.calendar_id)

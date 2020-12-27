@@ -7,6 +7,7 @@ import asyncio
 import atexit
 import datetime
 import json
+import logging
 import marshmallow
 import os
 import pyryver
@@ -22,6 +23,9 @@ from .aho_corasick import Automaton
 from .cid import CaseInsensitiveDict
 from .command import Command, CommandSet, CommandError
 from .tba import TheBlueAlliance
+
+
+logger = logging.getLogger("latexbot")
 
 
 @dataclass(unsafe_hash=True, eq=False)
@@ -200,12 +204,12 @@ class LatexBot:
             with open(config_file, "r") as f:
                 err = await self.load_config(json.load(f))
             if err:
-                util.log(err)
+                logger.error(err)
                 if self.maintainer is not None:
                     await self.maintainer.send_message(err, self.msg_creator)
         except (json.JSONDecodeError, FileNotFoundError) as e:
             msg = f"Config does not exist or is not valid json: {e}. Falling back to empty config."
-            util.log(msg)
+            logger.error(msg)
             if self.maintainer is not None:
                 await self.maintainer.send_message(msg, self.msg_creator)
             await self.load_config({})
@@ -215,12 +219,12 @@ class LatexBot:
             with open(watch_file, "r") as f:
                 err = await self.load_watches(json.load(f))
             if err:
-                util.log(err)
+                logger.error(err)
                 if self.maintainer is not None:
                     await self.maintainer.send_message(err, self.msg_creator)
         except (json.JSONDecodeError, FileNotFoundError) as e:
             msg = f"Watches do not exist or is not valid json: {e}. Falling back to empty."
-            util.log(msg)
+            logger.error(msg)
             if self.maintainer is not None:
                 await self.maintainer.send_message(msg, self.msg_creator)
             await self.load_watches({})
@@ -230,7 +234,7 @@ class LatexBot:
             with open(roles_file, "r") as f:
                 self.roles = CaseInsensitiveDict(json.load(f))
         except (json.JSONDecodeError, FileNotFoundError) as e:
-            util.log(f"Error while loading roles: {e}. Defaulting to {{}}.")
+            logger.error(f"Error while loading roles: {e}. Defaulting to {{}}.")
             if self.maintainer is not None:
                 await self.maintainer.send_message(f"Error while loading roles: {e}. Defaulting to {{}}.", self.msg_creator)
             self.roles = CaseInsensitiveDict()
@@ -248,12 +252,12 @@ class LatexBot:
                 except marshmallow.ValidationError:
                     msg += "\n\nEncountered more errors trying to load the valid fields. Falling back to empty data."
                     self.analytics = schemas.analytics.load({})
-                util.log(msg)
+                logger.error(msg)
                 if self.maintainer is not None:
                     await self.maintainer.send_message(msg, self.msg_creator)
             except (json.JSONDecodeError, FileNotFoundError) as e:
                 msg = f"Analytics data does not exist or is not valid json: {e}. Falling back to empty."
-                util.log(msg)
+                logger.error(msg)
                 if self.maintainer is not None:
                     await self.maintainer.send_message(msg, self.msg_creator)
                 self.analytics = analytics.Analytics({}, {}, [])
@@ -271,7 +275,7 @@ class LatexBot:
             with open(trivia_file, "r") as f:
                 trivia.set_custom_trivia_questions(json.load(f))
         except (json.JSONDecodeError, FileNotFoundError) as e:
-            util.log(f"Error while loading custom trivia questions: {e}.")
+            logger.error(f"Error while loading custom trivia questions: {e}.")
             if self.maintainer is not None:
                 await self.maintainer.send_message(f"Error while loading custom trivia questions: {e}.", self.msg_creator)
 
@@ -317,14 +321,14 @@ class LatexBot:
         cancelled = False
         try:
             await asyncio.sleep(init_delay)
-            util.log("Executing daily message routine...")
+            logger.info("Executing daily message routine...")
             await commands.command_daily_message(self, None, None, None, None)
-            util.log("Daily message was sent.")
+            logger.info("Daily message was sent.")
         except asyncio.CancelledError:
             cancelled = True
         except Exception: # pylint: disable=broad-except
             exc = format_exc()
-            util.log(f"Error while executing daily message routine: {exc}")
+            logger.error(f"Daily message routine error: {exc}")
             if self.maintainer is not None:
                 await self.maintainer.send_message(f"Exception while sending daily message:\n```\n{exc}\n```", self.msg_creator)
         finally:
@@ -339,7 +343,7 @@ class LatexBot:
             self.daily_msg_task.cancel()
 
         if self.config.daily_message_time is None:
-            util.log("Daily message not scheduled because time isn't defined.")
+            logger.info("Daily message not scheduled because time isn't defined.")
             return
         now = self.current_time()
         # Get that time, today
@@ -349,7 +353,7 @@ class LatexBot:
             t += datetime.timedelta(days=1)
         init_delay = (t - now).total_seconds()
         self.daily_msg_task = asyncio.create_task(self._daily_msg(init_delay))
-        util.log(f"Daily message re-scheduled, starting after {init_delay} seconds.")
+        logger.info(f"Daily message re-scheduled, starting after {init_delay} seconds.")
 
     async def update_cache(self) -> None:
         """
@@ -478,7 +482,7 @@ class LatexBot:
         Run LaTeX Bot.
         """
         self.start_time = self.current_time()
-        util.log(f"LaTeX Bot {self.version} has been started. Initializing...")
+        logger.info(f"LaTeX Bot {self.version} has been started. Initializing...")
         self.update_help()
         self.schedule_daily_message()
         # Start webhook server
@@ -488,22 +492,22 @@ class LatexBot:
             if port:
                 port = int(port)
         except ValueError as e:
-            util.log(f"Error: Invalid port: {e}")
+            logger.error(f"Invalid port: {e}")
             port = None
         await self.webhook_server.start(port or 80)
         # Start live session
-        util.log("Starting live session")
+        logger.info("Starting live session")
         async with self.ryver.get_live_session(auto_reconnect=True) as session: # type: pyryver.RyverWS
-            util.log("Initializing live session")
+            logger.info("Initializing live session")
             self.session = session
 
             @session.on_connection_loss
             async def _on_conn_loss():
-                util.log("Error: Connection lost!")
+                logger.error(" Connection lost!")
 
             @session.on_reconnect
             async def _on_reconnect():
-                util.log("Reconnected!")
+                logger.info("Reconnected!")
 
             @session.on_chat
             async def _on_chat(msg: pyryver.WSChatMessageData):
@@ -516,14 +520,14 @@ class LatexBot:
                 from_user = self.ryver.get_user(jid=msg.from_jid)
 
                 if to is None or from_user is None:
-                    util.log("Received message from/to user/chat not in cache. Updating cache...")
+                    logger.warning("Received message from/to user/chat not in cache. Updating cache...")
                     await self.update_cache()
                     if to is None:
                         to = self.ryver.get_chat(jid=msg.to_jid)
                     if from_user is None:
                         from_user = self.ryver.get_user(jid=msg.from_jid)
                     if to is None or from_user is None:
-                        util.log("Error: Still not found after cache update. Command skipped.")
+                        logger.error("Still not found after cache update. Command skipped.")
                         return
 
                 # Ignore messages sent by us
@@ -577,7 +581,7 @@ class LatexBot:
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
                         if not self.enabled:
                             self.enabled = True
-                            util.log(f"Re-enabled by user {from_user.get_name()}!")
+                            logger.info(f"Re-enabled by user {from_user.get_name()}!")
                             await to.send_message("I have been re-enabled!", self.msg_creator)
                         else:
                             await to.send_message("I'm already enabled.", self.msg_creator)
@@ -590,7 +594,7 @@ class LatexBot:
                         if self.analytics:
                             self.analytics.command(command, args, from_user, to)
                         self.enabled = False
-                        util.log(f"Disabled by user {from_user.get_name()}.")
+                        logger.info(f"Disabled by user {from_user.get_name()}.")
                         await to.send_message("I have been disabled.", self.msg_creator)
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AWAY)
                         return
@@ -598,9 +602,9 @@ class LatexBot:
                     if not self.enabled:
                         return
                     if is_dm:
-                        util.log(f"DM received from {from_user.get_name()}: {msg.text}")
+                        logger.info(f"DM received from {from_user.get_name()}: {msg.text}")
                     else:
-                        util.log(f"Command received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
+                        logger.info(f"Command received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
 
                     async with session.typing(to):
                         if command in self.commands.commands:
@@ -610,22 +614,22 @@ class LatexBot:
                                 if not await self.commands.process(command, args, self, to, from_user, msg.message_id):
                                     message = random.choice(self.config.access_denied_messages) if self.config.access_denied_messages else "Access denied."
                                     await to.send_message(message, self.msg_creator)
-                                    util.log("Access Denied")
+                                    logger.info("Access Denied")
                                 else:
                                     if self.analytics:
                                         self.analytics.command(command, args, from_user, to)
-                                    util.log("Command processed.")
+                                    logger.info("Command processed.")
                             except CommandError as e:
-                                util.log(f"Command error: {e}")
+                                logger.info(f"Command error: {e}")
                                 await to.send_message(f"Error: {e}", bot.msg_creator)
                             except Exception as e: # pylint: disable=broad-except
                                 exc = format_exc()
-                                util.log(f"Exception raised:\n{exc}")
+                                logger.error(f"Exception raised:\n{exc}")
                                 await to.send_message(f"An exception occurred while processing the command:\n```{exc}\n```\n\nPlease try again.", self.msg_creator)
                                 if self.maintainer is not None:
                                     await self.maintainer.send_message(f"An exception occurred while processing command `{msg.text}` in {to.get_name()}:\n```\n{exc}\n```", self.msg_creator)
                         else:
-                            util.log("Invalid command.")
+                            logger.info("Invalid command.")
                             await to.send_message("Sorry, I didn't understand what you were asking me to do.", self.msg_creator)
                 # Not a command
                 else:
@@ -734,15 +738,15 @@ class LatexBot:
 
             if not self.debug and self.config.home_chat is not None:
                 await asyncio.sleep(5)
-                util.log("Sending startup message...")
+                logger.info("Sending startup message...")
                 try:
                     await session.send_presence_change(pyryver.RyverWS.PRESENCE_AVAILABLE)
-                    util.log("Presence change sent.")
+                    logger.info("Presence change sent.")
                     await self.config.home_chat.send_message(f"LaTeX Bot {self.version} is online!", self.msg_creator)
                 except (pyryver.WSConnectionError, aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    util.log(f"Exception during startup routine: {format_exc()}")
+                    logger.error(f"Exception during startup routine: {format_exc()}")
 
-            util.log("LaTeX Bot is running!")
+            logger.info("LaTeX Bot is running!")
             await session.run_forever()
 
     async def shutdown(self):

@@ -7,6 +7,7 @@ import binascii
 import io
 import json
 import lark
+import logging
 import os
 import pyryver
 import random
@@ -24,6 +25,9 @@ from .cid import CaseInsensitiveDict
 from .command import command, Command, CommandError
 from .gcalendar import Calendar
 from .tba import TheBlueAlliance
+
+
+logger = logging.getLogger("latexbot")
 
 
 @command(access_level=Command.ACCESS_LEVEL_EVERYONE)
@@ -2159,7 +2163,7 @@ async def command_import_config(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
         bot.update_help()
         bot.save_config()
         if errs:
-            util.log(errs)
+            logger.warning(f"Errors importing config from command: {errs}")
             await chat.send_message(errs, bot.msg_creator)
         else:
             await chat.send_message("Operation successful.", bot.msg_creator)
@@ -2221,7 +2225,7 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
         if not bot.config.access_rules:
             await chat.send_message("No access rules were created.", bot.msg_creator)
         else:
-            for page in util.paginate((util.format_access_rules(k, v) for k, v in bot.config.access_rules.items()), "All access rules:\n", sep="\n\n"):
+            for page in util.paginate((util.format_access_rules(bot.ryver, k, v) for k, v in bot.config.access_rules.items()), "All access rules:\n", sep="\n\n"):
                 await chat.send_message(page, bot.msg_creator)
         return
     try:
@@ -2233,7 +2237,7 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
         if args[0] not in bot.commands.commands:
             raise CommandError("Invalid command.")
         if args[0] in bot.config.access_rules:
-            await chat.send_message(util.format_access_rules(args[0], bot.config.access_rules[args[0]]), bot.msg_creator)
+            await chat.send_message(util.format_access_rules(bot.ryver, args[0], bot.config.access_rules[args[0]]), bot.msg_creator)
         else:
             await chat.send_message(f"No access rules for command {args[0]}.", bot.msg_creator)
     # If both command name and action are given, then rule type and args must be given
@@ -2394,6 +2398,7 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     await bot.update_cache()
     now = bot.current_time()
 
+    logger.info("Starting daily message routine")
     if bot.config.calendar is not None:
         events = bot.config.calendar.get_today_events(now)
         if events:
@@ -2420,7 +2425,7 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     url = f"https://www.checkiday.com/api/3/?d={now.strftime('%Y/%m/%d')}"
     async with aiohttp.request("GET", url) as resp:
         if resp.status != 200:
-            util.log(f"HTTP error while trying to get holidays: {resp}")
+            logger.error(f"HTTP error while trying to get holidays: {resp}")
             data = {
                 "error": f"HTTP error while trying to get holidays: {resp}",
             }
@@ -2435,9 +2440,9 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
             await bot.config.messages_chat.send_message(msg, bot.msg_creator)
     comic = await xkcd.get_comic()
     if comic['num'] <= bot.config.last_xkcd:
-        util.log(f"No new xkcd found (latest is {comic['num']}).")
+        logger.info(f"No new xkcd found (latest is {comic['num']}).")
     else:
-        util.log(f"New comic found! (#{comic['num']})")
+        logger.info(f"New comic found! (#{comic['num']})")
         xkcd_creator = pyryver.Creator(bot.msg_creator.name, util.XKCD_PROFILE)
         await bot.config.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
         # Update xkcd number

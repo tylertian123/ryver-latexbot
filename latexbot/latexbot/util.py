@@ -11,8 +11,6 @@ import pyryver
 import re
 import string
 import typing
-from textwrap import dedent
-from . import latexbot
 
 
 DATE_FORMAT = "%Y-%m-%d %H:%M"
@@ -39,17 +37,6 @@ MACRO_CHARS = set(string.ascii_lowercase + string.digits + "_")
 MENTION_REGEX = re.compile(r"((?:^|[^a-zA-Z0-9_!@#$%&*\\])(?:(?:@)(?!\/)))([a-zA-Z0-9_]*)(?:\b(?!@)|$)", flags=re.MULTILINE)
 MACRO_REGEX = re.compile(r"(^|[^a-z0-9_\\])\.([a-z0-9_]+)\b", flags=re.MULTILINE)
 CHAT_LOOKUP_REGEX = re.compile(r"([a-z]+)=(.*)")
-
-
-def log(*args, **kwargs):
-    """
-    Log a message.
-
-    This function uses print() and flushes immediately.
-    A timestamp is also added to each message.
-    """
-    print(latexbot.bot.current_time().strftime("%Y-%m-%d %H:%M:%S"), end=" ")
-    print(*args, **kwargs, flush=True)
 
 
 async def get_msgs_before(chat: pyryver.Chat, msg_id: str, count: int) -> typing.List[pyryver.ChatMessage]:
@@ -133,7 +120,7 @@ def caldays_diff(a: datetime.datetime, b: datetime.datetime) -> int:
     return (a - b).days
 
 
-_T = typing.TypeVar("T")
+_T = typing.TypeVar("_T")
 
 
 def split_list(l: typing.List[_T], v: _T) -> typing.List[typing.List[_T]]:
@@ -150,80 +137,6 @@ def split_list(l: typing.List[_T], v: _T) -> typing.List[typing.List[_T]]:
     return result
 
 
-def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
-    """
-    Parse command documentation into a dictionary.
-
-    Format:
-
-    <Short Description>
-
-    [Optional Long Description]
-    ---
-    group: <Command Group>
-    syntax: <Command Syntax>
-    [Other Attributes]
-    ---
-    > [Optional Examples]
-    > [More Examples]
-    """
-    doc = dedent(doc).strip().split("---")
-    if len(doc) < 2 or len(doc) > 3:
-        raise ValueError(
-            f"Doc must have between 2 or 3 sections, not {len(doc)}!")
-    # All sections
-    if len(doc) == 3:
-        desc, attrs, examples = doc
-    # No examples section
-    else:
-        desc, attrs = doc
-        examples = None
-
-    desc = split_list(desc.strip().splitlines(), "")
-    short_desc = ' '.join(s.strip() for s in desc[0])
-    # No extended description
-    if len(desc) == 1:
-        long_desc = None
-    else:
-        # Join by space for lines, then join by 2 newlines for paragraphs
-        # Skip first paragraph
-        paras = []
-        for para in desc[1:]:
-            p = ""
-            # Process each line
-            for line in para:
-                # If line starts with -, it is a list
-                # List items are separated by newlines
-                if line.startswith("-"):
-                    if p != "":
-                        p += "\n"
-                # Otherwise, separate by space
-                elif p != "":
-                    p += " "
-                p += line
-            paras.append(p)
-        long_desc = '\n\n'.join(paras)
-
-    if examples:
-        # Strip to remove possible leading space
-        # Only count lines starting with >
-        examples = [ex[1:].strip() for ex in examples.strip().splitlines() if ex.startswith(">")]
-
-    doc_dict = {
-        "short_desc": short_desc,
-        "long_desc": long_desc,
-        "examples": examples,
-    }
-
-    for attr in attrs.strip().splitlines():
-        try:
-            name, val = attr.split(":")
-        except ValueError as e:
-            raise ValueError(f"Incorrect format: {attr}") from e
-        doc_dict[name.strip()] = val.strip()
-    return doc_dict
-
-
 def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
     """
     Tries to parse the given string with any of the formats listed.
@@ -238,7 +151,7 @@ def tryparse_datetime(s: str, formats: typing.List[str]) -> datetime:
     return None
 
 
-def format_access_rules(command: str, rule) -> str:
+def format_access_rules(ryver: pyryver.Ryver, command: str, rule) -> str:
     """
     Format a command's access rules into a markdown string.
     """
@@ -246,9 +159,9 @@ def format_access_rules(command: str, rule) -> str:
     if rule.level:
         result += f"\n- Override Level: {rule.level}"
     if rule.allow_users:
-        result += f"\n- Allow Users: {', '.join(latexbot.bot.ryver.get_user(id=uid).get_username() for uid in rule.allow_users)}"
+        result += f"\n- Allow Users: {', '.join(ryver.get_user(id=uid).get_username() for uid in rule.allow_users)}"
     if rule.disallow_users:
-        result += f"\n- Disallow Users: {', '.join(latexbot.bot.ryver.get_user(id=uid).get_username() for uid in rule.disallow_users)}"
+        result += f"\n- Disallow Users: {', '.join(ryver.get_user(id=uid).get_username() for uid in rule.disallow_users)}"
     if rule.allow_roles:
         result += f"\n- Allow Roles: {', '.join(rule.allow_roles)}"
     if rule.disallow_roles:

@@ -3,10 +3,16 @@ This module contains the Command class and helpers.
 """
 
 import functools
+import logging
 import os
 import pyryver
+import textwrap
 import typing
+# TODO: Remove latexbot dependency
 from . import latexbot, util
+
+
+logger = logging.getLogger("latexbot")
 
 
 class CommandError(Exception):
@@ -178,11 +184,11 @@ class CommandSet:
                 continue
 
             if cmd.get_processor().__doc__ is None or cmd.get_processor().__doc__ == "":
-                util.log(f"Warning: Command {name} has no documentation, skipped")
+                logger.warning(f"Help text generation: Command {name} has no documentation, skipped")
                 continue
 
             try:
-                properties = util.parse_doc(cmd.get_processor().__doc__)
+                properties = parse_doc(cmd.get_processor().__doc__)
                 if properties.get("hidden", False) == "true":
                     # skip hidden commands
                     continue
@@ -207,8 +213,82 @@ class CommandSet:
                 description += f"\n\n{extended_description}\n\n**Examples:**\n{examples}"
                 extended_help_text[name] = description
             except (ValueError, KeyError) as e:
-                util.log(f"Error while parsing doc for {name}: {e}")
+                logger.warning(f"Help text generation: Error while parsing doc for {name}: {e}")
         return help_text, extended_help_text
+
+
+def parse_doc(doc: str) -> typing.Dict[str, typing.Any]:
+    """
+    Parse command documentation into a dictionary.
+
+    Format:
+
+    <Short Description>
+
+    [Optional Long Description]
+    ---
+    group: <Command Group>
+    syntax: <Command Syntax>
+    [Other Attributes]
+    ---
+    > [Optional Examples]
+    > [More Examples]
+    """
+    doc = textwrap.dedent(doc).strip().split("---")
+    if len(doc) < 2 or len(doc) > 3:
+        raise ValueError(
+            f"Doc must have between 2 or 3 sections, not {len(doc)}!")
+    # All sections
+    if len(doc) == 3:
+        desc, attrs, examples = doc
+    # No examples section
+    else:
+        desc, attrs = doc
+        examples = None
+
+    desc = util.split_list(desc.strip().splitlines(), "")
+    short_desc = ' '.join(s.strip() for s in desc[0])
+    # No extended description
+    if len(desc) == 1:
+        long_desc = None
+    else:
+        # Join by space for lines, then join by 2 newlines for paragraphs
+        # Skip first paragraph
+        paras = []
+        for para in desc[1:]:
+            p = ""
+            # Process each line
+            for line in para:
+                # If line starts with -, it is a list
+                # List items are separated by newlines
+                if line.startswith("-"):
+                    if p != "":
+                        p += "\n"
+                # Otherwise, separate by space
+                elif p != "":
+                    p += " "
+                p += line
+            paras.append(p)
+        long_desc = '\n\n'.join(paras)
+
+    if examples:
+        # Strip to remove possible leading space
+        # Only count lines starting with >
+        examples = [ex[1:].strip() for ex in examples.strip().splitlines() if ex.startswith(">")]
+
+    doc_dict = {
+        "short_desc": short_desc,
+        "long_desc": long_desc,
+        "examples": examples,
+    }
+
+    for attr in attrs.strip().splitlines():
+        try:
+            name, val = attr.split(":")
+        except ValueError as e:
+            raise ValueError(f"Incorrect format: {attr}") from e
+        doc_dict[name.strip()] = val.strip()
+    return doc_dict
 
 
 def command(name: str = None, access_level: int = Command.ACCESS_LEVEL_EVERYONE): # pylint: disable=unused-argument

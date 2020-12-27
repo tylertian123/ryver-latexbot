@@ -1,15 +1,19 @@
 import aiohttp
-import aiohttp.web
 import functools
 import hashlib
 import hmac
+import logging
 import json
 import os
 import pyryver
 import time
 import typing
+from aiohttp import web
 from markdownify import markdownify
 from . import github, schemas, trivia, util
+
+
+logger = logging.getLogger("latexbot")
 
 
 def basicauth(level: str, realm: str = None):
@@ -18,9 +22,9 @@ def basicauth(level: str, realm: str = None):
 
     Level can be either "read", "write" or "admin".
     """
-    def _basicauth_decor(func: typing.Callable[[aiohttp.web.Request], typing.Awaitable]):
+    def _basicauth_decor(func: typing.Callable[[web.Request], typing.Awaitable]):
         @functools.wraps(func)
-        async def _basicauth(self, req: aiohttp.web.Request):
+        async def _basicauth(self, req: web.Request):
             authorized = False
             authenticated = False
             if "authorization" in req.headers:
@@ -45,12 +49,12 @@ def basicauth(level: str, realm: str = None):
 
             if not authorized:
                 if authenticated:
-                    return aiohttp.web.Response(body="You need a higher access level for this resource.", status=403)
+                    return web.Response(body="You need a higher access level for this resource.", status=403)
                 else:
                     auth = "Basic"
                     if realm is not None:
                         auth += f" realm=\"{realm}\""
-                    return aiohttp.web.Response(body="Invalid credentials", status=401, headers={
+                    return web.Response(body="Invalid credentials", status=401, headers={
                         "WWW-Authenticate": auth
                     })
             return await func(self, req)
@@ -68,9 +72,9 @@ class Server:
 
     def __init__(self, bot: "latexbot.LatexBot"):
         self.bot = bot
-        self.app = None # type: aiohttp.web.Application()
-        self.runner = None # type: aiohttp.web.AppRunner
-        self.site = None # type: aiohttp.web.TCPSite
+        self.app = None # type: web.Application()
+        self.runner = None # type: web.AppRunner
+        self.site = None # type: web.TCPSite
         if self.bot.user.get_id() in self.bot.user_info:
             self.icon_href = self.bot.user_info[self.bot.user.get_id()].avatar or ""
         else:
@@ -80,7 +84,7 @@ class Server:
         """
         Start the server.
         """
-        self.app = aiohttp.web.Application()
+        self.app = web.Application()
         router = self.app.router
         router.add_get("/", self._homepage_handler)
         router.add_get("/config", self._config_handler)
@@ -92,11 +96,11 @@ class Server:
         router.add_post("/github", self._github_handler)
         router.add_post("/message", self._message_handler_post)
         router.add_get("/message", self._message_handler_get)
-        self.runner = aiohttp.web.AppRunner(self.app)
+        self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        self.site = aiohttp.web.TCPSite(self.runner, "0.0.0.0", port)
+        self.site = web.TCPSite(self.runner, "0.0.0.0", port)
         await self.site.start()
-        util.log(f"Started web server on port {port}.")
+        logger.info(f"Started web server on port {port}.")
 
     async def stop(self):
         """
@@ -104,24 +108,24 @@ class Server:
         """
         await self.runner.cleanup()
 
-    async def _github_handler(self, req: aiohttp.web.Request):
+    async def _github_handler(self, req: web.Request):
         """
         Handle a POST request coming from GitHub.
         """
         text = await req.text()
         if os.environ.get("LATEXBOT_GH_HOOK_SECRET"):
             if "X-Hub-Signature" not in req.headers:
-                return aiohttp.web.Response(status=401, body="Missing signature")
+                return web.Response(status=401, body="Missing signature")
             secret = os.environ["LATEXBOT_GH_HOOK_SECRET"]
             if not self.verify_signature(secret, req.headers["X-Hub-Signature"], text):
-                return aiohttp.web.Response(status=401, body="Bad signature")
+                return web.Response(status=401, body="Bad signature")
         data = json.loads(text)
         event = req.headers["X-GitHub-Event"]
         msg = github.format_gh_json(event, data)
         if msg and self.bot.config.gh_updates_chat is not None:
             await self.bot.config.gh_updates_chat.send_message(msg, self.bot.msg_creator)
         elif self.bot.config.gh_updates_chat is not None:
-            util.log(f"Unhandled GitHub event: {event}")
+            logger.info(f"Unhandled GitHub event: {event}")
 
         # Process issues
         if self.bot.gh_issues_board:
@@ -207,7 +211,7 @@ class Server:
                 elif data["action"] == "assigned":
                     user = self.bot.ryver.get_user(username=self.bot.config.gh_users_map.get(data["assignee"]["login"], ""))
                     if not user:
-                        util.log(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
+                        logger.warning(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
                     else:
                         assignees = await task.get_assignees()
                         if user not in assignees:
@@ -216,7 +220,7 @@ class Server:
                 elif data["action"] == "unassigned":
                     user = self.bot.ryver.get_user(username=self.bot.config.gh_users_map.get(data["assignee"]["login"], ""))
                     if not user:
-                        util.log(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
+                        logger.warning(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
                     else:
                         assignees = await task.get_assignees()
                         if user in assignees:
@@ -256,7 +260,7 @@ class Server:
                             comment = cmt
                             break
                     else:
-                        util.log(f"Cannot handle {event}: Comment not found: {data['comment']['id']}")
+                        logger.error(f"Cannot handle {event}: Comment not found: {data['comment']['id']}")
                     if comment:
                         if data["action"] == "deleted":
                             await comment.delete()
@@ -284,9 +288,9 @@ class Server:
                 elif data["action"] == "dismissed":
                     body += f"dismissed {github.format_author(data['review']['user'])}'s [review]({data['review']['html_url']}).*"
                     await task.comment(body)
-        return aiohttp.web.Response(status=204)
+        return web.Response(status=204)
 
-    async def _homepage_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+    async def _homepage_handler(self, req: web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /.
         """
@@ -297,17 +301,17 @@ class Server:
             html = self.format_page(f.read().format(
                 version=self.bot.version, server_status="\U0001F7E2 OK", daily_msg_status=daily_msg_status,
                 start_time=start_time, uptime=uptime))
-        return aiohttp.web.Response(text=html, status=200, content_type="text/html")
+        return web.Response(text=html, status=200, content_type="text/html")
 
     @basicauth("read", "Configuration")
-    async def _config_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+    async def _config_handler(self, req: web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /config.
         """
-        return aiohttp.web.json_response(schemas.config.dump(self.bot.config))
+        return web.json_response(schemas.config.dump(self.bot.config))
 
     @basicauth("read", "Roles")
-    async def _roles_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+    async def _roles_handler(self, req: web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /roles.
         """
@@ -316,10 +320,11 @@ class Server:
                 data = f.read()
         except FileNotFoundError:
             data = json.dumps(self.bot.roles.to_dict())
-        return aiohttp.web.Response(text=data, status=200, content_type="application/json")
+        # TODO: Use web.json_response()
+        return web.Response(text=data, status=200, content_type="application/json")
 
     @basicauth("read", "Custom Trivia Questions")
-    async def _trivia_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+    async def _trivia_handler(self, req: web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /trivia.
         """
@@ -328,10 +333,10 @@ class Server:
                 data = f.read()
         except FileNotFoundError:
             data = json.dumps(trivia.CUSTOM_TRIVIA_QUESTIONS)
-        return aiohttp.web.Response(text=data, status=200, content_type="application/json")
+        return web.Response(text=data, status=200, content_type="application/json")
 
     @basicauth("read", "Keyword Watches")
-    async def _keyword_watches_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+    async def _keyword_watches_handler(self, req: web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /keyword_watches.
         """
@@ -340,52 +345,52 @@ class Server:
                 data = f.read()
         except FileNotFoundError:
             data = json.dumps(self.bot.keyword_watches)
-        return aiohttp.web.Response(text=data, status=200, content_type="application/json")
+        return web.Response(text=data, status=200, content_type="application/json")
 
     @basicauth("read", "Analytics")
-    async def _analytics_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+    async def _analytics_handler(self, req: web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /analytics.
         """
         if self.bot.analytics is None:
-            return aiohttp.web.Response(text="Analytics are not enabled.", status=404)
-        return aiohttp.web.Response(text=self.bot.analytics.dumps(), status=200, content_type="application/json")
+            return web.Response(text="Analytics are not enabled.", status=404)
+        return web.Response(text=self.bot.analytics.dumps(), status=200, content_type="application/json")
 
     @basicauth("write", "Message Sending")
-    async def _message_handler_post(self, req: aiohttp.web.Request):
+    async def _message_handler_post(self, req: web.Request):
         """
         Handle a POST request to /message.
         """
         args = await req.post()
         if "chat" not in args or "message" not in args:
-            return aiohttp.web.Response(body="Missing param", status=400)
+            return web.Response(body="Missing param", status=400)
         try:
             chat = util.parse_chat_name(self.bot.ryver, args["chat"])
         except ValueError as e:
-            return aiohttp.web.Response(body=str(e), status=400)
+            return web.Response(body=str(e), status=400)
 
         if not chat:
-            return aiohttp.web.Response(body="Chat not found", status=404)
+            return web.Response(body="Chat not found", status=404)
 
         msg_id = await chat.send_message(args["message"])
-        return aiohttp.web.Response(body=msg_id, status=200)
+        return web.Response(body=msg_id, status=200)
 
     @basicauth("write", "Message Sending")
-    async def _message_handler_get(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+    async def _message_handler_get(self, req: web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /message.
         """
         with open(os.path.join(RESOURCE_DIR, "message.html"), "r") as f:
             html = self.format_page(f.read(), "Send a message")
-        return aiohttp.web.Response(text=html, status=200, content_type="text/html")
+        return web.Response(text=html, status=200, content_type="text/html")
 
     @basicauth("read", "Analytics UI")
-    async def _analytics_ui_handler(self, req: aiohttp.web.Request): # pylint: disable=unused-argument
+    async def _analytics_ui_handler(self, req: web.Request): # pylint: disable=unused-argument
         """
         Handle a GET request to /analytics-ui.
         """
         if self.bot.analytics is None:
-            return aiohttp.web.Response(text="Analytics are not enabled.", status=404)
+            return web.Response(text="Analytics are not enabled.", status=404)
         cmd_usage = {
             cmd: {
                 self.bot.ryver.get_user(id=user).get_username(): count
@@ -400,7 +405,7 @@ class Server:
                 "messageActivity": msg_activity,
                 "timestamp": int(time.time())
             }, script=s.read()), "Analytics")
-        return aiohttp.web.Response(text=html, status=200, content_type="text/html")
+        return web.Response(text=html, status=200, content_type="text/html")
 
     @classmethod
     def verify_signature(cls, secret: str, signature: str, data: str) -> bool:
