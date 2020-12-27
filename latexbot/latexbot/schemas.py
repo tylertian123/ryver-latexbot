@@ -178,8 +178,9 @@ class Config:
         # Fields not directly loaded from JSON
         self.tzinfo = dateutil.tz.gettz(self.tz_str)
         # Handle the case of an empty env var
-        cal_cred = os.environ.get("LATEXBOT_CALENDAR_CRED_FILE") or "calendar_credentials.json"
+        cal_cred = os.environ.get("LATEXBOT_CALENDAR_CREDENTIALS") or "calendar_credentials.json"
         if not os.path.exists(cal_cred):
+            util.log(f"Warning: Calendar credentials file does not exist: {cal_cred}")
             self.calendar = None
         else:
             self.calendar = gcalendar.Calendar(cal_cred, self.calendar_id)

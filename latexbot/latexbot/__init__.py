@@ -2,7 +2,9 @@
 The entry point of LaTeX Bot.
 """
 
+import json
 import os
+import sys
 from . import latexbot, util
 
 
@@ -17,14 +19,27 @@ TRIVIA_FILE = DATA_DIR + "trivia.json"
 ANALY_FILE = DATA_DIR + "analytics.json"
 WATCH_FILE = DATA_DIR + "keyword_watches.json"
 
+
 async def main_coro():
     """
     Main LaTeX Bot coroutine.
     """
     debug = os.environ.get("LATEXBOT_DEBUG") == "1"
+    if os.environ.get("LATEXBOT_ORG") and os.environ.get("LATEXBOT_USER") and os.environ.get("LATEXBOT_PASSWORD"):
+        org, user, password = os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASSWORD"]
+    else:
+        if not os.environ.get("LATEXBOT_CREDENTIALS_JSON"):
+            print("Error: No credentials! Set either LATEXBOT_CREDENTIALS_JSON to the path of a json containing the credentials, or LATEXBOT_ORG, LATEXBOT_USER and LATEXBOT_PASSWORD!")
+            sys.exit(1)
+        try:
+            with open(os.environ["LATEXBOT_CREDENTIALS_JSON"], "r") as f:
+                data = json.load(f)
+            org, user, password = data["organization"], data["username"], data["password"]
+        except (IOError, json.JSONDecodeError, KeyError) as e:
+            print(f"Error reading credentials: {type(e).__name__}: {e}")
+            sys.exit(1)
     bot = latexbot.LatexBot(__version__, debug=debug)
-    await bot.init(os.environ["LATEXBOT_ORG"], os.environ["LATEXBOT_USER"], os.environ["LATEXBOT_PASS"],
-                   DATA_DIR, "latexbot-")
+    await bot.init(org, user, password, DATA_DIR, "latexbot-")
     await bot.load_files(CONFIG_FILE, ROLES_FILE, TRIVIA_FILE, ANALY_FILE, WATCH_FILE)
     await bot.run()
     util.log("LaTeX Bot has been shut down. Goodbye.")
