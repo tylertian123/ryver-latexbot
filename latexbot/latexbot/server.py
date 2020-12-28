@@ -10,10 +10,15 @@ import time
 import typing
 from aiohttp import web
 from markdownify import markdownify
-from . import github, latexbot, schemas, trivia, util
+from . import github, latexbot, schemas, trivia, util # pylint: disable=unused-import
 
 
 logger = logging.getLogger("latexbot")
+
+
+ADMIN_PASSWORD = os.environ.get("LATEXBOT_SERVER_AUTH_ADMIN")
+WRITE_PASSWORD = os.environ.get("LATEXBOT_SERVER_AUTH_WRITE")
+READ_PASSWORD = os.environ.get("LATEXBOT_SERVER_AUTH_READ")
 
 
 def basicauth(level: str, realm: str = None):
@@ -30,20 +35,19 @@ def basicauth(level: str, realm: str = None):
             if "authorization" in req.headers:
                 try:
                     auth = aiohttp.BasicAuth.decode(req.headers["authorization"])
+                    # Block empty passwords
                     if auth.password:
-                        if auth.login == "admin":
-                            if auth.password == os.environ.get("LATEXBOT_SERVER_AUTH_ADMIN"):
+                        if auth.login == "admin" and auth.password == ADMIN_PASSWORD:
+                            authenticated = True
+                            authorized = True
+                        elif auth.login == "write" and auth.password == WRITE_PASSWORD:
+                            authenticated = True
+                            if level == "write" or level == "read":
                                 authorized = True
-                        elif auth.login == "write":
-                            if auth.password == os.environ.get("LATEXBOT_SERVER_AUTH_WRITE"):
-                                authenticated = True
-                                if level == "write" or level == "read":
-                                    authorized = True
-                        elif auth.login == "read":
-                            if auth.password == os.environ.get("LATEXBOT_SERVER_AUTH_READ"):
-                                authenticated = True
-                                if level == "read":
-                                    authorized = True
+                        elif auth.login == "read" and auth.password == READ_PASSWORD:
+                            authenticated = True
+                            if level == "read":
+                                authorized = True
                 except ValueError:
                     pass
 

@@ -486,15 +486,18 @@ class LatexBot:
         self.update_help()
         self.schedule_daily_message()
         # Start webhook server
-        self.webhook_server = server.Server(self)
-        port = os.environ.get("LATEXBOT_SERVER_PORT")
-        try:
-            if port:
-                port = int(port)
-        except ValueError as e:
-            logger.error(f"Invalid port: {e}")
-            port = None
-        await self.webhook_server.start(port or 80)
+        if os.environ.get("LATEXBOT_SERVER_PORT") or os.environ.get("LATEXBOT_SERVER") == "1":
+            if os.environ.get("LATEXBOT_SERVER_PORT"):
+                try:
+                    port = int(os.environ["LATEXBOT_SERVER_PORT"])
+                except ValueError as e:
+                    logger.error(f"Invalid port specified: {e}. Defaulting to 80.")
+                    port = 80
+            else:
+                port = 80
+            logger.info(f"Starting server on port {port}")
+            self.webhook_server = server.Server(self)
+            await self.webhook_server.start(port or 80)
         # Start live session
         logger.info("Starting live session")
         async with self.ryver.get_live_session(auto_reconnect=True) as session: # type: pyryver.RyverWS

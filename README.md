@@ -1,12 +1,13 @@
 # LaTeX Bot
 
-LaTeX Bot is a chat bot for [Ryver](https://ryver.com/), built for [Team Arctos 6135](https://www.arctos6135.com/)'s organization.
+LaTeX Bot is a bot for [Ryver](https://ryver.com/), built for [Team Arctos 6135](https://www.arctos6135.com/)'s organization.
 
-LaTeX Bot introduces many useful features for your organization that Ryver by itself lacks, such as a Roles system and Discord-style Role mentions,
+LaTeX Bot introduces many useful features for your organization that Ryver by itself lacks, such as a Roles system with mentions,
 Keyword Watches (like Slack's keyword notifications, but more customizable), mass-deleting and moving messages across forums and teams,
 and of course, rendering LaTeX (and chemical equations with `mhchem`).
 
 There are a lot of other neat features:
+
 - Google Calendar events integration
 - GitHub integration (updates and creating Ryver tasks for Issues and Pull Requests!)
 - The Blue Alliance integration (get FRC team/district/event info)
@@ -20,26 +21,15 @@ For an (almost) complete list of what LaTeX Bot can do, check out `usage_guide.m
 
 LaTeX Bot uses [`pyryver`](https://github.com/tylertian123/pyryver) for interfacing with Ryver.
 
-# Building and Running LaTeX Bot
+## Building and Running LaTeX Bot
 
-LaTeX Bot is designed to run inside a Docker container. Currently, the hosting of LaTeX Bot is generously provided by [@mincrmatt12](https://github.com/mincrmatt12). 
+LaTeX Bot is designed to run inside a Docker container. Currently, the hosting of LaTeX Bot is generously provided by [@mincrmatt12](https://github.com/mincrmatt12).
+See `deployment_guide.md` for more info on building, running and deployment.
 
-LaTeX Bot needs access to your organization to run. 
-Provide credentials either by creating a `.env` file setting the required environment variables or by directly exporting the variables if you're running it without Docker.
-The following env vars are required:
-- `LATEXBOT_ORG` - The Ryver organization name, e.g. arctos6135
-- `LATEXBOT_USER` - The account to be used by LaTeX Bot
-- `LATEXBOT_PASS` - The password for the account
+## Acknowledgements & Attribution
 
-To use Google Calendar integration, LaTeX Bot also needs a `calendar_credentials.json`, which contains the private key for a service account that has access to the calendar.
-
-Use `docker-compose build` to build LaTeX Bot's container, and then use `docker-compose up` to start LaTeX Bot. 
-Alternatively, you can also run LaTeX Bot directly using `python3 latexbot.py`.
-
-For more information on setting up LaTeX bot for your own organization, see `deployment_guide.md`.
-
-# Acknowledgements & Attribution
 This project is powered by:
+
 - XeTeX/LaTeX/TeX
 - Ryver (https://ryver.com/)
 - Checkiday (https://www.checkiday.com)
@@ -49,6 +39,7 @@ This project is powered by:
 - GitHub
 
 And uses the following open-source libraries:
+
 - [`aiohttp`](https://pypi.org/project/aiohttp/)
 - [`markdownify`](https://pypi.org/project/markdownify/)
 - [`python-dateutil`](https://pypi.org/project/python-dateutil/)
@@ -59,7 +50,8 @@ And uses the following open-source libraries:
 
 Many thanks to the developers of these services, libraries and APIs for making LaTeX Bot possible.
 
-# Feature Showcase
+## Feature Showcase
+
 Rendering LaTeX and simple equations:  
 ![`render` and `renderSimple` commands](https://user-images.githubusercontent.com/32781310/92654019-329b4a00-f2bd-11ea-92f3-5365f0a5ade7.png)
 

@@ -1,4 +1,5 @@
 # LaTeX Bot Usage Guide
+
 This guide will help you explore the various features of LaTeX Bot.
 It covers many important topics that you might find helpful.
 
@@ -8,6 +9,7 @@ This guide does not cover all commands, nor does it offer in-depth syntax info f
 This guide is for LaTeX Bot v0.8.5.
 
 # Table of Contents
+
 - [Access Levels](#access-levels)
 - [General Usage](#general-usage)
   - [Rendering Math/Chemical Equations](#rendering-mathchemical-equations)
@@ -59,6 +61,7 @@ This guide is for LaTeX Bot v0.8.5.
 - [Configuring LaTeX Bot](#configuring-latex-bot)
 
 # Access Levels
+
 Each command in LaTeX Bot has a specific Access Level.
 This restricts access to sensitive commands such as admin tools. 
 
@@ -70,18 +73,21 @@ Access Rules can also be used to override the access level of a command.
 
 Additionally, each access level is represented by a number internally; this is only used when configuring Access Rules.
 The access levels go like this:
-  1. Everyone - **0**
-  2. Forum Admins (specific to each forum; a forum admin of one forum has a different Access Level in another forum) - **1**
-  3. Org Admins - **2**
-  4. Bot Admins (configurable in the config JSON; see [Configuring LaTeX Bot](#configuring-latex-bot)) - **3**
-  5. The Maintainer - **4**
+
+1. Everyone - **0**
+2. Forum Admins (specific to each forum; a forum admin of one forum has a different Access Level in another forum) - **1**
+3. Org Admins - **2**
+4. Bot Admins (configurable in the config JSON; see [Configuring LaTeX Bot](#configuring-latex-bot)) - **3**
+5. The Maintainer - **4**
 
 Where the level increases as you go down the list.
 
 # General Usage
+
 This section outlines commands and topics that are commonly used and (mostly) accessible to everyone.
 
 ## Rendering Math/Chemical Equations
+
 Of course, the primary function of LaTeX Bot is to render LaTeX.
 You can render an equation with the `render` command, 
 e.g. `F(s) = \int_{0}^{\infty} f(t) e^{-st} dt` will render the definition of the Laplace Transform.
@@ -96,6 +102,7 @@ if there are no spaces around the plus signs, they will get rendered as charges 
 Fun fact: The output colour is grey because it is the only decent-looking colour visible in both light and dark mode.
 
 ### Rendering Simple Equations
+
 LaTeX can be quite verbose and a lot to type when you just want to render a simple equation during a discussion.
 To solve this problem, LaTeX Bot supports *simple equations*.
 
@@ -106,6 +113,7 @@ To render a simple equation, use the `renderSimple` command.
 For more details on simple equations, see `@latexbot help renderSimple`, or read the simple equation grammar in `latexbot/simplelatex.py`.
 
 ## Viewing XKCDs
+
 View the current xkcd or any past xkcd using the `xkcd` command!
 If not given arguments, it'll get the latest xkcd.
 If given a comic number, it'll try to get that specific comic.
@@ -114,6 +122,7 @@ New xkcds (if there is one) are sent each day as part of the Daily Message.
 See [Daily Message](#daily-message) for details.
 
 ## Checkiday
+
 Check today's holidays (from https://checkiday.com) using the `checkiday` command!
 If not given any arguments, it'll print out today's holidays.
 If given a specific date (format: YYYY/MM/DD), it'll print out the holidays for that day.
@@ -122,6 +131,7 @@ Holidays are sent each day as part of the Daily Message.
 See [Daily Message](#daily-message) for details.
 
 ## Chat Macros
+
 Macros allow LaTeX Bot to automatically replace specific strings in your messages with something else.
 They can be used by putting a dot in front of the macro name, e.g. `.shrug`.
 When a message containing one or more macros is sent, the macros will be automatically expanded (replaced with its expansion).
@@ -131,6 +141,7 @@ If you do not want a string to be replaced as a macro, put a backslash before it
 Because of Ryver's Markdown rendering, the backslash will not be visible in the final message.
 
 ### Managing Macros
+
 Admins can add or remove macros with the `macro` command.
 Use `@latexbot macro` with no arguments to list all macros.
 
@@ -141,16 +152,18 @@ Additionally, macro names can only contain lowercase letters, numbers and unders
 Use `@latexbot macro delete <macro>` to delete a macro.
 
 By default no macros are defined. Here's a recommended list that you could add:
- - `.shrug` - &#x00af;\\\_(&#x30c4;)\_/&#x00af; (Make sure to escape the backslashes and underscores)
- - `.tableflip`, `.flip` - (&#x256f;&#xb0;&#x25a1;&#xb0;)&#x256f;&#xfe35; &#x253b;&#x2501;&#x253b;
- - `.unflip` - &#x252c;&#x2500;&#x252c;&#x30ce;( &#xba; _ &#xba;&#x30ce;) (escape the underscore)
- - `.lenny` - ( &#x0361;&#xb0; &#x035c;&#x0296; &#x0361;&#xb0;)
- - `.disapproval` - &#x0ca0;_&#x0ca0; (escape the underscore)
- - `.sendlove`, `.love` - (&#x0254;&#x25d4;&#x203f;&#x25d4;)&#x0254; :heart:
- - `.megaphone`, `.announcement`, `.scream` - &#x0001f4e3; ('&#x1d17;' )&#x0648;
- - `.celebration` - &#xff3c;(&#xff3e;O&#xff3e;)&#xff0f;
+
+- `.shrug` - &#x00af;\\\_(&#x30c4;)\_/&#x00af; (Make sure to escape the backslashes and underscores)
+- `.tableflip`, `.flip` - (&#x256f;&#xb0;&#x25a1;&#xb0;)&#x256f;&#xfe35; &#x253b;&#x2501;&#x253b;
+- `.unflip` - &#x252c;&#x2500;&#x252c;&#x30ce;( &#xba; _ &#xba;&#x30ce;) (escape the underscore)
+- `.lenny` - ( &#x0361;&#xb0; &#x035c;&#x0296; &#x0361;&#xb0;)
+- `.disapproval` - &#x0ca0;_&#x0ca0; (escape the underscore)
+- `.sendlove`, `.love` - (&#x0254;&#x25d4;&#x203f;&#x25d4;)&#x0254; :heart:
+- `.megaphone`, `.announcement`, `.scream` - &#x0001f4e3; ('&#x1d17;' )&#x0648;
+- `.celebration` - &#xff3c;(&#xff3e;O&#xff3e;)&#xff0f;
 
 ## Playing Trivia
+
 Yes, LaTeX Bot has games!
 Trivia is a multiplayer game ~~(if you don't have friends, singleplayer is fine too)~~.
 However, the game itself doesn't implement any rules, such as turns, etc.
@@ -163,6 +176,7 @@ This means you can have two different games at the same time, as long as they're
 The `trivia` command can be used to play trivia, and it has a few sub-commands used to manipulate the game.
 
 ### Starting a Game
+
 The `start` sub-command can be used to start a trivia game. 
 It accepts up to 3 optional arguments, the category, difficulty, and type (true/false or multiple-choice).
 For argument, you can do also choose `all` (which is the default).
@@ -179,6 +193,7 @@ For the difficulty, accepted options are `easy`, `medium`, `hard` or `all`.
 For the question type, accepted options are `true/false` or `multiple-choice`.
 
 ### Playing the Game
+
 Once a game is started, you can do `@latexbot trivia question` or `@latexbot trivia next` to get the next question.
 
 You can answer the questions using reactions.
@@ -189,6 +204,7 @@ Alternatively, answer using the `answer` sub-command with the answer number, or 
 You can get the scoreboard using the `scoreboard` sub-command, and move on to the next question with `question` or `next`.
 
 ### Ending the Game
+
 Use `@latexbot trivia end` to end the game.
 Only the game "host" (the person who started the game) or a Forum Admin or higher may end the game.
 Scores will be announced when the game ends.
@@ -197,6 +213,7 @@ Note that the game will automatically end if there is more than 15 minutes of in
 When the game times out, **scores are not announced**.
 
 ### Adding Custom Trivia Questions
+
 You can import/export custom trivia questions using the `importCustomQuestions` and `exportCustomQuestions` sub-commands.
 Unlike other sub-commands, those commands are only accessible to Org Admins or higher.
 
@@ -205,6 +222,7 @@ Note that `importCustomQuestions` does not merge the input with the current data
 When importing, you can paste the JSON directly in the command, or attach it as a file attachment if it's over the character limit.
 
 The JSON should have the following format:
+
 ```json5
 {
   "<category name>": {
@@ -229,6 +247,7 @@ The JSON should have the following format:
 ```
 
 # Keyword Watches
+
 Keyword watches allow you to set up one or more keywords (which can be multiple words, parts of a word or even symbols)
 that you're interested in, so that you're notified each time someone sends a message with your keyword in it.
 This allows you to never miss out on conversations of interest.
@@ -236,23 +255,26 @@ Keyword watches can be configured through the `@latexbot watch [sub-command] [ar
 
 You can configure keywords to be case-sensitive and/or match whole words only (by default they're neither).
 **However, you will not be notified if any of the following are true:**
- - Your status is Available (indicated by a green dot; you can change this by clicking on your
- profile in the top left corner)
- - The message was sent to a forum or team you are not in
- - You turned keyword notifications off using `@latexbot watch off`
- - You are considered "active" by LaTeX Bot, i.e. you sent a message recently (by default in the
- last 3 minutes, configurable via `@latexbot watch activityTimeout <seconds>`).
- - Keyword watches have been suppressed explicitly through `watch suppress <seconds>` (see below).
+
+- Your status is Available (indicated by a green dot; you can change this by clicking on your
+  profile in the top left corner)
+- The message was sent to a forum or team you are not in
+- You turned keyword notifications off using `@latexbot watch off`
+- You are considered "active" by LaTeX Bot, i.e. you sent a message recently (by default in the
+  last 3 minutes, configurable via `@latexbot watch activityTimeout <seconds>`).
+- Keyword watches have been suppressed explicitly through `watch suppress <seconds>` (see below).
 
 Keyword matching is done using a DFA constructed using the Aho-Corasick algorithm to match a large number of keywords at once.
 
 ## Managing Your Keyword Watches
 
 ### Viewing Your Keywords and Configurations
+
 To view your list of keywords and configuration options, use the command with no arguments (`@latexbot watch`).
 This will list all the keywords you have defined as well as any relevant configuration options.
 
 ### Adding Keywords
+
 To add a keyword, use the `add <keyword> [match-case] [match-whole-word]` sub-command.
 Surround your keyword in quotes if it contains a space.
 To make the search case-sensitive or match whole words only, provide `true` or `yes` for `[match-case]` or `[match-whole-word]`.
@@ -262,27 +284,33 @@ By default, both options are false.
 For example, the command `@latexbot watch add "3d printer" false true` will add a watch for the keyword "3d printer", which is case-insensitive and matches whole words only.
 
 ### Removing Keywords
+
 To remove a keyword, first list all your keywords with `@latexbot watch`, and then find the number of the keyword you wish to delete.
 Then, use `@latexbot watch delete <number>` to delete that keyword.
 Alternatively, use `@latexbot watch delete all` to delete *all* keywords.
 
 ### Turning Keyword Watches Off
+
 You can turn keyword watches off entirely so you don't receive any notifications by using `@latexbot watch off`.
 To turn it back on, use `@latexbot watch on`.
 
 ### Suppressing Keyword Watches
+
 To temporarily suppress keyword watch notifications, use `@latexbot watch suppress <seconds>`. 
 This is completely separate from turning it off/on.
 To un-suppress without having to wait the full duration, simply suppress with a duration of 0, i.e. `@latexbot watch suppress 0`.
 
 ### Setting Your Activity Timeout
+
 Your activity timeout is how long you're considered "active" for after you send a message.
 When you're considered "active", you will not receive keyword watch notifications, even if your status is not Available.
 By default, your activity timeout is 3 minutes long, i.e. after sending a message, you will not receive keyword notifications in the next 3 minutes.
 You can change this by using `@latexbot watch activityTimeout <seconds>`. Set it to 0 to turn this feature off.
 
 ## Keyword Watch JSON Format
+
 By default, keyword watches are stored in `data/keyword_watches.json`. The format of this file is as follows:
+
 ```json5
 {
   "1234567": { // User ID
@@ -302,12 +330,14 @@ By default, keyword watches are stored in `data/keyword_watches.json`. The forma
 ```
 
 # The Blue Alliance (TBA) Integration
+
 The Blue Alliance (TBA) integration was added in version 0.6.0.
 It allows users to query info about FRC teams, districts and events using the `tba <sub-command> [args]` command.
 
 For more details, see the output of `@latexbot help tba`.
 
 Here is a list of supported actions:
+
 - `team <team>` - Get basic team info.
 - `teamEvents <team> [year]` - Get info about a team's events.
 - `districts [year]` - Get a list of all the districts.
@@ -324,6 +354,7 @@ case-insensitive.
 E.g. `districtEvents` can be abbreviated as `dEvents`, `districtE` or `dE`. 
 
 Some of these commands make use of *ranges*. A range can be one of the following:
+
 - A single number, e.g. "10" for the top 10 results.
 - Two numbers separated by a dash, e.g. "10-20" for the 10th result to the 20th result (inclusive).
 - A number followed by a plus, e.g. "10+", for everything after and including the 10th result.
@@ -334,20 +365,24 @@ This requires the `"frcTeam"` field to be set in the JSON config.
 Please see the deployment guide for how to set it up.
 
 # Google Calendar Integration
+
 This section outlines commands and topics related to Google Calendar events integration in LaTeX Bot.
 
 Note: To use Google Calendar Integration, the `"googleCalendarId"` in the config must be set.
 See the deployment guide for more details.
 
 ## Checking Events
+
 Anyone can check the upcoming events using the `events` command. 
 By default it only shows 3 events; you can give it a number, the number of events to show.
 
 ## Managing Events
+
 You can also add/delete Google Calendar events from LaTeX Bot.
 These commands are accessible to Org Admins or higher only.
 
 ### Adding Events
+
 There are two ways to add events: with the `addEvent` command, or with the `quickAddEvent` command.
 
 The `addEvent` command has a specific syntax. See its extended help for details.
@@ -360,6 +395,7 @@ It uses Google magic (not a part of LaTeX Bot!) to figure it out.
 Even though it might be faster, `addEvent` is still the preferred method if you want to specify event details exactly.
 
 ### Deleting Events
+
 To delete an event, use the `deleteEvent` command and give it the name of the event you want to delete.
 
 Note: You do not have to give the full name of the event.
@@ -367,14 +403,17 @@ E.g. `@latexbot deleteEvent Foo` will delete an event named "Foo Bar".
 The name is case-insensitive.
 
 # GitHub Integration
+
 GitHub integration was added in version 0.6.0.
 Please see the deployment guide for how to set it up and a list of supported events.
 
 The `"ghUpdatesChat"` field in the config must be set for GitHub updates, and the `"ghIssuesChat"` field must be set for integration with Ryver Tasks.
 
 ## Update Messages
+
 Every time an event occurs on GitHub, LaTeX Bot will send a message update to the configured chat.
 For example, here's what the message for a push looks like:
+
 > **tylertian123** (*tylertian123@gmail.com*) pushed 2 commit(s) to branch [*master*](https://github.com/tylertian123/cuddly-palm-tree/tree/master) in [**tylertian123/cuddly-palm-tree**](https://github.com/tylertian123/cuddly-palm-tree).
 > [Compare Changes](https://github.com/tylertian123/cuddly-palm-tree/compare/b7f3d986fa6f...595fa151b26d)
 >
@@ -385,6 +424,7 @@ For example, here's what the message for a push looks like:
 > [595fa15](https://github.com/tylertian123/cuddly-palm-tree/commit/595fa151b26db58a2dcfd141371df79131ab9c94) | **Tyler Tian** (*tylertian123@gmail.com*) | Merge pull request #4 from tylertian123/latexbot-link
 
 ## Issues/Pull Requests to Ryver Tasks
+
 When Issues or Pull Requests are opened, closed, assigned, reviewed etc, LaTeX Bot will automatically create or update a Ryver Task in the configured chat.
 (Note: If a task board already exists, it **must** be a task board with categories, not a task list.)
 
@@ -395,6 +435,7 @@ All Tasks created by LaTeX Bot will be tagged with `#latexbot-github`, and addit
 
 Any kind of update to the GitHub issue or pull request (e.g. a new comment, being labelled or assigned) will cause the Task to be updated.
 Most of these will only result in an automatic comment to the Task, with the exception of a few things:
+
 - Deletion - The task will be deleted
 - Closing (or merging) - The task will be completed and archived
 - Assignment/unassignment - The corresponding Ryver user will be assigned/unassigned to the Ryver Task
@@ -404,16 +445,20 @@ Note that in order for assignment/unassignment to work, the assigned GitHub user
 If the user does not exist in the config, there is no way to find the corresponding Ryver user, so it is not possible to assign/unassign the Ryver Task.
 
 # Admin Usage
+
 This section outlines commands and topics that are designed to help forum/org admins perform administrative tasks.
 
 ## Chat Admin Commands
+
 LaTeX Bot offers 3 admin commands that are useful for chat administration.
 They are:
-  - `deleteMessages`
-  - `moveMessages`
-  - `countMessagesSince`
+
+- `deleteMessages`
+- `moveMessages`
+- `countMessagesSince`
 
 ### `deleteMessages`
+
 `deleteMessages` deletes a number or a range of messages. 
 This is useful for tasks such as cleaning up an unwanted conversation so chats aren't cluttered.
 
@@ -421,6 +466,7 @@ You can pass it a single number, the number of messages to delete, e.g. `@latexb
 You can also pass it a range, e.g. `@latexbot deleteMessages 5-10` will delete from the 5th-last message up to and including the 10th-last message.
 
 ### `moveMessages`
+
 `moveMessages` "moves" a number or a range of messages to another forum/team.
 This is useful for dealing with things such as a conversation in the wrong forum/team or an off-topic conversation that you don't want to delete entirely.
 
@@ -432,18 +478,22 @@ Additionally, you must specify where to move the messages to.
 This is done using the Standard Chat Lookup Syntax (see below section).
 
 #### The Standard Chat Lookup Syntax
+
 The Standard Chat Lookup Syntax is specified by the following:
+
 ```
 [(name|nickname|username|email|id|jid)=][+|@]<forum|team|user>
 ```
+
 Essentially, this means that you have several ways of specifying a chat (includes users too!):
-  - Specify by name directly (e.g. "Programming"), without any additional specifiers.
-  - Specify by name, nickname, username, email, ID or JID (e.g. "nickname=Prog", "id=1303314").
-    You can do this by putting the type of the query parameter before the value, with a = in between, as demonstrated in the examples. 
-    Note that if you're specifying by chat nickname, it is ok to have the chat nickname start with a + (e.g. "nickname=+Prog").
-    This also applies to specifying by username and using an @.
-  - Specify using the Ryver nickname linking syntax, putting a + before the nickname (e.g. "+Prog").
-  - Specify using a user mention, putting a @ before the username (e.g. "@tylertian").
+
+- Specify by name directly (e.g. "Programming"), without any additional specifiers.
+- Specify by name, nickname, username, email, ID or JID (e.g. "nickname=Prog", "id=1303314").
+  You can do this by putting the type of the query parameter before the value, with a = in between, as demonstrated in the examples. 
+  Note that if you're specifying by chat nickname, it is ok to have the chat nickname start with a + (e.g. "nickname=+Prog").
+  This also applies to specifying by username and using an @.
+- Specify using the Ryver nickname linking syntax, putting a + before the nickname (e.g. "+Prog").
+- Specify using a user mention, putting a @ before the username (e.g. "@tylertian").
 
 Note: When specifying by name directly, queries are *case-sensitive* and must match *exactly* (including any leading/trailing whitespace).
 However, when specifying a username, email, or chat nickname, queries are case-insensitive (since these things are case-insensitive in the official app).
@@ -451,6 +501,7 @@ However, when specifying a username, email, or chat nickname, queries are case-i
 Due to implementation details, these queries are *case sensitive* and must match exactly!
 
 ### `countMessagesSince`
+
 `countMessagesSince` is a helper command you can use with the other two commands to help you count messages.
 You can use it to count the number of messages since the beginning of a conversation, so you can then pass that number to one of the other admin commands.
 
@@ -459,6 +510,7 @@ The search string is case-insensitive.
 If it is surrounded with slashes, it is treated as a multiline regex.
 
 ## Roles
+
 Roles are a powerful feature of LaTeX Bot that allows you to conveniently mention a group of people at the same time.
 They work like Discord roles; you can mention all the people with a role just by doing `@RoleName` somewhere in the message,
 and LaTeX Bot will automatically replace it with mentions to the correct people.
@@ -471,12 +523,14 @@ If you want to send a literal `@RoleName` and not have LaTeX Bot expand it, you 
 Because of Ryver's Markdown rendering, the backslash will not be visible in the final message.
 
 ### Viewing Roles
+
 You can view roles using the `roles` command. 
 Without any arguments, `@latexbot roles` will show all roles and users with the roles.
 If you provide a username, it will show all the roles a user has, e.g. `@latexbot roles tylertian`. 
 Or, you can provide a role name to see all users with that role, e.g. `@latexbot roles Programmers`.
 
 ### Managing Roles
+
 You can add or remove people from a role using the `addToRole` or `removeFromRole` commands.
 
 The two commands have the exact same syntax.
@@ -493,16 +547,19 @@ Just like the other two, you can specify multiple roles at a time by separating 
 And of course, the only difference in syntax between them is that `deleteRoles` doesn't take any usernames.
 
 # Miscellaneous
+
 This section covers features not covered in other sections.
 
 ## Daily Message
+
 The daily message is sent each day to two chats: the "announcements" chat and the "messages" chat.
 In order to specify them you must use `importConfig` and set the fields `"announcementsChat"` and `"messagesChat"`.
 
 Currently, the daily message consists of the following:
-  - A list of events happening today ([Google Calendar Integration](#google-calendar-integration)), to the "announcements" chat
-  - A new xkcd, if there is one, to the "messages" chat
-  - Today's holidays, to the "messages" chat
+
+- A list of events happening today ([Google Calendar Integration](#google-calendar-integration)), to the "announcements" chat
+- A new xkcd, if there is one, to the "messages" chat
+- Today's holidays, to the "messages" chat
 
 Additionally, the cached data is also updated as part of this routine.
 See [Updating Cached Chat Data](#updating-cached-chat-data) for more info.
