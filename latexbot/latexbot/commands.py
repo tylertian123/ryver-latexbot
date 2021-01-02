@@ -1428,31 +1428,34 @@ async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyry
     """
     if not bot.roles:
         await chat.send_message("There are currently no roles.", bot.msg_creator)
+    def format_user(uid: int):
+        user = bot.ryver.get_user(id=uid)
+        if user is None:
+            return f"<Unknown User #{uid}>"
+        else:
+            return f"{user.get_name()} (`{user.get_username()}`)"
     if args == "":
-        if bot.roles:
-            roles_str = "\n".join(
-                f"**{role}**: {', '.join(bot.ryver.get_user(id=user).get_username() for user in users)}" for role, users in bot.roles.items())
-            await chat.send_message(f"All roles:\n{roles_str}", bot.msg_creator)
+        await chat.send_message("All roles:"
+                                + ''.join(f"\n- **{role}**: {', '.join(format_user(uid) for uid in users)}"
+                                          for role, users in bot.roles.items()), bot.msg_creator)
     else:
         # A mention
         if args.startswith("@"):
             args = args[1:]
-        # A role
-        if args in bot.roles:
-            users = "\n".join(bot.ryver.get_user(id=uid).get_username() for uid in bot.roles[args])
-            await chat.send_message(f"These users have the role '{args}':\n{users}", bot.msg_creator)
+        user = chat.get_ryver().get_user(username=args)
         # Check if it's a username
-        else:
-            user = chat.get_ryver().get_user(username=args)
-            if user is not None:
-                roles = "\n".join(role for role, uids in bot.roles.items() if user.get_id() in uids)
-                if roles:
-                    await chat.send_message(
-                        f"User '{args}' has the following roles:\n{roles}", bot.msg_creator)
-                else:
-                    await chat.send_message(f"User '{args}' has no roles.", bot.msg_creator)
+        if user is not None:
+            roles = "\n".join(role for role, uids in bot.roles.items() if user.get_id() in uids)
+            if roles:
+                await chat.send_message(f"User '{args}' has the following roles:\n{roles}", bot.msg_creator)
             else:
-                raise CommandError(f"'{args}' is not a valid username or role name.")
+                await chat.send_message(f"User '{args}' has no roles.", bot.msg_creator)
+        # A role
+        elif args in bot.roles:
+            await chat.send_message(f"These users have the role '{args}':\n"
+                                    + "\n".join(format_user(uid) for uid in bot.roles[args]), bot.msg_creator)
+        else:
+            raise CommandError(f"'{args}' is not a valid username or role name.")
 
 
 @command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
