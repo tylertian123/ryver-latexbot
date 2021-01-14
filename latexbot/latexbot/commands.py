@@ -20,7 +20,7 @@ import typing
 from datetime import datetime
 from markdownify import markdownify
 from traceback import format_exc
-from . import latexbot, nffu, render, schemas, simplelatex, trivia, util, xkcd
+from . import latexbot, nffu, reddit, render, schemas, simplelatex, trivia, util, xkcd
 from .cid import CaseInsensitiveDict
 from .command import command, Command, CommandError
 from .gcalendar import Calendar
@@ -2402,55 +2402,72 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     now = bot.current_time()
 
     logger.info("Starting daily message routine")
-    if bot.config.calendar is not None:
-        events = bot.config.calendar.get_today_events(now)
-        if events:
-            resp = "Reminder: These events are happening today:"
-            for event in events:
-                start = Calendar.parse_time(event["start"])
-                end = Calendar.parse_time(event["end"])
+    async with aiohttp.ClientSession() as session:
+        # Check calendar events
+        if bot.config.calendar is not None:
+            logger.info("Checking calendar events")
+            events = bot.config.calendar.get_today_events(now)
+            if events:
+                resp = "Reminder: These events are happening today:"
+                for event in events:
+                    start = Calendar.parse_time(event["start"])
+                    end = Calendar.parse_time(event["end"])
 
-                # The event has a time, and it starts today (not already started)
-                if start.tzinfo and start > now:
-                    resp += f"\n# {event['summary']} today at *{start.strftime(util.TIME_DISPLAY_FORMAT)}*"
-                else:
-                    # Otherwise format like normal
-                    start_str = start.strftime(util.DATETIME_DISPLAY_FORMAT if start.tzinfo else util.DATE_DISPLAY_FORMAT)
-                    end_str = end.strftime(util.DATETIME_DISPLAY_FORMAT if end.tzinfo else util.DATE_DISPLAY_FORMAT)
-                    resp += f"\n# {event['summary']} (*{start_str}* to *{end_str}*)"
+                    # The event has a time, and it starts today (not already started)
+                    if start.tzinfo and start > now:
+                        resp += f"\n# {event['summary']} today at *{start.strftime(util.TIME_DISPLAY_FORMAT)}*"
+                    else:
+                        # Otherwise format like normal
+                        start_str = start.strftime(util.DATETIME_DISPLAY_FORMAT if start.tzinfo else util.DATE_DISPLAY_FORMAT)
+                        end_str = end.strftime(util.DATETIME_DISPLAY_FORMAT if end.tzinfo else util.DATE_DISPLAY_FORMAT)
+                        resp += f"\n# {event['summary']} (*{start_str}* to *{end_str}*)"
 
-                # Add description if there is one
-                if "description" in event and event["description"] != "":
-                    # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
-                    resp += f"\u200B:\n{markdownify(event['description'])}"
-            await bot.config.announcements_chat.send_message(resp, bot.msg_creator)
-
-    url = f"https://www.checkiday.com/api/3/?d={now.strftime('%Y/%m/%d')}"
-    async with aiohttp.request("GET", url) as resp:
-        if resp.status != 200:
-            logger.error(f"HTTP error while trying to get holidays: {resp}")
-            data = {
-                "error": f"HTTP error while trying to get holidays: {resp}",
-            }
+                    # Add description if there is one
+                    if "description" in event and event["description"] != "":
+                        # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
+                        resp += f"\u200B:\n{markdownify(event['description'])}"
+                await bot.config.announcements_chat.send_message(resp, bot.msg_creator)
+        # Checkiday
+        logger.info("Checking Checkiday")
+        url = f"https://www.checkiday.com/api/3/?d={now.strftime('%Y/%m/%d')}"
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                logger.error(f"HTTP error while trying to get holidays: {resp}")
+                data = {
+                    "error": f"HTTP error while trying to get holidays: {resp}",
+                }
+            else:
+                data = await resp.json()
+        if data["error"] != "none":
+            await bot.config.messages_chat.send_message(f"Error while trying to check today's holidays: {data['error']}", bot.msg_creator)
         else:
-            data = await resp.json()
-    if data["error"] != "none":
-        await bot.config.messages_chat.send_message(f"Error while trying to check today's holidays: {data['error']}", bot.msg_creator)
-    else:
-        if data.get("holidays", None):
-            msg = "Here is a list of all the holidays today:\n"
-            msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
-            await bot.config.messages_chat.send_message(msg, bot.msg_creator)
-    comic = await xkcd.get_comic()
-    if comic['num'] <= bot.config.last_xkcd:
-        logger.info(f"No new xkcd found (latest is {comic['num']}).")
-    else:
-        logger.info(f"New comic found! (#{comic['num']})")
-        xkcd_creator = pyryver.Creator(bot.msg_creator.name, util.XKCD_PROFILE)
-        await bot.config.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
-        # Update xkcd number
-        bot.config.last_xkcd = comic['num']
-        bot.save_config()
+            if data.get("holidays", None):
+                msg = "Here is a list of all the holidays today:\n"
+                msg += "\n".join(f"* [{holiday['name']}]({holiday['url']})" for holiday in data["holidays"])
+                await bot.config.messages_chat.send_message(msg, bot.msg_creator)
+        # xkcd
+        logger.info("Getting xkcd")
+        comic = await xkcd.get_comic(session=session)
+        if comic['num'] <= bot.config.last_xkcd:
+            logger.info(f"No new xkcd found (latest is {comic['num']}).")
+        else:
+            logger.info(f"New comic found! (#{comic['num']})")
+            xkcd_creator = pyryver.Creator(bot.msg_creator.name, util.XKCD_PROFILE)
+            await bot.config.messages_chat.send_message(f"New xkcd!\n\n{xkcd.comic_to_str(comic)}", xkcd_creator)
+            # Update xkcd number
+            bot.config.last_xkcd = comic['num']
+            bot.save_config()
+        # Reddit
+        if bot.config.reddit_chat is not None and bot.config.subreddit is not None:
+            logger.info(f"Checking r/{bot.config.subreddit}")
+            try:
+                post = await reddit.get_top_post_formatted(bot.config.subreddit, session=session)
+                await bot.config.reddit_chat.send_message(post, creator=bot.msg_creator)
+                logger.info("Post found and sent")
+            except ValueError as e:
+                logger.error(f"No valid reddit post found: {e}")
+            except aiohttp.ClientResponseError as e:
+                logger.error(f"HTTP error: {e}")
 
 
 @command(access_level=Command.ACCESS_LEVEL_BOT_ADMIN)

@@ -1,12 +1,14 @@
 import aiohttp
 from typing import Union, Dict, Any
 
-async def get_comic(number: int = None) -> Union[Dict[str, Any], None]:
+async def get_comic(number: int = None, session: aiohttp.ClientSession = None) -> Union[Dict[str, Any], None]:
     """
     Get an xkcd by number or the latest xkcd.
 
     If the comic does not exist, this function returns None.
     All other errors will raise a aiohttp.ClientResponseError.
+
+    An optional client session may be provided.
 
     Upon success, returns a dictionary in the following format:
     - "day", "month", "year": The date of the comic (str)
@@ -22,7 +24,11 @@ async def get_comic(number: int = None) -> Union[Dict[str, Any], None]:
     - "extra_parts": Used for special comics, usually interactive ones (may not exist) (obj)
     """
     url = f"https://xkcd.com/{number}/info.0.json" if number else "https://xkcd.com/info.0.json"
-    async with aiohttp.request("GET", url) as resp:
+    if session is not None:
+        req = session.get(url)
+    else:
+        req = aiohttp.request("GET", url)
+    async with req as resp:
         # Comic does not exist
         if resp.status == 404:
             return None
