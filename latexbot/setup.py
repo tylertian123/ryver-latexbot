@@ -5,7 +5,7 @@ with open("requirements.txt", "r") as f:
 
 setup(
     name="latexbot",
-    version="0.10.0-dev",
+    version="0.10.1-dev",
     description="Ryver bot",
     packages=["latexbot"],
     install_requires=install_requires,

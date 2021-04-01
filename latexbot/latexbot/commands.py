@@ -1402,6 +1402,101 @@ async def command_unmute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     await chat.send_message(f"Unmuted user {mute_user.get_name()} (`{mute_user.get_username()}`) in {chat.get_name()}.", bot.msg_creator)
 
 
+@command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
+async def command_timeout(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Temporarily disable another user's account.
+
+    **Please note that with the current implementation, if LaTeX Bot is restarted while a user is
+    in time-out, that user's account will *not* be re-enabled after the period ends.**
+
+    The rules and syntax for this command are the same as the mute command, except a duration in
+    seconds *must* be specified. To prevent abuse, the maximum timeout duration is 1 day (86400
+    seconds).
+    ---
+    group: Administrative Commands
+    syntax: [@]<username> <duration>
+    ---
+    > `@latexbot timeout @foobar 1200` - Disable foobar's account for 1200 seconds (20 minutes).
+    """
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        raise CommandError(f"Invalid syntax: {e}") from e
+    if len(args) != 2:
+        raise CommandError("Invalid syntax: Wrong number of arguments. See `@latexbot help timeout` for more info.")
+    username = args[0]
+    if username.startswith("@"):
+        username = username[1:]
+    target_user = bot.ryver.get_user(username=username)
+    if target_user is None:
+        raise CommandError(f"User {username} not found. Please enter a valid username.")
+    try:
+        duration = float(args[1])
+    except ValueError as e:
+        raise CommandError("Please enter a valid number of seconds for the duration.") from e
+    if duration > 86400:
+        raise CommandError("To prevent abuse, the maximum timeout duration is 1 day (86400 seconds).")
+    # Check access levels
+    if target_user == user:
+        raise CommandError("For safety reasons, self-timeouts are not allowed.")
+    if target_user == bot.maintainer or target_user == bot.user:
+        raise CommandError("Just what do you think you're doing, Dave?")
+    if await bot.commands.commands["timeout"].is_authorized(bot, chat, target_user):
+        user_level = await Command.get_access_level(chat, user)
+        target_level = await Command.get_access_level(chat, target_user)
+        if user_level <= target_level:
+            raise CommandError(f"You cannot give this user a timeout because they can also use timeout and have a higher access level than you ({target_level} >= {user_level}).")
+
+    # Cancel previous task
+    task = bot.timeout_tasks.get(target_user.get_id())
+    if task is not None and not task.done():
+        task.cancel()
+        await task
+    # Define an task to undo the thing
+    async def _untimeout_task():
+        try:
+            await asyncio.sleep(duration)
+            await target_user.set_activated(True)
+            bot.timeout_tasks.pop(target_user.get_id())
+            await chat.send_message(f"User {target_user.get_name()} (`{target_user.get_username()}`)'s timeout ended.", bot.msg_creator)
+        except asyncio.CancelledError:
+            pass
+    bot.timeout_tasks[target_user.get_id()] = asyncio.create_task(_untimeout_task())
+    await target_user.set_activated(False)
+    await chat.send_message(f"Deactivated {target_user.get_name()} (`{target_user.get_username()}`)'s account for {duration} seconds.", bot.msg_creator)
+
+
+@command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
+async def command_untimeout(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Re-enable a user's account if they're in timeout.
+    ---
+    group: Administrative Commands
+    syntax: [@]<username>
+    ---
+    > `@latexbot untimeout @foobar` - Re-enable foobar's account.
+    """
+    if args.startswith("@"):
+        args = args[1:]
+    target_user = bot.ryver.get_user(username=args)
+    if target_user is None:
+        raise CommandError(f"User {args} not found. Please enter a valid username.")
+    task = bot.timeout_tasks.get(target_user.get_id())
+    if task is None or task.done():
+        raise CommandError(f"{target_user.get_name()} is not on timeout.")
+    # Check access levels
+    if await bot.commands.commands["timeout"].is_authorized(bot, chat, target_user):
+        user_level = await Command.get_access_level(chat, user)
+        target_level = await Command.get_access_level(chat, target_user)
+        if user_level <= target_level:
+            raise CommandError(f"You cannot re-enable this user because they can use timeout and have a higher access level than you ({target_level} >= {user_level}).")
+    await target_user.set_activated(True)
+    task.cancel()
+    await task
+    await chat.send_message(f"User {target_user.get_name()} (`{target_user.get_username()}`) has been re-enabled.", bot.msg_creator)
+
+
 @command(access_level=Command.ACCESS_LEVEL_EVERYONE)
 async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """

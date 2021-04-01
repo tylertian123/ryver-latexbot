@@ -94,6 +94,8 @@ class LatexBot:
 
         self.start_time = None # type: datetime.datetime
 
+        self.timeout_tasks = {} # type: typing.Dict[int, asyncio.Task]
+
         global bot # pylint: disable=global-statement
         bot = self
 
