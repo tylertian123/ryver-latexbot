@@ -2470,24 +2470,6 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
                 logger.error(f"HTTP error: {e}")
 
 
-@command(access_level=Command.ACCESS_LEVEL_BOT_ADMIN)
-async def command_nffu_code(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
-    """
-    Generate an nffu signup code.
-    ---
-    group: Miscellaneous Commands
-    syntax:
-    """
-    NFFU_URL = "https://nffu-staging.i.mm12.xyz"
-    try:
-        code = nffu.generate_signup_code(binascii.unhexlify(os.environ["LATEXBOT_NFFU_HMAC"]), int(time.time()))
-        await chat.send_message(f"Sign up at {NFFU_URL}/signup with code `{code}`, or at {NFFU_URL}/signup/with/{code}.", bot.msg_creator)
-    except KeyError as e:
-        raise CommandError("This feature is unavailable because no nffu HMAC secret was provided. Please contact an admin for help.") from e
-    except binascii.Error as e:
-        raise CommandError("This feature is unavailable because the nffu HMAC secret is invalid. Please contact an admin for help.") from e
-
-
 @command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
 async def command_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
