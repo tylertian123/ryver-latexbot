@@ -11,7 +11,7 @@ REDDIT_URL = "https://www.reddit.com"
 
 POST_FORMAT = "# {title}\n\nPosted in [r/{sub}](https://www.reddit.com/r/{sub})" \
               + " by [u/{author}](https://www.reddit.com/u/{author}) ({votes} votes)" \
-              + "  \n![{title}]({img})  \n[Link]({link})"
+              + "  \n![{title}]({img})  \n[Link]({reddit}{link})"
 
 async def get_top_post_formatted(subreddit: str, seen: typing.Optional[typing.Collection[str]] = (),
                                  max_depth: int = 10, batch_size: int = 5, nsfw: bool = False,
@@ -56,6 +56,7 @@ async def get_top_post_formatted(subreddit: str, seen: typing.Optional[typing.Co
         votes = post.get("ups", 0) - post.get("downs", 0)
         votes = str(votes) if votes < 1000 else f"{votes / 1000:.1f}k"
         return POST_FORMAT.format(
+            reddit=REDDIT_URL,
             title=post.get("title"),
             link=post.get("permalink"),
             sub=post.get("subreddit"),
