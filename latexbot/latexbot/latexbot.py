@@ -515,7 +515,7 @@ class LatexBot:
                 logger.info("Reconnected!")
 
             @session.on_chat
-            async def _on_chat(msg: pyryver.WSChatMessageData):
+            async def _on_chat(msg: pyryver.WSChatMessageData, is_edit: bool = False):
                 # Ignore non-chat messages
                 if msg.subtype != pyryver.ChatMessage.SUBTYPE_CHAT_MESSAGE:
                     return
@@ -607,9 +607,9 @@ class LatexBot:
                     if not self.enabled:
                         return
                     if is_dm:
-                        logger.info(f"DM received from {from_user.get_name()}: {msg.text}")
+                        logger.info(f"DM {'edited' if is_edit else 'received'} from {from_user.get_name()}: {msg.text}")
                     else:
-                        logger.info(f"Command received from {from_user.get_name()} to {to.get_name()}: {msg.text}")
+                        logger.info(f"Command {'edited' if is_edit else 'received'} from {from_user.get_name()} to {to.get_name()}: {msg.text}")
 
                     async with session.typing(to):
                         if command in self.commands.commands:
@@ -726,7 +726,7 @@ class LatexBot:
                 # Sometimes updates are sent for things other than message edits
                 if msg.text is None:
                     return
-                await _on_chat(msg)
+                await _on_chat(msg, is_edit=True)
 
             @session.on_event(pyryver.RyverWS.EVENT_REACTION_ADDED)
             async def _on_reaction_added(msg: pyryver.WSEventData):
