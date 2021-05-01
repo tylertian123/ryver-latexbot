@@ -3,12 +3,11 @@ This module contains command definitions for LaTeX Bot.
 """
 import aiohttp
 import asyncio
-import binascii
 import io
+import itertools
 import json
 import lark
 import logging
-import os
 import pyryver
 import random
 import re
@@ -20,7 +19,7 @@ import typing
 from datetime import datetime
 from markdownify import markdownify
 from traceback import format_exc
-from . import latexbot, reddit, render, schemas, simplelatex, trivia, util, xkcd
+from . import latexbot, loghandler, reddit, render, schemas, simplelatex, trivia, util, xkcd
 from .cid import CaseInsensitiveDict
 from .command import command, Command, CommandError
 from .gcalendar import Calendar
@@ -2093,6 +2092,38 @@ async def command_update_cache(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     """
     await bot.update_cache()
     await chat.send_message("Forums/Teams/Users updated.", bot.msg_creator)
+
+
+@command(access_level=Command.ACCESS_LEVEL_BOT_ADMIN)
+async def command_dump_logs(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    View logs.
+
+    LaTeX Bot keeps a certain number of lines of logs stored in memory in a circular queue. This
+    command prints out a part of the contents of that queue.
+    ---
+    group: Developer Commands
+    syntax: [lines]
+    """
+    if args:
+        try:
+            linecount = int(args)
+        except ValueError as e:
+            raise CommandError("Invalid number.") from e
+        it = itertools.islice(loghandler.global_log_queue, linecount)
+    else:
+        it = loghandler.global_log_queue
+    # The most recent lines are last, so reverse them
+    lines = []
+    for line in it:
+        lines.append(line)
+    logs = "\n".join(reversed(lines))
+    # Send as file if too long
+    if len(logs) > 3900:
+        file = await bot.ryver.upload_file(f"{str(int(time.time()))}.txt", logs, "text/plain")
+        await chat.send_message("Logs:", creator=bot.msg_creator, attachment=file, from_user=bot.user)
+    else:
+        await chat.send_message(f"```text\n{logs}\n```", bot.msg_creator)
 
 
 @command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
