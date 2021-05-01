@@ -20,7 +20,7 @@ import typing
 from datetime import datetime
 from markdownify import markdownify
 from traceback import format_exc
-from . import latexbot, nffu, reddit, render, schemas, simplelatex, trivia, util, xkcd
+from . import latexbot, reddit, render, schemas, simplelatex, trivia, util, xkcd
 from .cid import CaseInsensitiveDict
 from .command import command, Command, CommandError
 from .gcalendar import Calendar
