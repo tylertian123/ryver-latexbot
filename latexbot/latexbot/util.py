@@ -313,7 +313,7 @@ async def process_concurrent(objs: typing.List[typing.Any], process: typing.Call
     Run a processing coroutine on a list of objects with multiple concurrent workers.
     """
     # Divide and round up
-    step = (len(objs) + 1) // workers + 1
+    step = (len(objs) - 1) // workers + 1
     async def _proc_range(start, end):
         for i in range(start, end):
             await process(objs[i])

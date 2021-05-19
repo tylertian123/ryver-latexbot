@@ -1117,7 +1117,9 @@ async def command_delete_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, 
         # Subtract 1 for 1-based indexing
         msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
     # Use multiple tasks
-    await util.process_concurrent(msgs, pyryver.ChatMessage.delete, 7)
+    # One worker per 10 messages, up to a maximum of 15 workers or a minimum of 3
+    worker_count = max(min(len(msgs) // 10, 15), 3)
+    await util.process_concurrent(msgs, pyryver.ChatMessage.delete, workers=worker_count)
     await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
 
 
@@ -1184,7 +1186,9 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
 
     # Delete all the messages asynchronously in the background with multiple workers
     # This way the only bottleneck is sending the messages
-    delete_task = asyncio.ensure_future(util.process_concurrent(msgs, pyryver.ChatMessage.delete, 7))
+    # One worker per 10 messages, up to a maximum of 15 workers or a minimum of 5
+    worker_count = max(min(len(msgs) // 10, 15), 3)
+    delete_task = asyncio.ensure_future(util.process_concurrent(msgs, pyryver.ChatMessage.delete, workers=worker_count))
     # Send the messages while merging messages from the same person to reduce the number of requests needed
     current_creator = None
     current_message = ""
