@@ -1184,11 +1184,6 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
 
     await to.send_message(f"# Begin Moved Message from {chat.get_name()}\n\n---", bot.msg_creator)
 
-    # Delete all the messages asynchronously in the background with multiple workers
-    # This way the only bottleneck is sending the messages
-    # One worker per 10 messages, up to a maximum of 15 workers or a minimum of 5
-    worker_count = max(min(len(msgs) // 10, 15), 3)
-    delete_task = asyncio.ensure_future(util.process_concurrent(msgs, pyryver.ChatMessage.delete, workers=worker_count))
     # Send the messages while merging messages from the same person to reduce the number of requests needed
     current_creator = None
     current_message = ""
@@ -1212,8 +1207,17 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
                 # and every user's display name who reacted with the reaction
                 u = [chat.get_ryver().get_user(id=person) for person in people]
                 msg_body += f"\n:{emoji}:: {', '.join([user.get_display_name() if user else 'unknown' for user in u])}"
-        # Merge messages with newlines
-        current_message += "  \n" + msg_body
+
+        # Flush the current message if it would be too long otherwise
+        # Otherwise we may get a 400
+        if len(current_message) + len(msg_body) > 3900:
+            # This check shouldn't be needed but just in case
+            if current_message:
+                await to.send_message(current_message, current_creator)
+            current_message = msg_body
+        else:
+            # Otherwise merge the messages together
+            current_message += "  \n" + msg_body
 
         # Handle file attachments
         # Skip this part if the destination chat is the same as the origin chat
@@ -1226,7 +1230,18 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
             if index != -1:
                 current_message = current_message[:index]
             # Since there can only be one attachment per message we cannot accumulate any more messages
-            await to.send_message(current_message, current_creator, msg.get_attached_file())
+            try:
+                # Attempt to re-send the message using the same attachment
+                # Usually this should re-attach the file to the correct chat and resend it
+                # But this may be undefined behaviour and sometimes mysteriously fails with a 400
+                await to.send_message(current_message, current_creator, msg.get_attached_file())
+            except aiohttp.ClientResponseError as e:
+                # In case resending the attachment fails, just send the message itself for now and report the error
+                await to.send_message(current_message, current_creator)
+                await chat.send_message(f"Warning: An attachment was lost while moving due to an HTTP error ({e.code}).", bot.msg_creator)
+                exc = format_exc()
+                if bot.maintainer is not None:
+                    await bot.maintainer.send_message(f"Warning: moveMessages lost an attachment due to an HTTP error ({e.code}). Stacktrace:\n```{exc}\n```", bot.msg_creator)
             # No need to reset the user ID and creator
             current_message = ""
     # Flush out the remaining message
@@ -1234,7 +1249,13 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
         await to.send_message(current_message, current_creator)
 
     await to.send_message(f"---\n\n# End Moved Message from {chat.get_name()}", bot.msg_creator)
-    await delete_task
+    # Delete all the messages asynchronously
+    # This way the only bottleneck is sending the messages
+    # One worker per 10 messages, up to a maximum of 15 workers or a minimum of 5
+    # Note: This used to be done in the background while the messages were being sent, but apparently that causes problems?
+    # Either way, doing them here makes sure the command doesn't eat up messages if it fails to replicate them
+    worker_count = max(min(len(msgs) // 10, 15), 3)
+    await asyncio.ensure_future(util.process_concurrent(msgs, pyryver.ChatMessage.delete, workers=worker_count))
     await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
     await chat.send_message(f"{len(msgs)} messages has been moved to {to.get_name()} from this forum/team.", bot.msg_creator)
 
