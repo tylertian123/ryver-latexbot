@@ -1337,8 +1337,10 @@ async def command_mute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryv
         args = shlex.split(args)
     except ValueError as e:
         raise CommandError(f"Invalid syntax: {e}") from e
-    if len(args) > 2:
-        raise CommandError("Invalid syntax: Too many arguments. See `@latexbot help mute` for more info.")
+    if len(args) > 2 or len(args) < 1:
+        raise CommandError("Invalid syntax: Wrong number of arguments. See `@latexbot help mute` for more info.")
+    if isinstance(chat, pyryver.User):
+        raise CommandError("Cannot mute in DMs.")
     username = args[0]
     if username.startswith("@"):
         username = username[1:]
@@ -1406,6 +1408,9 @@ async def command_unmute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
     ---
     > `@latexbot unmute tylertian` - Unmute tylertian in the current forum.
     """
+    args = args.strip()
+    if not args:
+        raise CommandError("Please provide a username.")
     if args.startswith("@"):
         args = args[1:]
     mute_user = bot.ryver.get_user(username=args)
@@ -2002,7 +2007,7 @@ async def command_delete_event(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
         end_str = datetime.strftime(end, util.DATETIME_DISPLAY_FORMAT if end.tzinfo else util.DATE_DISPLAY_FORMAT)
         await chat.send_message(f"Deleted event {matched_event['summary']} (**{start_str}** to **{end_str}**).", bot.msg_creator)
     else:
-        raise CommandError("Error: No event matches that name.")
+        raise CommandError("No event matches that name.")
 
 
 @command(access_level=Command.ACCESS_LEVEL_BOT_ADMIN)
@@ -2092,7 +2097,7 @@ async def command_execute(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: py
     try:
         sys.stdout = io.StringIO()
         sys.stderr = sys.stdout
-        exec("async def __aexec_func(bot, chat, user, msg_id, args):\n" + textwrap.indent(args, "    "), globals(), locals()) # pylint: disable=exec-used
+        exec("async def __aexec_func(bot, chat, user, msg_id, args):\n" + textwrap.indent(textwrap.dedent(args), "    "), globals(), locals()) # pylint: disable=exec-used
         await locals()["__aexec_func"](bot, chat, user, msg_id, args)
         output = sys.stdout.getvalue()
         await chat.send_message(output, bot.msg_creator)
@@ -2386,6 +2391,21 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
         args = shlex.split(args)
     except ValueError as e:
         raise CommandError(f"Invalid syntax: {e}") from e
+
+    ATTR_NAMES = {
+        "allowUser": "allow_users",
+        "disallowUser": "disallow_users",
+        "allowRole": "allow_roles",
+        "disallowRole": "disallow_roles",
+        "allow_user": "allow_users",
+        "disallow_user": "disallow_users",
+        "allow_role": "allow_roles",
+        "disallow_role": "disallow_roles",
+        "allow_users": "allow_users",
+        "disallow_users": "disallow_users",
+        "allow_roles": "allow_roles",
+        "disallow_roles": "disallow_roles",
+    }
     # Only command name is given - show access rules
     if len(args) == 1:
         if args[0] not in bot.commands.commands:
@@ -2419,9 +2439,6 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
             bot.config.access_rules[args[0]] = rules
         # Combine the two because they're similar
         elif args[1] == "add" or args[1] == "remove":
-            # Verify rule type
-            if args[2] not in ("allowUser", "disallowUser", "allowRole", "disallowRole"):
-                raise CommandError(f"Invalid rule type for action `{args[1]}`: {args[2]}. See `@latexbot help accessRule` for details.")
             if len(args) < 4:
                 raise CommandError(f"At least one argument must be supplied for action `{args[1]}`. See `@latexbot help accessRule` for details.")
             # Set the rules
@@ -2429,12 +2446,9 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
             if rules is None:
                 rules = schemas.AccessRule()
                 bot.config.access_rules[args[0]] = rules
-            attrname = {
-                "allowUser": "allow_users",
-                "disallowUser": "disallow_users",
-                "allowRole": "allow_roles",
-                "disallowRole": "disallow_roles"
-            }[args[2]]
+            attrname = ATTR_NAMES.get(args[2])
+            if attrname is None:
+                raise CommandError(f"Invalid rule type name; allowed names are ({', '.join(ATTR_NAMES.keys())}).")
             # Handle @mention syntax usernames
             items = [item[1:] if item.startswith("@") else item for item in args[3:]]
             if args[2] in ("allowUser", "disallowUser"):
@@ -2476,12 +2490,9 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
         elif args[1] == "delete":
             if len(args) != 3:
                 raise CommandError("The `delete` action does not take any arguments.")
-            attrname = {
-                "allowUser": "allow_users",
-                "disallowUser": "disallow_users",
-                "allowRole": "allow_roles",
-                "disallowRole": "disallow_roles"
-            }[args[2]]
+            attrname = ATTR_NAMES.get(args[2])
+            if attrname is None:
+                raise CommandError(f"Invalid rule type name; allowed names are ({', '.join(ATTR_NAMES.keys())}).")
             rules = bot.config.access_rules.get(args[0])
             if rules is None or getattr(rules, attrname) is None:
                 raise CommandError(f"Command {args[0]} does not have rule {args[2]} set.")
@@ -2489,7 +2500,7 @@ async def command_access_rule(bot: "latexbot.LatexBot", chat: pyryver.Chat, user
             if not rules:
                 bot.config.access_rules.pop(args[0])
         else:
-            raise CommandError(f"Error: Invalid action: {args[1]}. See `@latexbot help accessRule` for details.")
+            raise CommandError(f"Invalid action: {args[1]}. See `@latexbot help accessRule` for details.")
 
         bot.update_help()
         bot.save_config()
