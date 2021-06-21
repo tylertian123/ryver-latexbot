@@ -38,6 +38,7 @@ class UserInfo:
     presence: typing.Optional[str] = None
     last_activity: float = 0
     muted: typing.Optional[typing.Dict[int, asyncio.Task]] = None
+    kill_counter: int = 0
 
 
 # Global LatexBot instance
@@ -606,7 +607,33 @@ class LatexBot:
                         await to.send_message("I have been disabled.", self.msg_creator)
                         await session.send_presence_change(pyryver.RyverWS.PRESENCE_AWAY)
                         return
-
+                    elif command == "kill" and not await self.commands.commands["kill"].is_authorized(self, to, from_user):
+                        if from_user.get_id() not in self.user_info:
+                            self.user_info[from_user.get_id()] = UserInfo()
+                        user_info = self.user_info[from_user.get_id()]
+                        message = [
+                            "That's not very nice of you.",
+                            "I wouldn't do that if I were you.",
+                            "This is your last warning.",
+                            f"Got it. Killing user {from_user.get_display_name()}."
+                        ][user_info.kill_counter]
+                        user_info.kill_counter += 1
+                        logger.info(f"Kill attempted by @{from_user.get_username()} (count: {user_info.kill_counter})")
+                        await to.send_message(message, bot.msg_creator)
+                        if user_info.kill_counter >= 4:
+                            user_info.kill_counter = 0
+                            async def _untimeout_task():
+                                try:
+                                    await asyncio.sleep(60)
+                                    await from_user.set_activated(True)
+                                    bot.timeout_tasks.pop(from_user.get_id())
+                                except asyncio.CancelledError:
+                                    pass
+                            bot.timeout_tasks[from_user.get_id()] = asyncio.create_task(_untimeout_task())
+                            await from_user.set_activated(False)
+                            if bot.maintainer is not None:
+                                await bot.maintainer.send_message(f"User @{from_user.get_username()} has been killed.", bot.msg_creator)
+                        return
                     if not self.enabled:
                         return
                     if is_dm:
