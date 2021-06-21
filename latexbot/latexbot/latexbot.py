@@ -557,8 +557,11 @@ class LatexBot:
                 if from_user.get_id() in self.user_info:
                     muted = self.user_info[from_user.get_id()].muted
                     if muted is not None and to.get_id() in muted:
-                        msg_obj = await pyryver.retry_until_available(to.get_message, msg.message_id, retry_delay=0.1)
-                        await msg_obj.delete()
+                        try:
+                            msg_obj = await pyryver.retry_until_available(to.get_message, msg.message_id, retry_delay=0.1)
+                            await msg_obj.delete()
+                        except TimeoutError:
+                            pass
                         return
 
                 if not is_dm and self.analytics is not None:
@@ -658,11 +661,14 @@ class LatexBot:
                     if new_text != msg.text:
                         msg.text = new_text
                         async with session.typing(to):
-                            # Get the message object
-                            msg_obj = (await pyryver.retry_until_available(to.get_message, msg.message_id))
-                            # Pretend to be the creator
-                            msg_creator = await self.get_replace_message_creator(msg_obj)
-                            await to.send_message(msg.text, msg_creator)
+                            try:
+                                # Get the message object
+                                msg_obj = (await pyryver.retry_until_available(to.get_message, msg.message_id))
+                                # Pretend to be the creator
+                                msg_creator = await self.get_replace_message_creator(msg_obj)
+                                await to.send_message(msg.text, msg_creator)
+                            except TimeoutError:
+                                pass
                         # Can't delete the other person's messages in DMs, so skip
                         if not is_dm:
                             await msg_obj.delete()

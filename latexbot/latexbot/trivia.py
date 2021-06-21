@@ -437,31 +437,36 @@ class LatexBotTriviaGame:
         """
         Get the next question or repeat the current question and send it to the chat.
         """
-        async with self.lock:
-            self.refresh_timeout()
+        try:
+            async with self.lock:
+                self.refresh_timeout()
 
-            # Only update the question if already answered
-            # Try to get the next question
-            if self.game.current_question["answered"] and not await self._try_get_next():
-                return
+                # Only update the question if already answered
+                # Try to get the next question
+                if self.game.current_question["answered"] and not await self._try_get_next():
+                    return
 
-            formatted_question = self.format_question(self.game.current_question)
-            # Send the message
-            # First send an empty message to get the reactions
-            mid = await self.chat.send_message("Loading...", self.msg_creator)
-            msg = await pyryver.retry_until_available(self.chat.get_message, mid, timeout=5.0, retry_delay=0)
-            if self.game.current_question["type"] == TriviaSession.TYPE_MULTIPLE_CHOICE:
-                # Iterate the reactions array until all the options are accounted for
-                for _, reaction in zip(self.game.current_question["answers"], self.TRIVIA_NUMBER_EMOJIS):
-                    await msg.react(reaction)
-            else:
-                await msg.react("white_check_mark")
-                await msg.react("x")
-            await msg.react("trophy")
-            await msg.react("fast_forward")
-            # Now edit the message to show the actual question contents
-            await msg.edit(formatted_question)
-            self.question_msg = msg
+                formatted_question = self.format_question(self.game.current_question)
+                # Send the message
+                # First send an empty message to get the reactions
+                mid = await self.chat.send_message("Loading...", self.msg_creator)
+                msg = await pyryver.retry_until_available(self.chat.get_message, mid, timeout=5.0, retry_delay=0)
+
+                if self.game.current_question["type"] == TriviaSession.TYPE_MULTIPLE_CHOICE:
+                    # Iterate the reactions array until all the options are accounted for
+                    for _, reaction in zip(self.game.current_question["answers"], self.TRIVIA_NUMBER_EMOJIS):
+                        await msg.react(reaction)
+                else:
+                    await msg.react("white_check_mark")
+                    await msg.react("x")
+                await msg.react("trophy")
+                await msg.react("fast_forward")
+                # Now edit the message to show the actual question contents
+                await msg.edit(formatted_question)
+                self.question_msg = msg
+        except TimeoutError:
+            await self.chat.send_message("Critical: TimeoutError while trying to get message! Ending game!")
+            await self.end()
 
     async def send_scores(self):
         """

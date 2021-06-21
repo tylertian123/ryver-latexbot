@@ -812,7 +812,10 @@ async def command_trivia(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
             raise CommandError("You are not authorized to do that.")
     elif cmd == "importCustomQuestions":
         if await bot.commands.commands["trivia importCustomQuestions"].is_authorized(bot, chat, user):
-            msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
+            try:
+                msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
+            except TimeoutError as e:
+                raise CommandError("Something went wrong (TimeoutError). Please try again.") from e
             try:
                 trivia.set_custom_trivia_questions(await util.get_attached_json_data(msg, sub_args))
                 await chat.send_message("Operation successful.", bot.msg_creator)
@@ -1109,18 +1112,26 @@ async def command_delete_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, 
     if start > end:
         raise CommandError("No messages to delete.")
 
-    # Special case for start = 1
-    if start == 1:
-        msgs = await util.get_msgs_before(chat, msg_id, end)
-    else:
-        # Cut off the end (newer messages)
-        # Subtract 1 for 1-based indexing
-        msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
+    try:
+        # Special case for start = 1
+        if start == 1:
+            msgs = await util.get_msgs_before(chat, msg_id, end)
+        else:
+            # Cut off the end (newer messages)
+            # Subtract 1 for 1-based indexing
+            msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
+    except TimeoutError as e:
+        raise CommandError("Something went wrong (TimeoutError in `get_msgs_before`). Please try again.") from e
     # Use multiple tasks
     # One worker per 10 messages, up to a maximum of 15 workers or a minimum of 3
     worker_count = max(min(len(msgs) // 10, 15), 3)
     await util.process_concurrent(msgs, pyryver.ChatMessage.delete, workers=worker_count)
-    await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
+    try:
+        await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
+    # Oh no!
+    except TimeoutError:
+        # Anyway
+        pass
 
 
 @command(access_level=Command.ACCESS_LEVEL_FORUM_ADMIN)
@@ -1174,13 +1185,16 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     except ValueError as e:
         raise CommandError(str(e)) from e
 
-    # Special case for start = 1
-    if start == 1:
-        msgs = await util.get_msgs_before(chat, msg_id, end)
-    else:
-        # Cut off the end (newer messages)
-        # Subtract 1 for 1-based indexing
-        msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
+    try:
+        # Special case for start = 1
+        if start == 1:
+            msgs = await util.get_msgs_before(chat, msg_id, end)
+        else:
+            # Cut off the end (newer messages)
+            # Subtract 1 for 1-based indexing
+            msgs = (await util.get_msgs_before(chat, msg_id, end))[:-(start - 1)]
+    except TimeoutError as e:
+        raise CommandError("Something went wrong (TimeoutError in `get_msgs_before`). Please try again.") from e
 
     await to.send_message(f"# Begin Moved Message from {chat.get_name()}\n\n---", bot.msg_creator)
 
@@ -1256,7 +1270,10 @@ async def command_move_messages(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
     # Either way, doing them here makes sure the command doesn't eat up messages if it fails to replicate them
     worker_count = max(min(len(msgs) // 10, 15), 3)
     await asyncio.ensure_future(util.process_concurrent(msgs, pyryver.ChatMessage.delete, workers=worker_count))
-    await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
+    try:
+        await (await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)).delete()
+    except TimeoutError:
+        pass
     await chat.send_message(f"{len(msgs)} messages has been moved to {to.get_name()} from this forum/team.", bot.msg_creator)
 
 
@@ -1296,7 +1313,10 @@ async def command_count_messages_since(bot: "latexbot.LatexBot", chat: pyryver.C
     while count < 500:
         # Reverse the messages as by default the oldest is the first
         # Search 50 at a time
-        msgs = (await util.get_msgs_before(chat, msg_id, 50))[::-1]
+        try:
+            msgs = (await util.get_msgs_before(chat, msg_id, 50))[::-1]
+        except TimeoutError as e:
+            raise CommandError("Something went wrong (TimeoutError in `get_msgs_before`). Please try again.") from e
         for message in msgs:
             count += 1
             if match(message.get_body()):
@@ -1735,10 +1755,13 @@ async def command_import_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, use
     > `@latexbot importRoles {}` - Clear all roles.
     """
     try:
-        data = await util.get_attached_json_data(await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0), args)
-    except ValueError as e:
-        await chat.send_message(str(e), bot.msg_creator)
-    msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
+        try:
+            data = await util.get_attached_json_data(await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0), args)
+        except ValueError as e:
+            await chat.send_message(str(e), bot.msg_creator)
+        msg = await pyryver.retry_until_available(chat.get_message, msg_id, timeout=5.0)
+    except TimeoutError as e:
+        raise CommandError("Something went wrong (TimeoutError). Please try again.") from e
     file = msg.get_attached_file()
     if file:
         # Get the actual contents
@@ -2331,6 +2354,8 @@ async def command_import_config(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
             await chat.send_message(errs, bot.msg_creator)
         else:
             await chat.send_message("Operation successful.", bot.msg_creator)
+    except TimeoutError as e:
+        raise CommandError("Something went wrong (TimeoutError). Please try again.") from e
     except json.JSONDecodeError as e:
         await chat.send_message(f"Invalid JSON: {e}", bot.msg_creator)
 
