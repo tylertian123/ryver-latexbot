@@ -24,6 +24,7 @@ from .cid import CaseInsensitiveDict
 from .command import command, Command, CommandError
 from .gcalendar import Calendar
 from .tba import TheBlueAlliance
+from .tips import generate_random_tip
 
 
 logger = logging.getLogger("latexbot")
@@ -2660,6 +2661,8 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
                 logger.error(f"No valid reddit post found: {e}")
             except aiohttp.ClientResponseError as e:
                 logger.error(f"HTTP error: {e}")
+        # Tips
+        await bot.config.messages_chat.send_message(f"Random latexbot tip of the day: {generate_random_tip()}", bot.msg_creator)
 
 
 @command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
