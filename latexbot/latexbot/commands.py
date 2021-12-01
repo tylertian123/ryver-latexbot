@@ -1858,7 +1858,7 @@ async def command_events(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyr
                 minutes, seconds = divmod(seconds, 60)
                 resp += f"\n# {hours}:{minutes:02d} "
             else:
-                resp += f"\n# {day} days "
+                resp += f"\n# {day} day{'s' * (day != 1)} "
             resp += f"until {event['summary']} (*{start_str}* to *{end_str}*)"
             if "description" in event and event["description"] != "":
                 # Note: The U+200B (Zero-Width Space) is so that Ryver won't turn ): into a sad face emoji
