@@ -213,7 +213,7 @@ class Server:
                     await task.uncomplete()
                     await task.unarchive()
                 elif data["action"] == "assigned":
-                    user = self.bot.ryver.get_user(username=self.bot.config.gh_users_map.get(data["assignee"]["login"], ""))
+                    user = self.bot.ryver.get_user(username=self.bot.config.gh_users_map.get(data["assignee"]["login"], data["assignee"]["login"]))
                     if not user:
                         logger.warning(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
                     else:
@@ -222,7 +222,7 @@ class Server:
                             assignees.append(user)
                             await task.edit(assignees=assignees)
                 elif data["action"] == "unassigned":
-                    user = self.bot.ryver.get_user(username=self.bot.config.gh_users_map.get(data["assignee"]["login"], ""))
+                    user = self.bot.ryver.get_user(username=self.bot.config.gh_users_map.get(data["assignee"]["login"], data["assignee"]["login"]))
                     if not user:
                         logger.warning(f"{obj_type} assignment could not be updated: Ryver user for {data['assignee']['login']} not found.")
                     else:

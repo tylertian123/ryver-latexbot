@@ -2742,6 +2742,50 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
 
 
 @command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
+async def command_link_git_hub(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Associate a GitHub username to a Ryver username for Task assignments (GitHub integration).
+
+    Outputs all existing GitHub user to Ryver user associations if used without any arguments.
+    
+    If only the GitHub username is provided, its association will be *removed*.
+    ---
+    group: Miscellaneous Commands
+    syntax: [ghusername] [ryverusername]
+    ---
+    > `@latexbot linkGitHub` - Get a list of all existing GitHub-Ryver username associations.
+    > `@latexbot linkGitHub githubuser ryveruser` - Associate the GitHub user `githubuser` to the Ryver user `ryveruser`.
+    > `@latexbot linkGitHub githubuser` - Remove the GitHub user `githubuser`'s Ryver user association.
+    """
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        raise CommandError(f"Invalid syntax: {e}") from e
+    if not args:
+        if not bot.config.gh_users_map:
+            await chat.send_message(f"No GitHub username to Ryver username associations have been set up.", bot.msg_creator)
+        else:
+            msg = f"Existing associations:"
+            for gh, ryver in bot.config.gh_users_map.items():
+                msg += f"\n* GitHub Username: `{gh}`, Ryver Username: `{ryver}`"
+            await chat.send_message(msg, bot.msg_creator)
+        return
+    gh = args[0]
+    if len(args) > 1:
+        ryver = args[1]
+        if gh in bot.config.gh_users_map:
+            await chat.send_message(f"Warning: Overwriting `{gh}`'s associated Ryver user `{bot.config.gh_users_map[gh]}`.", bot.msg_creator)
+        bot.config.gh_users_map[gh] = ryver
+        await chat.send_message(f"GitHub username `{gh}` is now associated with user `{ryver}`.", bot.msg_creator)
+    else:
+        if gh not in bot.config.gh_users_map:
+            raise CommandError(f"GitHub username `{gh}` has no associated Ryver username.")
+        del bot.config.gh_users_map[gh]
+        await chat.send_message(f"GitHub username `{gh}`'s association has been removed.", bot.msg_creator)
+    bot.save_config()
+
+
+@command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
 async def command_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
     Send a message to a chat.
