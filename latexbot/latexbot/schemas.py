@@ -150,7 +150,7 @@ class Config:
                  "gh_updates_chat", "gh_issues_chat", "gh_users_map",
                  "calendar_id", "daily_message_time", "last_xkcd", "subreddit",
                  "aliases", "access_rules", "macros", "opinions", "command_prefixes",
-                 "tzinfo", "calendar")
+                 "tzinfo", "calendar", "read_only_chats")
 
     def __init__(self, admins: typing.List[int], tz_str: str, frc_team: int, welcome_message: str, #NOSONAR
                  access_denied_messages: typing.List[str], wdyt_yes_messages: typing.List[str],
@@ -159,7 +159,8 @@ class Config:
                  gh_issues_chat: pyryver.Chat, gh_users_map: typing.Dict[str, str], calendar_id: str,
                  daily_message_time: datetime.time, last_xkcd: int, subreddit: str, aliases: typing.List[Alias],
                  access_rules: typing.Dict[str, AccessRule], macros: typing.Dict[str, str],
-                 opinions: typing.List[Opinion], command_prefixes: typing.List[str]):
+                 opinions: typing.List[Opinion], command_prefixes: typing.List[str],
+                 read_only_chats: typing.Dict[pyryver.Chat, typing.List[str]]):
         self.admins = admins
         self.tz_str = tz_str
         self.frc_team = frc_team
@@ -183,6 +184,7 @@ class Config:
         self.macros = macros
         self.opinions = opinions
         self.command_prefixes = command_prefixes
+        self.read_only_chats = read_only_chats
         # Fields not directly loaded from JSON
         self.tzinfo = dateutil.tz.gettz(self.tz_str)
         # Handle the case of an empty env var
@@ -226,6 +228,7 @@ class ConfigSchema(Schema):
     macros = fields.Dict(fields.Str(), fields.Str(), missing={})
     opinions = fields.List(fields.Nested(OpinionSchema), missing=[])
     command_prefixes = fields.List(fields.Str(), missing=["@latexbot "], data_key="commandPrefixes")
+    read_only_chats = fields.Dict(ChatField, fields.List(fields.Str()), missing={}, data_key="readOnlyChats")
 
     @decorators.validates("tz_str")
     def validate_tz(self, value: str): # pylint: disable=no-self-use, missing-function-docstring

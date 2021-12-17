@@ -6,7 +6,7 @@ services:
     image: docker-registry.i.mm12.xyz/tex-slave:1.0.0
   latexbot:
     build: ./latexbot
-    image: docker-registry.i.mm12.xyz/latexbot:0.10.1
+    image: docker-registry.i.mm12.xyz/latexbot:0.11.0
     volumes:
       - type: volume
         source: latexbot-data

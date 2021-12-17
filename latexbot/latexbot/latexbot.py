@@ -558,11 +558,24 @@ class LatexBot:
                     muted = self.user_info[from_user.get_id()].muted
                     if muted is not None and to.get_id() in muted:
                         try:
-                            msg_obj = await pyryver.retry_until_available(to.get_message, msg.message_id, retry_delay=0.1)
+                            msg_obj = await pyryver.retry_until_available(to.get_message, msg.message_id, retry_delay=0.1, timeout=5.0)
                             await msg_obj.delete()
                         except TimeoutError:
                             pass
                         return
+                # See if chat is read-only and check roles if it is
+                if to in self.config.read_only_chats \
+                    and not any(from_user.get_id() in bot.roles.get(role, ())
+                                for role in self.config.read_only_chats[to]):
+                    try:
+                        text = msg.text
+                        msg_obj = await pyryver.retry_until_available(to.get_message, msg.message_id, retry_delay=0.1, timeout=5.0)
+                        await msg_obj.delete()
+                        await from_user.send_message(f"Sorry, your message to {to.get_name()} was deleted because {to.get_name()} is a read-only chat. Here is the removed message:", bot.msg_creator)
+                        await from_user.send_message(text, bot.msg_creator)
+                    except TimeoutError:
+                        pass
+                    return
 
                 if not is_dm and self.analytics is not None:
                     self.analytics.message(msg.text, from_user)
@@ -663,7 +676,7 @@ class LatexBot:
                         async with session.typing(to):
                             try:
                                 # Get the message object
-                                msg_obj = (await pyryver.retry_until_available(to.get_message, msg.message_id))
+                                msg_obj = (await pyryver.retry_until_available(to.get_message, msg.message_id, timeout=5.0))
                                 # Pretend to be the creator
                                 msg_creator = await self.get_replace_message_creator(msg_obj)
                                 await to.send_message(msg.text, msg_creator)

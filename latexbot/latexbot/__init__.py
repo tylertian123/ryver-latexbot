@@ -9,7 +9,7 @@ import sys
 from . import latexbot
 
 
-__version__ = "v0.10.2"
+__version__ = "v0.11.0"
 
 DATA_DIR = os.environ["LATEXBOT_DATA_DIR"]
 if not DATA_DIR.endswith("/"):

@@ -1552,6 +1552,82 @@ async def command_untimeout(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
     await chat.send_message(f"User {target_user.get_name()} (`{target_user.get_username()}`) has been re-enabled.", bot.msg_creator)
 
 
+@command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)
+async def command_read_only(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
+    """
+    Make this chat read-only or configure settings for read-only chats.
+
+    Only users with any of the specified roles may send messages in a read-only chat.
+    New messages sent by users without the proper role will be immediately
+    deleted (similar to the `mute` command), and a private message will be
+    sent to them explaining why their message was deleted.
+
+    Available sub-commands:
+    - `allow <role1>[,<role2>...]` - Make the chat read-only if it's not already, and add the specified roles to the list of roles allowed to send messages here.
+    - `clear [<role1>[,<role2>...]]` - Make this chat not read-only anymore or remove allowed roles for this read-only chat. Removing all allowed roles will also make this chat not read-only anymore.
+    - `list` - Output a list of read-only chats and their statuses.
+    ---
+    group: Administrative Commands
+    syntax: [sub-command] [args]
+    ----
+    > `@latexbot readOnly allow Foo,Bar` - Covert this chat into a read-only chat if it's not already, and allow users with role Foo or Bar to send messages here.
+    > `@latexbot readOnly clear Foo` - Remove Foo from the list of roles allowed to send messages here.
+    > `@latexbot readOnly list` - Get a list of all read-only chats and their statuses.
+    """
+    try:
+        args = shlex.split(args)
+    except ValueError as e:
+        raise CommandError(f"Invalid syntax: {e}") from e
+    if not args:
+        if chat not in bot.config.read_only_chats:
+            await chat.send_message("This chat is not read-only. Use `@latexbot readOnly allow <roles>` to make this a read-only chat.", bot.msg_creator)
+        else:
+            await chat.send_message(f"This chat is read-only. Allowed roles are: {', '.join(bot.config.read_only_chats[chat])}. Use `@latexbot readOnly clear` to remove allowed roles or convert this back to a regular chat.", bot.msg_creator)
+        return
+    if args[0] == "list":
+        if not bot.config.read_only_chats:
+            await chat.send_message("No chats have been configured as read-only.", bot.msg_creator)
+        else:
+            msg = "The following chats are read-only:\n"
+            for c, roles in bot.config.read_only_chats.items():
+                msg += f"* Name: {c.get_name()}"
+                if isinstance(c, pyryver.GroupChat) and c.get_nickname():
+                    msg += f" (+{c.get_nickname()})"
+                msg += f", Allowed Roles: {', '.join(roles)}\n"
+            await chat.send_message(msg, bot.msg_creator)
+    elif args[0] == "allow":
+        if len(args) < 2:
+            raise CommandError("Must specify one or more roles to allow.")
+        if chat not in bot.config.read_only_chats:
+            await chat.send_message("Converting this chat to read-only mode.", bot.msg_creator)
+            bot.config.read_only_chats[chat] = []
+        bot.config.read_only_chats[chat] = list(set(bot.config.read_only_chats[chat]) | set(args[1].split(",")))
+        await chat.send_message(f"Roles added. New list of roles allowed to send messages here: {', '.join(bot.config.read_only_chats[chat])}.", bot.msg_creator)
+        bot.save_config()
+    elif args[0] == "clear":
+        if chat not in bot.config.read_only_chats:
+            raise CommandError("This chat is not read-only.")
+        if len(args) < 2:
+            del bot.config.read_only_chats[chat]
+            await chat.send_message("This chat is now no longer read-only.", bot.msg_creator)
+        else:
+            existing = set(bot.config.read_only_chats[chat])
+            for role in args[1].split(","):
+                try:
+                    existing.remove(role)
+                except KeyError as e:
+                    await chat.send_message(f"Warning: Role {role} is not in the list of allowed users for this read-only chat.", bot.msg_creator)
+            if not existing:
+                del bot.config.read_only_chats[chat]
+                await chat.send_message("All allowed roles have been removed, so this chat is no longer read-only.", bot.msg_creator)
+            else:
+                bot.config.read_only_chats[chat] = list(existing)
+                await chat.send_message(f"Roles removed. New list of roles allowed to send messages here: {', '.join(bot.config.read_only_chats[chat])}.", bot.msg_creator)
+        bot.save_config()
+    else:
+        raise CommandError("Invalid sub-command. See help for the available sub-commands.")    
+
+
 @command(access_level=Command.ACCESS_LEVEL_EVERYONE)
 async def command_roles(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: pyryver.User, msg_id: str, args: str): # pylint: disable=unused-argument
     """
