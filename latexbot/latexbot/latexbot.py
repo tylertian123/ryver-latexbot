@@ -577,7 +577,7 @@ class LatexBot:
                         pass
                     return
 
-                if not is_dm and self.analytics is not None:
+                if not is_dm and self.analytics is not None and not is_edit:
                     self.analytics.message(msg.text, from_user)
 
                 try:
