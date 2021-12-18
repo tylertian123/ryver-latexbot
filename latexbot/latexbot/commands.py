@@ -2738,7 +2738,7 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
             except aiohttp.ClientResponseError as e:
                 logger.error(f"HTTP error: {e}")
         # Tips
-        await bot.config.messages_chat.send_message(f"Random latexbot tip of the day: {generate_random_tip()}", bot.msg_creator)
+        await bot.config.messages_chat.send_message(f"Random latexbot tip of the day: {generate_random_tip(bot)}", bot.msg_creator)
 
 
 @command(access_level=Command.ACCESS_LEVEL_ORG_ADMIN)

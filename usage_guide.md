@@ -3,10 +3,10 @@
 This guide will help you explore the various features of LaTeX Bot.
 It covers many important topics that you might find helpful.
 
-For more information about a particular command, do `@latexbot help <command>`. 
+For more information about a particular command, do `@latexbot help <command>`.
 This guide does not cover all commands, nor does it offer in-depth syntax info for most commands.
 
-This guide is for LaTeX Bot v0.8.5.
+This guide is for LaTeX Bot v0.11.0.
 
 # Table of Contents
 
@@ -17,6 +17,7 @@ This guide is for LaTeX Bot v0.8.5.
   - [Viewing XKCDs](#viewing-xkcds)
   - [Checkiday](#checkiday)
   - [Chat Macros](#chat-macros)
+    - [Managing Macros](#managing-macros)
   - [Playing Trivia](#playing-trivia)
     - [Starting a Game](#starting-a-game)
     - [Playing the Game](#playing-the-game)
@@ -28,6 +29,7 @@ This guide is for LaTeX Bot v0.8.5.
     - [Adding Keywords](#adding-keywords)
     - [Removing Keywords](#removing-keywords)
     - [Turning Keyword Watches Off](#turning-keyword-watches-off)
+    - [Suppressing Keyword Watches](#suppressing-keyword-watches)
     - [Setting Your Activity Timeout](#setting-your-activity-timeout)
   - [Keyword Watch JSON Format](#keyword-watch-json-format)
 - [The Blue Alliance (TBA) Integration](#the-blue-alliance-tba-integration)
@@ -40,14 +42,17 @@ This guide is for LaTeX Bot v0.8.5.
   - [Update Messages](#update-messages)
   - [Issues/Pull Requests to Ryver Tasks](#issuespull-requests-to-ryver-tasks)
 - [Admin Usage](#admin-usage)
-  - [Chat Admin Commands](#chat-admin-commands)
+  - [Managing Messages](#managing-messages)
     - [`deleteMessages`](#deletemessages)
     - [`moveMessages`](#movemessages)
       - [The Standard Chat Lookup Syntax](#the-standard-chat-lookup-syntax)
     - [`countMessagesSince`](#countmessagessince)
+  - [Muting](#muting)
+  - [Giving Timeouts](#giving-timeouts)
   - [Roles](#roles)
     - [Viewing Roles](#viewing-roles)
     - [Managing Roles](#managing-roles)
+  - [Read-Only Chats](#read-only-chats)
 - [Miscellaneous](#miscellaneous)
   - [Daily Message](#daily-message)
   - [Command Aliases](#command-aliases)
@@ -59,26 +64,24 @@ This guide is for LaTeX Bot v0.8.5.
     - [Analytics JSON Format](#analytics-json-format)
   - [Server](#server)
 - [Configuring LaTeX Bot](#configuring-latex-bot)
+  - [Advanced Config Items](#advanced-config-items)
+  - [Config File Format](#config-file-format)
 
 # Access Levels
 
-Each command in LaTeX Bot has a specific Access Level.
-This restricts access to sensitive commands such as admin tools. 
+First and foremost, each command in LaTeX Bot has a specific "Access Level". This restricts access to sensitive commands such as admin tools. If you're not an admin, then all you need to know is that (obviously) there are some commands that you don't have access to. If you are an admin, read on.
 
-The Access Levels are strictly hierarchical;
-i.e. normally, users with higher access levels can also access commands available to lower access levels.
-However, using [Access Rules](#access-rules), Org Admins can set exceptions for specific users and roles,
-allowing things such as giving a user/role access to a command they normally can't use, or disallowing them from using a command they normally would have access to.
-Access Rules can also be used to override the access level of a command.
+When you do `@latexbot help`, by default it will only list the commands you have access to (use `help all` to list all commands).
 
-Additionally, each access level is represented by a number internally; this is only used when configuring Access Rules.
-The access levels go like this:
+(The Access Levels are hierarchical; i.e. normally, users with higher access levels can also access commands available to lower access levels. However, using [Access Rules](#access-rules), Org Admins can set exceptions for specific users and roles, allowing things such as giving a user/role access to a command they normally can't use, or disallowing them from using a command they normally would have access to. Access Rules can also be used to override the access level of a command.)
+
+Additionally, each access level is represented by a number:
 
 1. Everyone - **0**
 2. Forum Admins (specific to each forum; a forum admin of one forum has a different Access Level in another forum) - **1**
 3. Org Admins - **2**
 4. Bot Admins (configurable in the config JSON; see [Configuring LaTeX Bot](#configuring-latex-bot)) - **3**
-5. The Maintainer - **4**
+5. The Maintainer (set via the `LATEXBOT_MAINTAINER_ID` environment variable) - **4**
 
 Where the level increases as you go down the list.
 
@@ -89,13 +92,14 @@ This section outlines commands and topics that are commonly used and (mostly) ac
 ## Rendering Math/Chemical Equations
 
 Of course, the primary function of LaTeX Bot is to render LaTeX.
-You can render an equation with the `render` command, 
+You can render an equation with the `render` command,
 e.g. `F(s) = \int_{0}^{\infty} f(t) e^{-st} dt` will render the definition of the Laplace Transform.
 
 LaTeX Bot also supports rendering chemical equations with `mhchem`.
-Render chemical equations with the `chem` command, 
+Render chemical equations with the `chem` command,
 e.g. `@latexbot render HCl_{(aq)} + NaOH_{(aq)} -> H2O_{(l)} + NaCl_{(aq)}` will render the neutralization of hydrochloric acid and sodium hydroxide.
-Note that the spaces before and after the plus signs and the arrow are required; 
+
+Note that the spaces before and after the plus signs and the arrow are required (blame the `mhchem` package, not me);
 if there are no spaces around the arrow, the equation cannot be rendered;
 if there are no spaces around the plus signs, they will get rendered as charges instead.
 
@@ -151,7 +155,7 @@ Additionally, macro names can only contain lowercase letters, numbers and unders
 
 Use `@latexbot macro delete <macro>` to delete a macro.
 
-By default no macros are defined. Here's a recommended list that you could add:
+By default no macros are defined. Here's a suggested list that you could add:
 
 - `.shrug` - &#x00af;\\\_(&#x30c4;)\_/&#x00af; (Make sure to escape the backslashes and underscores)
 - `.tableflip`, `.flip` - (&#x256f;&#xb0;&#x25a1;&#xb0;)&#x256f;&#xfe35; &#x253b;&#x2501;&#x253b;
@@ -169,7 +173,7 @@ Trivia is a multiplayer game ~~(if you don't have friends, singleplayer is fine 
 However, the game itself doesn't implement any rules, such as turns, etc.
 It only provides a scoreboard, so moderation is required if you want an organized game.
 
-Since LaTeX Bot v0.6.0, trivia games are no longer global and are now chat-local. 
+Since LaTeX Bot v0.6.0, trivia games are no longer global and are now chat-local.
 This means you can have two different games at the same time, as long as they're in different chats.
 (This includes forums, teams and private messages.) However, there can only be one trivia game per chat.
 
@@ -177,7 +181,7 @@ The `trivia` command can be used to play trivia, and it has a few sub-commands u
 
 ### Starting a Game
 
-The `start` sub-command can be used to start a trivia game. 
+The `start` sub-command can be used to start a trivia game.
 It accepts up to 3 optional arguments, the category, difficulty, and type (true/false or multiple-choice).
 For argument, you can do also choose `all` (which is the default).
 E.g. `@latexbot trivia start all hard true/false`
@@ -186,7 +190,7 @@ You can see all available categories with the `categories` sub-command (does not
 Categories may be specified by their number, or by full name (put it in quotes if it contains a space).
 Note that custom categories can only be specified by full name. You can also do `custom` for all custom categories.
 
-Note: Choosing `all` for the category does not include any custom questions. 
+Note: Choosing `all` for the category does not include any custom questions.
 To add or remove custom questions, see [Adding Custom Trivia Questions](#adding-custom-trivia-questions).
 
 For the difficulty, accepted options are `easy`, `medium`, `hard` or `all`.
@@ -296,7 +300,7 @@ To turn it back on, use `@latexbot watch on`.
 
 ### Suppressing Keyword Watches
 
-To temporarily suppress keyword watch notifications, use `@latexbot watch suppress <seconds>`. 
+To temporarily suppress keyword watch notifications, use `@latexbot watch suppress <seconds>`.
 This is completely separate from turning it off/on.
 To un-suppress without having to wait the full duration, simply suppress with a duration of 0, i.e. `@latexbot watch suppress 0`.
 
@@ -349,9 +353,9 @@ Here is a list of supported actions:
 Note that districts and events are specified by code and not name, e.g. "ONT", "ONOSH" (case-insensitive).
 
 For all commands, the word "team" can be abbreviated as "t", "district(s)" can be abbreviated as "d",
-"event(s)" can be abbreviated as "e", and "ranking(s)" can be abbreviated as "r". They are also 
+"event(s)" can be abbreviated as "e", and "ranking(s)" can be abbreviated as "r". They are also
 case-insensitive.
-E.g. `districtEvents` can be abbreviated as `dEvents`, `districtE` or `dE`. 
+E.g. `districtEvents` can be abbreviated as `dEvents`, `districtE` or `dE`.
 
 Some of these commands make use of *ranges*. A range can be one of the following:
 
@@ -373,7 +377,7 @@ See the deployment guide for more details.
 
 ## Checking Events
 
-Anyone can check the upcoming events using the `events` command. 
+Anyone can check the upcoming events using the `events` command.
 By default it only shows 3 events; you can give it a number, the number of events to show.
 
 ## Managing Events
@@ -399,7 +403,7 @@ Even though it might be faster, `addEvent` is still the preferred method if you 
 To delete an event, use the `deleteEvent` command and give it the name of the event you want to delete.
 
 Note: You do not have to give the full name of the event.
-E.g. `@latexbot deleteEvent Foo` will delete an event named "Foo Bar". 
+E.g. `@latexbot deleteEvent Foo` will delete an event named "Foo Bar".
 The name is case-insensitive.
 
 # GitHub Integration
@@ -441,16 +445,16 @@ Most of these will only result in an automatic comment to the Task, with the exc
 - Assignment/unassignment - The corresponding Ryver user will be assigned/unassigned to the Ryver Task
 - Labelling/Unlabelling - A tag with the same name as the label will be added/removed from the Task.
 
-Note that in order for assignment/unassignment to work, the assigned GitHub user's username must be present in `"ghUsersMap"` in the config.
-If the user does not exist in the config, there is no way to find the corresponding Ryver user, so it is not possible to assign/unassign the Ryver Task.
+Note that in order for assignment/unassignment to work, the assigned GitHub user's username must be present in `"ghUsersMap"` in the config. If the user does not exist in the config, there is no way to find the corresponding Ryver user, so it is not possible to assign/unassign the Ryver Task. By default, LaTeX Bot will also attempt to use the GitHub username to look up the corresponding Ryver user. To modify the GitHub-Ryver username associations (i.e. the `"ghUsersMap"`), use the command `@latexbot linkGitHub <gh-user> <ryver-user>`.
 
 # Admin Usage
 
 This section outlines commands and topics that are designed to help forum/org admins perform administrative tasks.
+LaTeX Bot offers powerful functions such as deleting or moving messages and muting users.
 
-## Chat Admin Commands
+## Managing Messages
 
-LaTeX Bot offers 3 admin commands that are useful for chat administration.
+LaTeX Bot offers 3 admin commands that are useful for managing messages in chat.
 They are:
 
 - `deleteMessages`
@@ -459,7 +463,7 @@ They are:
 
 ### `deleteMessages`
 
-`deleteMessages` deletes a number or a range of messages. 
+`deleteMessages` deletes a number or a range of messages.
 This is useful for tasks such as cleaning up an unwanted conversation so chats aren't cluttered.
 
 You can pass it a single number, the number of messages to delete, e.g. `@latexbot deleteMessages 10` will delete the last 10 messages.
@@ -481,7 +485,7 @@ This is done using the Standard Chat Lookup Syntax (see below section).
 
 The Standard Chat Lookup Syntax is specified by the following:
 
-```
+```text
 [(name|nickname|username|email|id|jid)=][+|@]<forum|team|user>
 ```
 
@@ -489,7 +493,7 @@ Essentially, this means that you have several ways of specifying a chat (include
 
 - Specify by name directly (e.g. "Programming"), without any additional specifiers.
 - Specify by name, nickname, username, email, ID or JID (e.g. "nickname=Prog", "id=1303314").
-  You can do this by putting the type of the query parameter before the value, with a = in between, as demonstrated in the examples. 
+  You can do this by putting the type of the query parameter before the value, with a = in between, as demonstrated in the examples.
   Note that if you're specifying by chat nickname, it is ok to have the chat nickname start with a + (e.g. "nickname=+Prog").
   This also applies to specifying by username and using an @.
 - Specify using the Ryver nickname linking syntax, putting a + before the nickname (e.g. "+Prog").
@@ -505,9 +509,23 @@ Due to implementation details, these queries are *case sensitive* and must match
 `countMessagesSince` is a helper command you can use with the other two commands to help you count messages.
 You can use it to count the number of messages since the beginning of a conversation, so you can then pass that number to one of the other admin commands.
 
-Use it by providing a search string, e.g. `@latexbot countMessagesSince some words`.
-The search string is case-insensitive.
-If it is surrounded with slashes, it is treated as a multiline regex.
+Use it by providing a search string, e.g. `@latexbot countMessagesSince some words`. The search string is case-insensitive. If it is surrounded with slashes, it is treated as a multiline regex, e.g. `/abc[de]+/`.
+
+## Muting
+
+The `mute` command can be used to temporarily "mute" a user. Since Ryver doesn't allow muting directly, this is achieved by deleting every single message sent by that user immediately. All commands and messages from the user will also be ignored.
+
+Use `@latexbot mute <username> [duration]` to mute a user in the current chat for a specified duration. If the duration is unspecified, they will be muted forever!
+
+Note that muted user information is not persistent. When LaTeX Bot reboots, all users will be unmuted.
+
+See `@latexbot help mute` for more information. Warning: Do **not** try to mute LaTeX Bot!
+
+## Giving Timeouts
+
+Have someone *really* disruptive? Use `@latexbot timeout <username> <duration>` to temporarily **disable** their account! *Please note that with the current implementation, if LaTeX Bot is restarted while a user is in time-out, that user's account will **not** be re-enabled after the period ends.*
+
+This command is very similar to `mute`, but the duration in seconds *must* be specified and cannot be greater than 1 day (86400 seconds).
 
 ## Roles
 
@@ -517,16 +535,16 @@ and LaTeX Bot will automatically replace it with mentions to the correct people.
 Using Roles and [Access Rules](#access-rules), you can also grant and restrict access to certain commands for particular roles.
 
 Role names work exactly like regular Ryver usernames.
-They are case-insensitive, and can only contain alphanumeric characters and underscores. 
+They are case-insensitive, and can only contain alphanumeric characters and underscores.
 
 If you want to send a literal `@RoleName` and not have LaTeX Bot expand it, you can prefix it with a backslash, e.g. `\@RoleName`.
 Because of Ryver's Markdown rendering, the backslash will not be visible in the final message.
 
 ### Viewing Roles
 
-You can view roles using the `roles` command. 
+You can view roles using the `roles` command.
 Without any arguments, `@latexbot roles` will show all roles and users with the roles.
-If you provide a username, it will show all the roles a user has, e.g. `@latexbot roles tylertian`. 
+If you provide a username, it will show all the roles a user has, e.g. `@latexbot roles tylertian`.
 Or, you can provide a role name to see all users with that role, e.g. `@latexbot roles Programmers`.
 
 ### Managing Roles
@@ -536,7 +554,7 @@ You can add or remove people from a role using the `addToRole` or `removeFromRol
 The two commands have the exact same syntax.
 You can specify multiple roles at once, separated by commas (but not spaces!), and multiple users separated by spaces.
 E.g. `@latexbot addToRole Foo,Bar @tylertian @spam @eggs` will give all 3 users both the Foo role and the Bar role.
-Note that the `@` before the username is entirely optional. 
+Note that the `@` before the username is entirely optional.
 
 Note that you don't have to first "create" a role to add people to it, as a role cannot exist without any users.
 `addToRole` automatically creates the role if it's not created yet.
@@ -546,9 +564,17 @@ Finally, you can delete a role entirely, removing all users from it using the `d
 Just like the other two, you can specify multiple roles at a time by separating them with commas.
 And of course, the only difference in syntax between them is that `deleteRoles` doesn't take any usernames.
 
+## Read-Only Chats
+
+Have a forum for announcements that you don't want spam in? Make it a read-only chat so only users with the specified roles can send messages there.
+
+The `@latexbot readOnly` command and its sub-commands can convert a chat into read-only mode. In read-only mode, only users with one of the specified roles may send messages on the chat; messages from all other users will be immediately deleted similarly to `mute`, and they will get a private message explaining why. Unlike `mute`, this setting is persistent; once a chat is in read-only mode, it stays as read-only until configured otherwise.
+
+To make a chat read-only or to add additional allowed roles, use `@latexbot readOnly allow <roles>`. To turn the chat back to normal, use `@latexbot readOnly clear`, or use `@latexbot readOnly clear <roles>` to remove roles from the allowed list. Once all allowed roles are removed, the chat will be automatically converted back to normal.
+
 # Miscellaneous
 
-This section covers features not covered in other sections.
+This section covers miscellaneous features not mentioned in other sections.
 
 ## Daily Message
 
@@ -560,6 +586,7 @@ Currently, the daily message consists of the following:
 - A list of events happening today ([Google Calendar Integration](#google-calendar-integration)), to the "announcements" chat
 - A new xkcd, if there is one, to the "messages" chat
 - Today's holidays, to the "messages" chat
+- A tip of the day
 
 Additionally, the cached data is also updated as part of this routine.
 See [Updating Cached Chat Data](#updating-cached-chat-data) for more info.
@@ -575,17 +602,19 @@ There currently exist no interface to change them directly; they must be changed
 See [Configuring LaTeX Bot](#configuring-latex-bot) for details.
 
 ## Command Aliases
+
 Command Aliases are a way to save typing time on commands you commonly use, or to create alternate names for commands.
 If you've used Git aliases, LaTeX Bot aliases work the exact same way.
 
-Aliases are expanded as if they were a command. 
+Aliases are expanded as if they were a command.
 E.g. If there is an alias `answer` &#8594; `trivia answer`, the command `@latexbot answer 1` is equivalent to `@latexbot trivia answer 1`.
-Aliases can be nested, but cannot be recursive.
+Aliases can refer to each other, but cannot be recursive, since that'd cause an infinite loop.
 E.g. If there is an alias `A` &#8594; `B`, but `B` is an alias itself to `C`, both `@latexbot A` and `@latexbot B` will be expanded to `@latexbot C`.
 However, if there is an alias `recursion` &#8594; `recursion`, it'll fail to evaluate as it results in an infinite loop.
 For more details on alias expansion rules, see `@latexbot help alias`.
 
 ### Managing Aliases
+
 Org Admins have permission to manage aliases through the `alias` command.
 
 When not given any arguments, the `alias` command will print out all aliases.
@@ -593,12 +622,13 @@ This is similar to how the aliases are shown at the end of the general help mess
 
 The alias command supports two actions, `create` and `delete`.
 Create an alias using `@latexbot alias create something "something else"`; note the usage of quotes.
-Delete an alias using `@latexbot alias delete`. 
+Delete an alias using `@latexbot alias delete`.
 
-For more details on the syntax of the command, see `@latexbot help alias`. 
+For more details on the syntax of the command, see `@latexbot help alias`.
 
 ## Command Prefixes
-Command prefixes let you customize what LaTeX Bot responds to. 
+
+Command prefixes let you customize what LaTeX Bot responds to.
 Instead of only responding to the default `@latexbot `, you can make it also respond to other names.
 
 For example, adding a command prefix of `!l ` will make it also respond to `!l <command>`.
@@ -608,19 +638,21 @@ Command prefixes can only be set through the config file at the moment.
 See [Configuring LaTeX Bot](#configuring-latex-bot) for details.
 
 ## Access Rules
+
 Access Rules are a powerful and flexible way of controlling access to commands.
 They work together with access levels to grant and restrict access.
 
 With Access Rules, Org Admins can control access to commands based on users or roles.
 E.g. Allowing users with a certain role to access a command even though their access level might not be high enough.
 
-Each command may have a number of access rules associated with it. 
+Each command may have a number of access rules associated with it.
 Here are all the types of access rules:
-  - `level`: Override the access level of the command.
-  - `allowUser`: Allow a user to access the command regardless of their access level.
-  - `disallowUser`: Disallow a user to access the command regardless of their access level.
-  - `allowRole`: Allow users with a role to access the command regardless of their access level.
-  - `disallowRole`: Disallow users with a role to access the command regardless of their access level.
+
+- `level`: Override the access level of the command.
+- `allowUser`: Allow a user to access the command regardless of their access level.
+- `disallowUser`: Disallow a user to access the command regardless of their access level.
+- `allowRole`: Allow users with a role to access the command regardless of their access level.
+- `disallowRole`: Disallow users with a role to access the command regardless of their access level.
 
 If there is a conflict between two rules, the more specific rule will come on top;
 i.e. rules about specific users are the most powerful, followed by rules about specific roles, and then followed by general access level rules.
@@ -631,6 +663,7 @@ To view and manage Access Rules, use the `accessRule` command or the [Configurat
 The syntax of the `accessRule` command is thoroughly explained in `@latexbot help accessRule`.
 
 ## Updating Cached Chat Data
+
 In order to make LaTeX Bot boot up faster, the internal data for users/teams/forums are all cached.
 This means that they're not automatically updated when a new user/team/forum is created, and as a result, LaTeX Bot may not recognize them.
 If this ever happens, run the `updateChats` command to update the cache.
@@ -639,13 +672,16 @@ This usually should not be necessary, as the chat cache is updated automatically
 However, disabling daily messages will also disable the automatic refreshes, so this command may be necessary.
 
 ## Analytics
+
 You can enable analytics to collect data about usage of LaTeX Bot commands, member message activity, etc.
 Enable it by setting the `LATEXBOT_ANALYTICS` env var to a value of `1`.
 When enabled, the data is accessible through the web server (see below).
 You can access the raw JSON of the data at `/analytics` and the Analytics Dashboard at `/analytics-ui`.
 
 ### Analytics JSON Format
+
 By default, the analytics data is stored in a JSON at `data/analytics.json`. The format of this file is as follows:
+
 ```json5
 {
   "commandUsage": { // Each command's usage by each user
@@ -667,15 +703,17 @@ By default, the analytics data is stored in a JSON at `data/analytics.json`. The
 ```
 
 ## Server
+
 In order to receive inbound webhooks for GitHub integration, LaTeX Bot hosts a web server.
 By default, this is on port 80, and can be changed by specifying the `LATEXBOT_SERVER_PORT` environment variable.
 In addition to receiving inbound webhooks, there are also these pages:
-  - `/config` - Config JSON (read).
-  - `/roles` - Roles JSON (read).
-  - `/trivia` - Custom Trivia Questions JSON (read).
-  - `/analytics` - Analytics Data JSON (if enabled) (read).
-  - `/analytics-ui` - Analytics Dashboard (if enabled) (read).
-  - `/message` - UI or POST endpoint for sending messages (write).
+
+- `/config` - Config JSON (read).
+- `/roles` - Roles JSON (read).
+- `/trivia` - Custom Trivia Questions JSON (read).
+- `/analytics` - Analytics Data JSON (if enabled) (read).
+- `/analytics-ui` - Analytics Dashboard (if enabled) (read).
+- `/message` - UI or POST endpoint for sending messages (write).
 
 To prevent information leakage, LaTeX Bot will ask for credentials when accessing some pages such as `/config` or `/message`.
 There are 3 usernames you can login with, `read`, `write` and `admin`, each with a different level of access.
@@ -683,17 +721,43 @@ For example, `/config` requires `read` or higher, but `/message` requires `/writ
 The passwords for each of these logins can be set with the environment variables `LATEXBOT_SERVER_AUTH_READ`, `LATEXBOT_SERVER_AUTH_WRITE`, and `LATEXBOT_SERVER_AUTH_ADMIN` respectively.
 If the password for a login is not set, it will be disabled.
 
-# Configuring LaTeX Bot
-This section outlines the usage of the config file.
+# Advanced Configuration & Customization
 
-The config file is a JSON-based configuration tool for LaTeX Bot.
-With it, Org Admins can edit settings that can't be edited through conventional means.
+This section outlines the usage of the config file. The config file is a JSON-based configuration tool for LaTeX Bot. The config file allows Org Admins or higher to configure advanced settings that don't have associated commands to edit them.
 
 Working with the configuration file is done through the `importConfig` and `exportConfig` commands.
 You can use `importConfig` by directly pasting the JSON data into the command as part of the message, or use a file attachment if it's over the character limit.
 Similarly, `exportConfig` will send the config in the message if it's < 1k characters, and otherwise attach it as a file.
 
+## Advanced Config Items
+
+The following items can *only* be changed through updating the config directly:
+
+- Bot Admins
+  - Bot Admins have the second highest access level (only below the maintainer). They have access to all administrative *and* developer commands.
+- Organization Time Zone
+  - Used for sending daily messages and other things.
+- Home Chat
+  - This is where LaTeX Bot sends its start-up message, among other things.
+- Announcements Chat
+  - This is where LaTeX Bot sends the daily event reminders.
+- Messages Chat
+  - This is where LaTeX Bot sends the daily XKCDs, holidays, and Reddit posts.
+- Google Calendar ID
+  - The calendar LaTeX Bot uses for events integration.
+- GitHub integration: Where GitHub updates are sent and where Issues are made into Ryver Tasks.
+- Customization:
+  - Command Prefixes
+    - These allow you to refer to LaTeX Bot using a prefix other than `@latexbot`. For example, a command prefix of `"lb "` would allow you to use LaTeX Bot as `lb <command>`.
+  - Custom responses for `whatDoYouThink` for specific items
+  - Custom positive/negative responses for `whatDoYouThink`
+  - Custom responses for when a user is denied access to a command
+- Last XKCD (although this one is set automatically)
+
+## Config File Format
+
 Below is an illustration of the JSON config file format:
+
 ```json5
 {
   "admins": [ // A list of org admins
@@ -759,23 +823,9 @@ Below is an illustration of the JSON config file format:
   "wdytNoMessages": [ // A list of possible negative responses for the whatDoYouThink command
     ":thumbsup:",
     // ...
-  ]
+  ],
+  "readOnlyChats": { // A mapping of chats that are read-only and their allowed roles
+    "name=Foo": ["Bar"],
+  },
 }
 ```
-
-Out of these configuration options, these can *only* be changed through updating the config directly:
-  - Bot Admins
-  - Organization Time Zone
-  - Home Chat
-  - Announcements Chat
-  - Messages Chat
-  - Google Calendar ID
-  - Last XKCD (although this one is set automatically)
-  - Command Prefixes
-  - Opinions
-
-Congratulations! You've read until the end!
-
-Hint: There's a hidden command in LaTeX Bot, `message`, that allows admins to send a message to anywhere they want (including user DMs).
-The syntax is `@latexbot message [(name|nickname|id|jid)=][+]<forum|team> <message>`.
-(The chat is specified using the [Standard Chat Lookup Syntax](#the-standard-chat-lookup-syntax).)

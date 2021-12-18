@@ -1,9 +1,15 @@
 import random
+import datetime
 
-def generate_random_tip():
+def generate_random_tip(bot: "latexbot.LatexBot"):
     """
     Pick a latexbot tip from the list of tips (which is nonconfigurable since laziness)
     """
+
+    curdate: datetime.datetime = bot.current_time()
+
+    if curdate.month == 12 and curdate.day == 31:
+        return "Did you know today is Matthew's birthday? What do you mean this isn't a tip?"
 
     TIPS = [
         "Did you know latexbot can run a trivia game? Try the `trivia` command!",
@@ -30,7 +36,8 @@ def generate_random_tip():
         "Try and `mute` me, I dare you.",
         "Need to _seriously_ censor someone? You can disable their account for up to a day with the `timeout` command.",
         "Don't like typing long command names? You can add aliases with the `alias` command.",
-        "Want to be benevolent and let the plebians use privileged commands? Setup access rules as horrendously complex as you desire with the `accessRule` command."
+        "Want to be benevolent and let the plebians use privileged commands? Setup access rules as horrendously complex as you desire with the `accessRule` command.",
+        "Moving messages but want to keep a few recent ones? `moveMessages` and `deleteMessages` both take ranges: `deleteMessages 4-10` keeps the latest few messages intact!"
     ]
 
     return random.choice(TIPS)
