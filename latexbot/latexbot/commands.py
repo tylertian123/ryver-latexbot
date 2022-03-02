@@ -2675,7 +2675,15 @@ async def command_daily_message(bot: "latexbot.LatexBot", chat: pyryver.Chat, us
         # Check calendar events
         if bot.config.calendar is not None:
             logger.info("Checking calendar events")
-            events = bot.config.calendar.get_today_events(now)
+            for retries in range(5):
+                try:
+                    events = bot.config.calendar.get_today_events(now)
+                except BrokenPipeError:
+                    logger.exception(f"Broken pipe error! (Attempts: {retries + 1})")
+                    # Re-raise if too many tries, so that the maintainer is notified
+                    if retries == 4:
+                        raise
+                    await asyncio.sleep(5)
             if events:
                 resp = "Reminder: These events are happening today:"
                 for event in events:
