@@ -1615,7 +1615,7 @@ async def command_read_only(bot: "latexbot.LatexBot", chat: pyryver.Chat, user: 
             for role in args[1].split(","):
                 try:
                     existing.remove(role)
-                except KeyError as e:
+                except KeyError:
                     await chat.send_message(f"Warning: Role {role} is not in the list of allowed users for this read-only chat.", bot.msg_creator)
             if not existing:
                 del bot.config.read_only_chats[chat]

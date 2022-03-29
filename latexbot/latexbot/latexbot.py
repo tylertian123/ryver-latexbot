@@ -564,7 +564,7 @@ class LatexBot:
                             pass
                         return
                 # See if chat is read-only and check roles if it is
-                if to in self.config.read_only_chats \
+                if to in self.config.read_only_chats and not from_user.is_admin() \
                     and not any(from_user.get_id() in bot.roles.get(role, ())
                                 for role in self.config.read_only_chats[to]):
                     try:
