@@ -16,8 +16,8 @@ def generate_random_tip(bot: "latexbot.LatexBot"):
         "latexbot can notify you when someone says a keyword of your choosing; see the `watch` command.",
         "Missing out on important messages? Try the keyword watch mechanism with the `watch` command!",
         "Confused about something in latexbot? Have you checked [the manual?](https://github.com/tylertian123/ryver-latexbot/blob/master/usage_guide.md)",
-        "Despite it literally being in the name of the bot, LaTeX rendering still remains the least used feature. Make your sysadmin happy by `render`-ing something today!",
-        "Don't like writing obtuse LaTeX expressions? Try the advanced™ simple expression support with `renderSimple sin(x^2)/4`",
+        "Despite it literally being in the name of the bot, LaTeX rendering still remains the least used feature. Make your sysadmin happy by `render` or `renderSimple`-ing something today!",
+        "Don't like writing obtuse LaTeX expressions? Try the high-tech™ simple expression support with `renderSimple sin(x^2)/4`",
         "Discussing chemical equations? latexbot can render them! Try `chem HCl + NaOH -> H2O + NaCl`",
         "Don't want to expand a chat macro? Prefix the dot with a backslash to supress it.",
         "Want to 'improve' your messages? Try adding a chat macro; the list is available in the `macro` command.",
@@ -37,8 +37,16 @@ def generate_random_tip(bot: "latexbot.LatexBot"):
         "Need to _seriously_ censor someone? You can disable their account for up to a day with the `timeout` command.",
         "Don't like typing long command names? You can add aliases with the `alias` command.",
         "Want to be benevolent and let the plebians use privileged commands? Setup access rules as horrendously complex as you desire with the `accessRule` command.",
-        "Moving messages but want to keep a few recent ones? `moveMessages` and `deleteMessages` both take ranges: `deleteMessages 4-10` keeps the latest few messages intact!"
+        "Moving messages but want to keep a few recent ones? `moveMessages` and `deleteMessages` both take ranges: `deleteMessages 4-10` keeps the latest few messages intact!",
+        "Want latexbot to give new members an introductory message? Try setting the `welcomeMessage` configuration option.",
+        "Is the GitHub integration not finding your Ryver account and as a result you feel horribly left out? Get an org admin to link them with the `linkGitHub` command!",
+        "Have a feature you desperately want in latexbot? Complain about it on [github](https://github.com/tylertian123/ryver-latexbot)."
     ]
 
-    return random.choice(TIPS)
+    if len(bot.recently_sent_tips) == len(TIPS):
+        bot.recently_sent_tips = []
+
+    idx, tip = random.choice([(j, x) for j, x in enumerate(TIPS) if j not in bot.recently_sent_tips])
+    bot.recently_sent_tips.append(idx)
+    return tip
 

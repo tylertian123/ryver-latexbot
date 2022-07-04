@@ -96,6 +96,8 @@ class LatexBot:
 
         self.timeout_tasks = {} # type: typing.Dict[int, asyncio.Task]
 
+        self.recently_sent_tips = [] # type: typing.List[int]
+
         global bot # pylint: disable=global-statement
         bot = self
 
