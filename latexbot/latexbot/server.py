@@ -1,14 +1,18 @@
 import aiohttp
 import functools
+import textwrap
 import hashlib
 import hmac
 import logging
 import json
+import sys
+import io
 import os
 import pyryver
 import time
 import typing
 from aiohttp import web
+from traceback import format_exc
 from markdownify import markdownify
 from . import github, latexbot, schemas, trivia, util # pylint: disable=unused-import
 
@@ -100,6 +104,8 @@ class Server:
         router.add_post("/github", self._github_handler)
         router.add_post("/message", self._message_handler_post)
         router.add_get("/message", self._message_handler_get)
+        router.add_post("/exec", self._admin_exec_post)
+        router.add_get("/exec", self._admin_exec_get)
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, "0.0.0.0", port)
@@ -382,6 +388,42 @@ class Server:
         """
         with open(os.path.join(RESOURCE_DIR, "message.html"), "r") as f:
             html = self.format_page(f.read(), "Send a message")
+        return web.Response(text=html, status=200, content_type="text/html")
+
+    @basicauth("admin", "Python Execute")
+    async def _admin_exec_post(self, req: web.Request):
+        """
+        Handle a POST request to /exec.
+        """
+        args = await req.post()
+        if "message" not in args:
+            return web.Response(body="Missing param", status=400)
+
+        # Temporarily replace stdout and stderr
+        stdout = sys.stdout
+        stderr = sys.stderr
+        # Merge stdout and stderr
+        try:
+            sys.stdout = io.StringIO()
+            sys.stderr = sys.stdout
+            exec("async def __aexec_func(bot):\n" + textwrap.indent(textwrap.dedent(args["message"]), "    "), globals(), locals()) # pylint: disable=exec-used
+            await locals()["__aexec_func"](self.bot)
+            output = sys.stdout.getvalue()
+        except Exception: # pylint: disable=broad-except
+            return web.Response(body=f"An exception has occurred:\n\n{format_exc()}\n", status=500)
+        finally:
+            sys.stdout = stdout
+            sys.stderr = stderr
+
+        return web.Response(body=output, status=200)
+
+    @basicauth("admin", "Python Execute")
+    async def _admin_exec_get(self, req: web.Request): # pylint: disable=unused-argument
+        """
+        Handle a GET request to /exec.
+        """
+        with open(os.path.join(RESOURCE_DIR, "exec.html"), "r") as f:
+            html = self.format_page(f.read(), "Execute code")
         return web.Response(text=html, status=200, content_type="text/html")
 
     @basicauth("read", "Analytics UI")
